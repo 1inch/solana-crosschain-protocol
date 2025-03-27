@@ -87,7 +87,7 @@ pub async fn test_escrow_creation_fail_with_zero_safety_deposit<T: EscrowVariant
     assert!(acc_lookup_result.is_none());
 }
 
-pub async fn test_escrow_creation_fail_with_insufficient_safety_deposit<T: EscrowVariant>(
+pub async fn test_escrow_creation_fail_with_insufficient_funds<T: EscrowVariant>(
     test_state: &mut TestStateBase<T>,
 ) {
     test_state.test_arguments.safety_deposit = WALLET_DEFAULT_LAMPORTS + 1;

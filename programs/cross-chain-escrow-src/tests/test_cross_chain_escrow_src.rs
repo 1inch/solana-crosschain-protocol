@@ -187,11 +187,8 @@ mod test_escrow_creation {
 
     #[test_context(TestState)]
     #[tokio::test]
-    async fn test_escrow_creation_fail_with_insufficient_safety_deposit(
-        test_state: &mut TestState,
-    ) {
-        common_escrow_tests::test_escrow_creation_fail_with_insufficient_safety_deposit(test_state)
-            .await
+    async fn test_escrow_creation_fail_with_insufficient_funds(test_state: &mut TestState) {
+        common_escrow_tests::test_escrow_creation_fail_with_insufficient_funds(test_state).await
     }
 
     #[test_context(TestState)]
