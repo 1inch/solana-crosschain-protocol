@@ -501,11 +501,304 @@ mod test_escrow_public_cancel {
 
     #[test_context(TestState)]
     #[tokio::test]
+    async fn test_public_cancel_by_creator(test_state: &mut TestState) {
+        let (escrow, escrow_ata) = create_escrow(test_state).await;
+        let public_cancel_ix = create_public_cancel_ix(
+            test_state,
+            &escrow,
+            &escrow_ata,
+            test_state.creator_wallet.keypair.pubkey(),
+        );
+
+        let transaction = Transaction::new_signed_with_payer(
+            &[public_cancel_ix],
+            Some(&test_state.payer_kp.pubkey()),
+            &[&test_state.creator_wallet.keypair, &test_state.payer_kp],
+            test_state.context.last_blockhash,
+        );
+
+        set_time(
+            &mut test_state.context,
+            test_state.init_timestamp
+                + DEFAULT_PERIOD_DURATION * PeriodType::PublicCancellation as u32,
+        );
+
+        let escrow_data_len = SrcProgram::get_escrow_data_len();
+        let rent_lamports = get_min_rent_for_size(&mut test_state.client, escrow_data_len).await;
+
+        let token_account_rent =
+            get_min_rent_for_size(&mut test_state.client, SplTokenAccount::LEN).await;
+
+        assert_eq!(
+            rent_lamports,
+            test_state.client.get_balance(escrow).await.unwrap()
+        );
+
+        assert_eq!(
+            get_token_balance(&mut test_state.context, &escrow_ata).await,
+            test_state.test_arguments.escrow_amount
+        );
+
+        let creator_token_balance_before = get_token_balance(
+            &mut test_state.context,
+            &test_state.creator_wallet.token_account,
+        )
+        .await;
+
+        let creator_balance_before = test_state
+            .client
+            .get_balance(test_state.creator_wallet.keypair.pubkey())
+            .await
+            .unwrap();
+
+        test_state
+            .client
+            .process_transaction(transaction)
+            .await
+            .expect_success();
+
+        assert_eq!(
+            get_token_balance(
+                &mut test_state.context,
+                &test_state.creator_wallet.token_account
+            )
+            .await,
+            creator_token_balance_before + test_state.test_arguments.escrow_amount
+        );
+
+        assert_eq!(
+            test_state
+                .client
+                .get_balance(test_state.creator_wallet.keypair.pubkey())
+                .await
+                .unwrap(),
+            creator_balance_before + rent_lamports + token_account_rent
+        );
+
+        // Assert accounts were closed
+        assert!(test_state
+            .client
+            .get_account(escrow)
+            .await
+            .unwrap()
+            .is_none());
+
+        // Assert escrow_ata was closed
+        assert!(test_state
+            .client
+            .get_account(escrow_ata)
+            .await
+            .unwrap()
+            .is_none());
+    }
+
+    #[test_context(TestState)]
+    #[tokio::test]
+    async fn test_public_cancel_by_any_account(test_state: &mut TestState) {
+        let (escrow, escrow_ata) = create_escrow(test_state).await;
+
+        let canceller = Keypair::new();
+        transfer_lamports(
+            &mut test_state.context,
+            WALLET_DEFAULT_LAMPORTS,
+            &test_state.payer_kp,
+            &canceller.pubkey(),
+        )
+        .await;
+        let public_cancel_ix =
+            create_public_cancel_ix(test_state, &escrow, &escrow_ata, canceller.pubkey());
+
+        let transaction = Transaction::new_signed_with_payer(
+            &[public_cancel_ix],
+            Some(&test_state.payer_kp.pubkey()),
+            &[&canceller, &test_state.payer_kp],
+            test_state.context.last_blockhash,
+        );
+
+        set_time(
+            &mut test_state.context,
+            test_state.init_timestamp
+                + DEFAULT_PERIOD_DURATION * PeriodType::PublicCancellation as u32,
+        );
+
+        let escrow_data_len = SrcProgram::get_escrow_data_len();
+        let rent_lamports = get_min_rent_for_size(&mut test_state.client, escrow_data_len).await;
+
+        let token_account_rent =
+            get_min_rent_for_size(&mut test_state.client, SplTokenAccount::LEN).await;
+
+        assert_eq!(
+            get_token_balance(&mut test_state.context, &escrow_ata).await,
+            test_state.test_arguments.escrow_amount
+        );
+
+        assert_eq!(
+            rent_lamports,
+            test_state.client.get_balance(escrow).await.unwrap()
+        );
+
+        let creator_token_balance_before = get_token_balance(
+            &mut test_state.context,
+            &test_state.creator_wallet.token_account,
+        )
+        .await;
+
+        let canceller_balance_before = test_state
+            .client
+            .get_balance(canceller.pubkey())
+            .await
+            .unwrap();
+
+        let creator_balance_before = test_state
+            .client
+            .get_balance(test_state.creator_wallet.keypair.pubkey())
+            .await
+            .unwrap();
+
+        test_state
+            .client
+            .process_transaction(transaction)
+            .await
+            .expect_success();
+
+        assert_eq!(
+            get_token_balance(
+                &mut test_state.context,
+                &test_state.creator_wallet.token_account
+            )
+            .await,
+            creator_token_balance_before + test_state.test_arguments.escrow_amount
+        );
+
+        assert_eq!(
+            test_state
+                .client
+                .get_balance(canceller.pubkey())
+                .await
+                .unwrap(),
+            creator_balance_before + test_state.test_arguments.safety_deposit
+        );
+
+        assert_eq!(
+            test_state
+                .client
+                .get_balance(test_state.creator_wallet.keypair.pubkey())
+                .await
+                .unwrap(),
+            creator_balance_before + token_account_rent + rent_lamports
+                - test_state.test_arguments.safety_deposit
+        );
+
+        assert_eq!(
+            test_state
+                .client
+                .get_balance(canceller.pubkey())
+                .await
+                .unwrap(),
+            canceller_balance_before + test_state.test_arguments.safety_deposit
+        );
+
+        // Assert accounts were closed
+        assert!(test_state
+            .client
+            .get_account(escrow)
+            .await
+            .unwrap()
+            .is_none());
+
+        // Assert escrow_ata was closed
+        assert!(test_state
+            .client
+            .get_account(escrow_ata)
+            .await
+            .unwrap()
+            .is_none());
+    }
+
+    #[test_context(TestState)]
+    #[tokio::test]
+    async fn test_public_cancel_fail_with_wrong_creator_ata(test_state: &mut TestState) {
+        let (escrow, escrow_ata) = create_escrow(test_state).await;
+        test_state.creator_wallet.token_account = test_state.recipient_wallet.token_account;
+
+        let canceller = Keypair::new();
+        transfer_lamports(
+            &mut test_state.context,
+            WALLET_DEFAULT_LAMPORTS,
+            &test_state.payer_kp,
+            &canceller.pubkey(),
+        )
+        .await;
+        let public_cancel_ix =
+            create_public_cancel_ix(test_state, &escrow, &escrow_ata, canceller.pubkey());
+
+        let transaction = Transaction::new_signed_with_payer(
+            &[public_cancel_ix],
+            Some(&test_state.payer_kp.pubkey()),
+            &[&canceller, &test_state.payer_kp],
+            test_state.context.last_blockhash,
+        );
+
+        set_time(
+            &mut test_state.context,
+            test_state.init_timestamp
+                + DEFAULT_PERIOD_DURATION * PeriodType::PublicCancellation as u32,
+        );
+
+        test_state
+            .expect_err_in_tx_meta(transaction, ERROR_CONSTRAINT_TOKENOWNER)
+            .await;
+    }
+
+    #[test_context(TestState)]
+    #[tokio::test]
+    async fn test_public_cancel_fail_with_wrong_escrow_ata(test_state: &mut TestState) {
+        let (escrow, _) = create_escrow(test_state).await;
+
+        test_state.test_arguments.escrow_amount += 1;
+        let (_, escrow_ata_2) = create_escrow(test_state).await;
+
+        let canceller = Keypair::new();
+        transfer_lamports(
+            &mut test_state.context,
+            WALLET_DEFAULT_LAMPORTS,
+            &test_state.payer_kp,
+            &canceller.pubkey(),
+        )
+        .await;
+        let public_cancel_ix =
+            create_public_cancel_ix(test_state, &escrow, &escrow_ata_2, canceller.pubkey());
+
+        let transaction = Transaction::new_signed_with_payer(
+            &[public_cancel_ix],
+            Some(&test_state.payer_kp.pubkey()),
+            &[&canceller, &test_state.payer_kp],
+            test_state.context.last_blockhash,
+        );
+
+        set_time(
+            &mut test_state.context,
+            test_state.init_timestamp
+                + DEFAULT_PERIOD_DURATION * PeriodType::PublicCancellation as u32,
+        );
+
+        test_state
+            .expect_err_in_tx_meta(transaction, ERROR_CONSTRAINT_TOKENOWNER)
+            .await;
+    }
+
+    #[test_context(TestState)]
+    #[tokio::test]
     async fn test_cannot_public_cancel_before_public_cancellation_start(
         test_state: &mut TestState,
     ) {
         let (escrow, escrow_ata) = create_escrow(test_state).await;
-        let public_cancel_ix = create_public_cancel_ix(test_state, &escrow, &escrow_ata);
+        let public_cancel_ix = create_public_cancel_ix(
+            test_state,
+            &escrow,
+            &escrow_ata,
+            test_state.payer_kp.pubkey(),
+        );
 
         let transaction = Transaction::new_signed_with_payer(
             &[public_cancel_ix],
@@ -538,6 +831,7 @@ mod local_helpers {
         test_state: &TestState,
         escrow: &Pubkey,
         escrow_ata: &Pubkey,
+        canceller: Pubkey,
     ) -> Instruction {
         let instruction_data =
             InstructionData::data(&cross_chain_escrow_src::instruction::PublicCancel {});
@@ -547,7 +841,7 @@ mod local_helpers {
             accounts: vec![
                 AccountMeta::new(test_state.creator_wallet.keypair.pubkey(), false),
                 AccountMeta::new_readonly(test_state.token, false),
-                AccountMeta::new_readonly(test_state.context.payer.pubkey(), true),
+                AccountMeta::new(canceller, true),
                 AccountMeta::new(*escrow, false),
                 AccountMeta::new(*escrow_ata, false),
                 AccountMeta::new(test_state.creator_wallet.token_account, false),
