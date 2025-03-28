@@ -1,0 +1,5 @@
+/// Discriminator size in bytes
+pub const DISCRIMINATOR: usize = 8;
+
+/// The time between the creation of the escrow and the start of the ability to rescue tokens, equal to 8 days.
+pub const RESCUE_DELAY: u32 = 691200;

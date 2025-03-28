@@ -1,0 +1,74 @@
+name: "Setup Environment"
+description: "Setup the environment for the workflow"
+inputs:
+  rustc-version:
+    description: "Rust version"
+    required: true
+    default: "1.85.0"
+  solana-version:
+    description: "Solana version"
+    required: true
+    default: "stable"
+
+runs:
+  using: "composite"
+  steps:
+    # Rust and Cargo
+    - name: Set up Rust
+      uses: dtolnay/rust-toolchain@master
+      with:
+        toolchain: ${{ inputs.rustc-version }}
+        components: clippy, rustfmt
+
+    - name: Cache Cargo dependencies
+      uses: Swatinem/rust-cache@v2
+
+    # Solana
+    - name: Cache Solana CLI
+      id: cache-solana
+      uses: actions/cache@v4
+      with:
+        path: ~/.local/share/solana
+        key: solana-${{ runner.os }}-${{ inputs.solana-version }}
+        restore-keys: solana-${{ runner.os }}-
+
+    - name: Install Solana CLI (if cache is not hit)
+      shell: bash
+      if: steps.cache-solana.outputs.cache-hit != 'true'
+      run: sh -c "$(curl -sSfL https://release.anza.xyz/${SOLANA_VERSION}/install)"
+      env:
+        SOLANA_VERSION: ${{ inputs.solana-version }}
+
+    - name: Add Solana CLI to PATH
+      shell: bash
+      run: echo "/home/runner/.local/share/solana/install/active_release/bin" >> $GITHUB_PATH
+
+    - name: Create Solana Wallet
+      shell: bash
+      run: solana-keygen new --no-bip39-passphrase
+
+    - name: Set up Zest
+      shell: bash
+      run: cargo install --git https://github.com/LimeChain/zest zest --force
+
+    # Anchor
+    - name: Install Anchor CLI
+      shell: bash
+      run: cargo install anchor-cli@=0.30.1
+
+    # Verifications
+    - name: Verify Yarn installation
+      shell: bash
+      run: yarn --version
+
+    - name: Verify Cargo installation
+      shell: bash
+      run: cargo version
+
+    - name: Verify Solana installation
+      shell: bash
+      run: solana --version
+
+    - name: Verify Anchor CLI installation
+      shell: bash
+      run: anchor --version

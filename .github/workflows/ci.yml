@@ -1,0 +1,42 @@
+name: CI
+
+on:
+  push:
+    branches: [ main ]
+  pull_request:
+jobs:
+  lint:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: ./.github/actions/setup-environment
+      - run: yarn lint
+
+  test:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: ./.github/actions/setup-environment
+      - run: yarn test
+
+  coverage:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: ./.github/actions/setup-environment
+      - run: yarn "coverage"
+      - run: |
+          COVERAGE=$(grep -E 'LH:|LF:' target/coverage/lcov | awk -F ':' '/LF/ { total += $2 } /LH/ {covered += $2} END { if (total > 0) print (covered / total) * 100; else print 0 }')
+          echo "Coverage: $COVERAGE%"
+          echo "COVERAGE=$COVERAGE" >> $GITHUB_ENV
+      - name: Post Coverage
+        if: github.event_name == 'pull_request'
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          PR_NUMBER="${{ github.event.pull_request.number }}"
+          COMMENT="### Code Coverage Report 📊
+          **Coverage:** ${COVERAGE}%
+          ✅ CI run completed successfully."
+
+          gh pr comment $PR_NUMBER --body "$COMMENT"
