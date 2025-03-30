@@ -34,6 +34,8 @@ use test_context::AsyncTestContext;
 pub const ERROR_INSUFFICIENT_FUNDS: &str = "Error: insufficient funds";
 pub const ERROR_ALREADY_USED: &str = "already in use";
 pub const ERROR_CONSTRAINT_TOKENOWNER: &str = "Error Code: ConstraintTokenOwner";
+pub const ERROR_CONSTRAINT_ASSOCIATED: &str = "Error Code: ConstraintAssociated";
+pub const ERROR_CONSTRAINT_SEEDS: &str = "Error Code: ConstraintSeeds";
 pub const ERROR_INVALID_TIME: &str = "Error Code: InvalidTime";
 
 pub const WALLET_DEFAULT_LAMPORTS: u64 = 10000000;
@@ -50,6 +52,7 @@ pub enum PeriodType {
 }
 
 pub const DEFAULT_ESCROW_AMOUNT: u64 = 100;
+pub const DEFAULT_RESCUE_AMOUNT: u64 = 100;
 pub const DEFAULT_SAFETY_DEPOSIT: u64 = 25;
 
 pub struct TestArgs {
@@ -62,6 +65,7 @@ pub struct TestArgs {
     pub src_cancellation_timestamp: u32,
     pub init_timestamp: u32,
     pub rescue_start: u32,
+    pub rescue_amount: u64,
 }
 
 fn get_default_testargs(nowsecs: u32) -> TestArgs {
@@ -75,6 +79,7 @@ fn get_default_testargs(nowsecs: u32) -> TestArgs {
         src_cancellation_timestamp: nowsecs + 10000,
         init_timestamp: nowsecs,
         rescue_start: nowsecs + RESCUE_DELAY + 100,
+        rescue_amount: DEFAULT_RESCUE_AMOUNT,
     }
 }
 
@@ -125,6 +130,13 @@ pub trait EscrowVariant {
         test_state: &TestStateBase<Self>,
         escrow: &Pubkey,
         escrow_ata: &Pubkey,
+    ) -> Instruction;
+    fn get_rescue_funds_ix(
+        test_state: &TestStateBase<Self>,
+        escrow: &Pubkey,
+        token_to_rescue: &Pubkey,
+        escrow_ata: &Pubkey,
+        recipient_ata: &Pubkey,
     ) -> Instruction;
 
     fn get_escrow_data_len() -> usize;
