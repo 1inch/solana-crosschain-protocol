@@ -676,13 +676,10 @@ pub async fn test_rescue_all_tokens_and_close_ata<T: EscrowVariant>(
     )
     .await;
 
-    let payer_kp = test_state.context.payer.insecure_clone();
     mint_spl_tokens(
         &mut test_state.context,
         &token_to_rescue,
         &escrow_ata,
-        &payer_kp.pubkey(),
-        &payer_kp,
         test_state.test_arguments.rescue_amount,
     )
     .await;
@@ -773,13 +770,10 @@ pub async fn test_rescue_part_of_tokens_and_not_close_ata<T: EscrowVariant>(
     )
     .await;
 
-    let payer_kp = test_state.context.payer.insecure_clone();
     mint_spl_tokens(
         &mut test_state.context,
         &token_to_rescue,
         &escrow_ata,
-        &payer_kp.pubkey(),
-        &payer_kp,
         test_state.test_arguments.rescue_amount,
     )
     .await;
@@ -851,13 +845,10 @@ pub async fn test_cannot_rescue_funds_before_rescue_delay_pass<T: EscrowVariant>
     )
     .await;
 
-    let payer_kp = test_state.context.payer.insecure_clone();
     mint_spl_tokens(
         &mut test_state.context,
         &token_to_rescue,
         &escrow_ata,
-        &payer_kp.pubkey(),
-        &payer_kp,
         test_state.test_arguments.rescue_amount,
     )
     .await;
@@ -908,13 +899,10 @@ pub async fn test_cannot_rescue_funds_by_non_recipient<T: EscrowVariant>(
     )
     .await;
 
-    let payer_kp = test_state.context.payer.insecure_clone();
     mint_spl_tokens(
         &mut test_state.context,
         &token_to_rescue,
         &escrow_ata,
-        &payer_kp.pubkey(),
-        &payer_kp,
         test_state.test_arguments.rescue_amount,
     )
     .await;
@@ -956,13 +944,10 @@ pub async fn test_cannot_rescue_funds_with_wrong_recipient_ata<T: EscrowVariant>
     let escrow_ata =
         initialize_spl_associated_account(&mut test_state.context, &token_to_rescue, &escrow).await;
 
-    let payer_kp = test_state.context.payer.insecure_clone();
     mint_spl_tokens(
         &mut test_state.context,
         &token_to_rescue,
         &escrow_ata,
-        &payer_kp.pubkey(),
-        &payer_kp,
         test_state.test_arguments.rescue_amount,
     )
     .await;

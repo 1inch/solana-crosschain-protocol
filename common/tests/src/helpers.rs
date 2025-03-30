@@ -165,8 +165,6 @@ where
         let creator_wallet = create_wallet(
             &mut context,
             &token,
-            &payer_kp,
-            &payer_kp,
             WALLET_DEFAULT_LAMPORTS,
             WALLET_DEFAULT_TOKENS,
         )
@@ -174,8 +172,6 @@ where
         let recipient_wallet = create_wallet(
             &mut context,
             &token,
-            &payer_kp,
-            &payer_kp,
             WALLET_DEFAULT_LAMPORTS,
             WALLET_DEFAULT_TOKENS,
         )
@@ -283,23 +279,19 @@ pub async fn create_escrow<T: EscrowVariant>(
 pub async fn create_wallet(
     ctx: &mut ProgramTestContext,
     token: &Pubkey,
-    mint_authority: &Keypair,
-    payer: &Keypair,
     fund_lamports: u64,
     mint_tokens: u64,
 ) -> Wallet {
     let dummy_kp = Keypair::new();
     let ata = initialize_spl_associated_account(ctx, token, &dummy_kp.pubkey()).await;
-    mint_spl_tokens(
+    mint_spl_tokens(ctx, token, &ata, mint_tokens).await;
+    transfer_lamports(
         ctx,
-        token,
-        &ata,
-        &mint_authority.pubkey(),
-        mint_authority,
-        mint_tokens,
+        fund_lamports,
+        &ctx.payer.insecure_clone(),
+        &dummy_kp.pubkey(),
     )
     .await;
-    transfer_lamports(ctx, fund_lamports, payer, &dummy_kp.pubkey()).await;
     Wallet {
         keypair: dummy_kp,
         token_account: ata,
@@ -326,20 +318,19 @@ pub async fn mint_spl_tokens(
     ctx: &mut ProgramTestContext,
     mint_pk: &Pubkey,
     dst: &Pubkey,
-    owner: &Pubkey,
-    signer: &Keypair,
     amount: u64,
 ) {
     let transfer_ix = spl_instruction::mint_to(
         &spl_program_id,
         mint_pk,
         dst,
-        owner, // mint authority, which should be ctx.payer.
-        &[&signer.pubkey()],
+        &ctx.payer.pubkey(),
+        &[&ctx.payer.pubkey()],
         amount,
     )
     .unwrap();
-    let signers: Vec<&Keypair> = vec![signer];
+
+    let signers: Vec<&Keypair> = vec![&ctx.payer];
     let client = &mut ctx.banks_client;
     client
         .process_transaction(Transaction::new_signed_with_payer(
