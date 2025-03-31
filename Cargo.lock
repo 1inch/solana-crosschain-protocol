@@ -573,9 +573,9 @@ dependencies = [
 
 [[package]]
 name = "async-trait"
-version = "0.1.85"
+version = "0.1.88"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "3f934833b4b7233644e5848f235df3f57ed8c80f1528a26c3dfa13d2147fa056"
+checksum = "e539d3fca749fcee5236ab05e93a52867dd549cc157c8cb7f99595f3cedffdb5"
 dependencies = [
  "proc-macro2",
  "quote",
@@ -727,7 +727,7 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "115e54d64eb62cdebad391c19efc9dce4981c690c85a33a12199d99bb9546fee"
 dependencies = [
  "borsh-derive 0.10.4",
- "hashbrown 0.12.3",
+ "hashbrown 0.13.2",
 ]
 
 [[package]]
@@ -1072,6 +1072,7 @@ version = "0.1.0"
 dependencies = [
  "anchor-lang",
  "anchor-spl",
+ "async-trait",
  "common",
  "solana-program",
  "solana-program-pack",
@@ -1608,7 +1609,7 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "33d852cb9b869c2a9b3df2f71a3074817f01e1844f839a144f5fcef059a4eb5d"
 dependencies = [
  "libc",
- "windows-sys 0.52.0",
+ "windows-sys 0.59.0",
 ]
 
 [[package]]
@@ -3525,7 +3526,7 @@ dependencies = [
  "errno",
  "libc",
  "linux-raw-sys",
- "windows-sys 0.52.0",
+ "windows-sys 0.59.0",
 ]
 
 [[package]]
@@ -5765,7 +5766,7 @@ dependencies = [
  "getrandom 0.2.15",
  "once_cell",
  "rustix",
- "windows-sys 0.52.0",
+ "windows-sys 0.59.0",
 ]
 
 [[package]]
@@ -6504,7 +6505,7 @@ version = "0.1.9"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "cf221c93e13a30d793f7645a0e7762c55d169dbb0a49671918a2319d289b10bb"
 dependencies = [
- "windows-sys 0.48.0",
+ "windows-sys 0.59.0",
 ]
 
 [[package]]

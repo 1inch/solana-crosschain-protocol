@@ -3,7 +3,9 @@ use common::error::EscrowError;
 use solana_program::{keccak::hash, program_error::ProgramError};
 use solana_sdk::{signature::Signer, transaction::Transaction};
 
-pub async fn test_escrow_creation<T: EscrowVariant>(test_state: &mut TestStateBase<T>) {
+pub async fn test_escrow_creation<T: EscrowVariant<S>, S: TokenVariant>(
+    test_state: &mut TestStateBase<T, S>,
+) {
     let (escrow, escrow_ata) = create_escrow(test_state).await;
 
     // Check token balances for the escrow account and creator are as expected.
@@ -29,8 +31,8 @@ pub async fn test_escrow_creation<T: EscrowVariant>(test_state: &mut TestStateBa
     );
 }
 
-pub async fn test_escrow_creation_fail_with_zero_amount<T: EscrowVariant>(
-    test_state: &mut TestStateBase<T>,
+pub async fn test_escrow_creation_fail_with_zero_amount<T: EscrowVariant<S>, S: TokenVariant>(
+    test_state: &mut TestStateBase<T, S>,
 ) {
     test_state.test_arguments.escrow_amount = 0;
     let (_, escrow_ata, create_ix) = create_escrow_data(test_state);
@@ -58,8 +60,11 @@ pub async fn test_escrow_creation_fail_with_zero_amount<T: EscrowVariant>(
     assert!(acc_lookup_result.is_none());
 }
 
-pub async fn test_escrow_creation_fail_with_zero_safety_deposit<T: EscrowVariant>(
-    test_state: &mut TestStateBase<T>,
+pub async fn test_escrow_creation_fail_with_zero_safety_deposit<
+    T: EscrowVariant<S>,
+    S: TokenVariant,
+>(
+    test_state: &mut TestStateBase<T, S>,
 ) {
     test_state.test_arguments.safety_deposit = 0;
     let (_, escrow_ata, create_ix) = create_escrow_data(test_state);
@@ -87,8 +92,11 @@ pub async fn test_escrow_creation_fail_with_zero_safety_deposit<T: EscrowVariant
     assert!(acc_lookup_result.is_none());
 }
 
-pub async fn test_escrow_creation_fail_with_insufficient_safety_deposit<T: EscrowVariant>(
-    test_state: &mut TestStateBase<T>,
+pub async fn test_escrow_creation_fail_with_insufficient_safety_deposit<
+    T: EscrowVariant<S>,
+    S: TokenVariant,
+>(
+    test_state: &mut TestStateBase<T, S>,
 ) {
     test_state.test_arguments.safety_deposit = WALLET_DEFAULT_LAMPORTS + 1;
     let (escrow, escrow_ata, create_ix) = create_escrow_data(test_state);
@@ -119,8 +127,11 @@ pub async fn test_escrow_creation_fail_with_insufficient_safety_deposit<T: Escro
     assert!(acc_lookup_result.is_none());
 }
 
-pub async fn test_escrow_creation_fail_with_insufficient_tokens<T: EscrowVariant>(
-    test_state: &mut TestStateBase<T>,
+pub async fn test_escrow_creation_fail_with_insufficient_tokens<
+    T: EscrowVariant<S>,
+    S: TokenVariant,
+>(
+    test_state: &mut TestStateBase<T, S>,
 ) {
     test_state.test_arguments.escrow_amount = WALLET_DEFAULT_TOKENS + 1;
     let (escrow, escrow_ata, create_ix) = create_escrow_data(test_state);
@@ -146,8 +157,11 @@ pub async fn test_escrow_creation_fail_with_insufficient_tokens<T: EscrowVariant
     assert!(acc_lookup_result.is_none());
 }
 
-pub async fn test_escrow_creation_fail_with_existing_order_hash<T: EscrowVariant>(
-    test_state: &mut TestStateBase<T>,
+pub async fn test_escrow_creation_fail_with_existing_order_hash<
+    T: EscrowVariant<S>,
+    S: TokenVariant,
+>(
+    test_state: &mut TestStateBase<T, S>,
 ) {
     let (_, _, create_ix) = create_escrow_data(test_state);
     let transaction = Transaction::new_signed_with_payer(
@@ -182,7 +196,9 @@ pub async fn test_escrow_creation_fail_with_existing_order_hash<T: EscrowVariant
         .await;
 }
 
-pub async fn test_withdraw<T: EscrowVariant>(test_state: &mut TestStateBase<T>) {
+pub async fn test_withdraw<T: EscrowVariant<S>, S: TokenVariant>(
+    test_state: &mut TestStateBase<T, S>,
+) {
     let (escrow, escrow_ata) = create_escrow(test_state).await;
     let transaction = T::withdraw_ix_to_signed_tx(
         T::get_withdraw_ix(test_state, &escrow, &escrow_ata),
@@ -256,8 +272,8 @@ pub async fn test_withdraw<T: EscrowVariant>(test_state: &mut TestStateBase<T>) 
         .is_none());
 }
 
-pub async fn test_withdraw_does_not_work_with_wrong_secret<T: EscrowVariant>(
-    test_state: &mut TestStateBase<T>,
+pub async fn test_withdraw_does_not_work_with_wrong_secret<T: EscrowVariant<S>, S: TokenVariant>(
+    test_state: &mut TestStateBase<T, S>,
 ) {
     let (escrow, escrow_ata) = create_escrow(test_state).await;
 
@@ -302,8 +318,11 @@ pub async fn test_withdraw_does_not_work_with_wrong_secret<T: EscrowVariant>(
     );
 }
 
-pub async fn test_withdraw_does_not_work_with_non_recipient<T: EscrowVariant>(
-    test_state: &mut TestStateBase<T>,
+pub async fn test_withdraw_does_not_work_with_non_recipient<
+    T: EscrowVariant<S>,
+    S: TokenVariant,
+>(
+    test_state: &mut TestStateBase<T, S>,
 ) {
     let (escrow, escrow_ata) = create_escrow(test_state).await;
 
@@ -327,8 +346,11 @@ pub async fn test_withdraw_does_not_work_with_non_recipient<T: EscrowVariant>(
         .expect_error((0, ProgramError::Custom(EscrowError::InvalidAccount.into())))
 }
 
-pub async fn test_withdraw_does_not_work_with_wrong_recipient_ata<T: EscrowVariant>(
-    test_state: &mut TestStateBase<T>,
+pub async fn test_withdraw_does_not_work_with_wrong_recipient_ata<
+    T: EscrowVariant<S>,
+    S: TokenVariant,
+>(
+    test_state: &mut TestStateBase<T, S>,
 ) {
     let (escrow, escrow_ata) = create_escrow(test_state).await;
 
@@ -343,8 +365,11 @@ pub async fn test_withdraw_does_not_work_with_wrong_recipient_ata<T: EscrowVaria
         .await;
 }
 
-pub async fn test_withdraw_does_not_work_with_wrong_escrow_ata<T: EscrowVariant>(
-    test_state: &mut TestStateBase<T>,
+pub async fn test_withdraw_does_not_work_with_wrong_escrow_ata<
+    T: EscrowVariant<S>,
+    S: TokenVariant,
+>(
+    test_state: &mut TestStateBase<T, S>,
 ) {
     let (escrow, _) = create_escrow(test_state).await;
 
@@ -360,8 +385,11 @@ pub async fn test_withdraw_does_not_work_with_wrong_escrow_ata<T: EscrowVariant>
         .await;
 }
 
-pub async fn test_withdraw_does_not_work_before_withdrawal_start<T: EscrowVariant>(
-    test_state: &mut TestStateBase<T>,
+pub async fn test_withdraw_does_not_work_before_withdrawal_start<
+    T: EscrowVariant<S>,
+    S: TokenVariant,
+>(
+    test_state: &mut TestStateBase<T, S>,
 ) {
     let (escrow, escrow_ata) = create_escrow(test_state).await;
 
@@ -379,8 +407,11 @@ pub async fn test_withdraw_does_not_work_before_withdrawal_start<T: EscrowVarian
         .await;
 }
 
-pub async fn test_withdraw_does_not_work_after_cancellation_start<T: EscrowVariant>(
-    test_state: &mut TestStateBase<T>,
+pub async fn test_withdraw_does_not_work_after_cancellation_start<
+    T: EscrowVariant<S>,
+    S: TokenVariant,
+>(
+    test_state: &mut TestStateBase<T, S>,
 ) {
     let (escrow, escrow_ata) = create_escrow(test_state).await;
 
@@ -398,8 +429,11 @@ pub async fn test_withdraw_does_not_work_after_cancellation_start<T: EscrowVaria
         .await;
 }
 
-pub async fn test_public_withdraw_fails_before_start_of_public_withdraw<T: EscrowVariant>(
-    test_state: &mut TestStateBase<T>,
+pub async fn test_public_withdraw_fails_before_start_of_public_withdraw<
+    T: EscrowVariant<S>,
+    S: TokenVariant,
+>(
+    test_state: &mut TestStateBase<T, S>,
 ) {
     let (escrow, escrow_ata) = create_escrow(test_state).await;
     let public_withdraw_ix = T::get_public_withdraw_ix(test_state, &escrow, &escrow_ata);
@@ -421,8 +455,11 @@ pub async fn test_public_withdraw_fails_before_start_of_public_withdraw<T: Escro
         .await;
 }
 
-pub async fn test_public_withdraw_fails_after_cancellation_start<T: EscrowVariant>(
-    test_state: &mut TestStateBase<T>,
+pub async fn test_public_withdraw_fails_after_cancellation_start<
+    T: EscrowVariant<S>,
+    S: TokenVariant,
+>(
+    test_state: &mut TestStateBase<T, S>,
 ) {
     let (escrow, escrow_ata) = create_escrow(test_state).await;
     let public_withdraw_ix = T::get_public_withdraw_ix(test_state, &escrow, &escrow_ata);
@@ -444,7 +481,9 @@ pub async fn test_public_withdraw_fails_after_cancellation_start<T: EscrowVarian
         .await;
 }
 
-pub async fn test_cancel<T: EscrowVariant>(test_state: &mut TestStateBase<T>) {
+pub async fn test_cancel<T: EscrowVariant<S>, S: TokenVariant>(
+    test_state: &mut TestStateBase<T, S>,
+) {
     let (escrow, escrow_ata) = create_escrow(test_state).await;
     let cancel_ix = T::get_cancel_ix(test_state, &escrow, &escrow_ata);
 
@@ -509,8 +548,8 @@ pub async fn test_cancel<T: EscrowVariant>(test_state: &mut TestStateBase<T>) {
     assert!(acc_lookup_result.is_none());
 }
 
-pub async fn test_cannot_cancel_by_non_creator<T: EscrowVariant>(
-    test_state: &mut TestStateBase<T>,
+pub async fn test_cannot_cancel_by_non_creator<T: EscrowVariant<S>, S: TokenVariant>(
+    test_state: &mut TestStateBase<T, S>,
 ) {
     let (escrow, escrow_ata) = create_escrow(test_state).await;
 
@@ -534,8 +573,8 @@ pub async fn test_cannot_cancel_by_non_creator<T: EscrowVariant>(
         .expect_error((0, ProgramError::Custom(EscrowError::InvalidAccount.into())))
 }
 
-pub async fn test_cannot_cancel_with_wrong_creator_ata<T: EscrowVariant>(
-    test_state: &mut TestStateBase<T>,
+pub async fn test_cannot_cancel_with_wrong_creator_ata<T: EscrowVariant<S>, S: TokenVariant>(
+    test_state: &mut TestStateBase<T, S>,
 ) {
     let (escrow, escrow_ata) = create_escrow(test_state).await;
 
@@ -557,8 +596,8 @@ pub async fn test_cannot_cancel_with_wrong_creator_ata<T: EscrowVariant>(
         .await;
 }
 
-pub async fn test_cannot_cancel_with_wrong_escrow_ata<T: EscrowVariant>(
-    test_state: &mut TestStateBase<T>,
+pub async fn test_cannot_cancel_with_wrong_escrow_ata<T: EscrowVariant<S>, S: TokenVariant>(
+    test_state: &mut TestStateBase<T, S>,
 ) {
     let (escrow, _) = create_escrow(test_state).await;
 
@@ -582,8 +621,8 @@ pub async fn test_cannot_cancel_with_wrong_escrow_ata<T: EscrowVariant>(
         .await;
 }
 
-pub async fn test_cannot_cancel_before_cancellation_start<T: EscrowVariant>(
-    test_state: &mut TestStateBase<T>,
+pub async fn test_cannot_cancel_before_cancellation_start<T: EscrowVariant<S>, S: TokenVariant>(
+    test_state: &mut TestStateBase<T, S>,
 ) {
     let (escrow, escrow_ata) = create_escrow(test_state).await;
     let cancel_ix = T::get_cancel_ix(test_state, &escrow, &escrow_ata);
@@ -607,24 +646,33 @@ pub async fn test_cannot_cancel_before_cancellation_start<T: EscrowVariant>(
         .await;
 }
 
-pub async fn test_escrow_creation_fail_if_finality_duration_overflows<T: EscrowVariant>(
-    test_state: &mut TestStateBase<T>,
+pub async fn test_escrow_creation_fail_if_finality_duration_overflows<
+    T: EscrowVariant<S>,
+    S: TokenVariant,
+>(
+    test_state: &mut TestStateBase<T, S>,
 ) {
     test_state.test_arguments.finality_duration = u32::MAX;
     let (_, _, tx_result) = create_escrow_tx(test_state).await;
     tx_result.expect_error((0, ProgramError::ArithmeticOverflow));
 }
 
-pub async fn test_escrow_creation_fail_if_withdrawal_duration_overflows<T: EscrowVariant>(
-    test_state: &mut TestStateBase<T>,
+pub async fn test_escrow_creation_fail_if_withdrawal_duration_overflows<
+    T: EscrowVariant<S>,
+    S: TokenVariant,
+>(
+    test_state: &mut TestStateBase<T, S>,
 ) {
     test_state.test_arguments.withdrawal_duration = u32::MAX;
     let (_, _, tx_result) = create_escrow_tx(test_state).await;
     tx_result.expect_error((0, ProgramError::ArithmeticOverflow));
 }
 
-pub async fn test_escrow_creation_fail_if_public_withdrawal_duration_overflows<T: EscrowVariant>(
-    test_state: &mut TestStateBase<T>,
+pub async fn test_escrow_creation_fail_if_public_withdrawal_duration_overflows<
+    T: EscrowVariant<S>,
+    S: TokenVariant,
+>(
+    test_state: &mut TestStateBase<T, S>,
 ) {
     test_state.test_arguments.public_withdrawal_duration = u32::MAX;
     let (_, _, tx_result) = create_escrow_tx(test_state).await;

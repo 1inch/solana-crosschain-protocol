@@ -19,11 +19,11 @@ use solana_program_test::{processor, tokio};
 use solana_sdk::{signature::Signer, transaction::Transaction};
 use test_context::test_context;
 
-type TestState = TestStateBase<SrcProgram>;
+type TestState<S> = TestStateBase<SrcProgram, S>;
 
 struct SrcProgram;
 
-impl EscrowVariant for SrcProgram {
+impl<S: TokenVariant> EscrowVariant<S> for SrcProgram {
     fn get_program_spec() -> (Pubkey, Option<BuiltinFunctionWithContext>) {
         (
             cross_chain_escrow_src::id(),
@@ -31,7 +31,7 @@ impl EscrowVariant for SrcProgram {
         )
     }
     fn get_public_withdraw_ix(
-        test_state: &TestState,
+        test_state: &TestState<S>,
         escrow: &Pubkey,
         escrow_ata: &Pubkey,
     ) -> Instruction {
@@ -58,7 +58,7 @@ impl EscrowVariant for SrcProgram {
 
         instruction
     }
-    fn withdraw_ix_to_signed_tx(ix: Instruction, test_state: &TestState) -> Transaction {
+    fn withdraw_ix_to_signed_tx(ix: Instruction, test_state: &TestState<S>) -> Transaction {
         Transaction::new_signed_with_payer(
             &[ix],
             Some(&test_state.payer_kp.pubkey()),
@@ -70,7 +70,7 @@ impl EscrowVariant for SrcProgram {
         )
     }
     fn get_cancel_ix(
-        test_state: &TestStateBase<SrcProgram>,
+        test_state: &TestState<S>,
         escrow: &Pubkey,
         escrow_ata: &Pubkey,
     ) -> Instruction {
@@ -95,7 +95,7 @@ impl EscrowVariant for SrcProgram {
     }
 
     fn get_create_ix(
-        test_state: &TestStateBase<SrcProgram>,
+        test_state: &TestState<S>,
         escrow: &Pubkey,
         escrow_ata: &Pubkey,
     ) -> Instruction {
@@ -123,7 +123,7 @@ impl EscrowVariant for SrcProgram {
                 AccountMeta::new(*escrow, false),
                 AccountMeta::new(*escrow_ata, false),
                 AccountMeta::new_readonly(spl_associated_token_id, false),
-                AccountMeta::new_readonly(spl_program_id, false),
+                AccountMeta::new_readonly(S::get_token_program_id(), false),
                 AccountMeta::new_readonly(rent_id, false),
                 AccountMeta::new_readonly(system_program_id, false),
             ],
@@ -132,7 +132,7 @@ impl EscrowVariant for SrcProgram {
         instruction
     }
     fn get_withdraw_ix(
-        test_state: &TestState,
+        test_state: &TestState<S>,
         escrow: &Pubkey,
         escrow_ata: &Pubkey,
     ) -> Instruction {
@@ -167,65 +167,79 @@ impl EscrowVariant for SrcProgram {
 mod test_escrow_creation {
     use super::*;
 
-    #[test_context(TestState)]
+    #[test_context(TestState<Token2020>)]
     #[tokio::test]
-    async fn test_escrow_creation(test_state: &mut TestState) {
+    async fn test_escrow_creation(test_state: &mut TestState<Token2020>) {
         common_escrow_tests::test_escrow_creation(test_state).await
     }
 
-    #[test_context(TestState)]
+    #[test_context(TestState<Token2022>)]
     #[tokio::test]
-    async fn test_escrow_creation_fail_with_zero_amount(test_state: &mut TestState) {
+    async fn test_escrow_creation_2022(test_state: &mut TestState<Token2022>) {
+        common_escrow_tests::test_escrow_creation(test_state).await
+    }
+
+    #[test_context(TestState<Token2020>)]
+    #[tokio::test]
+    async fn test_escrow_creation_fail_with_zero_amount(test_state: &mut TestState<Token2020>) {
         common_escrow_tests::test_escrow_creation_fail_with_zero_amount(test_state).await
     }
 
-    #[test_context(TestState)]
+    #[test_context(TestState<Token2020>)]
     #[tokio::test]
-    async fn test_escrow_creation_fail_with_zero_safety_deposit(test_state: &mut TestState) {
+    async fn test_escrow_creation_fail_with_zero_safety_deposit(
+        test_state: &mut TestState<Token2020>,
+    ) {
         common_escrow_tests::test_escrow_creation_fail_with_zero_safety_deposit(test_state).await
     }
 
-    #[test_context(TestState)]
+    #[test_context(TestState<Token2020>)]
     #[tokio::test]
     async fn test_escrow_creation_fail_with_insufficient_safety_deposit(
-        test_state: &mut TestState,
+        test_state: &mut TestState<Token2020>,
     ) {
         common_escrow_tests::test_escrow_creation_fail_with_insufficient_safety_deposit(test_state)
             .await
     }
 
-    #[test_context(TestState)]
+    #[test_context(TestState<Token2020>)]
     #[tokio::test]
-    async fn test_escrow_creation_fail_with_insufficient_tokens(test_state: &mut TestState) {
+    async fn test_escrow_creation_fail_with_insufficient_tokens(
+        test_state: &mut TestState<Token2020>,
+    ) {
         common_escrow_tests::test_escrow_creation_fail_with_insufficient_tokens(test_state).await
     }
 
-    #[test_context(TestState)]
+    #[test_context(TestState<Token2020>)]
     #[tokio::test]
-    async fn test_escrow_creation_fail_with_existing_order_hash(test_state: &mut TestState) {
+    async fn test_escrow_creation_fail_with_existing_order_hash(
+        test_state: &mut TestState<Token2020>,
+    ) {
         common_escrow_tests::test_escrow_creation_fail_with_existing_order_hash(test_state).await
     }
 
-    #[test_context(TestState)]
+    #[test_context(TestState<Token2020>)]
     #[tokio::test]
-    async fn test_escrow_creation_fail_if_finality_duration_overflows(test_state: &mut TestState) {
+    async fn test_escrow_creation_fail_if_finality_duration_overflows(
+        test_state: &mut TestState<Token2020>,
+    ) {
         common_escrow_tests::test_escrow_creation_fail_if_finality_duration_overflows(test_state)
             .await
     }
 
-    #[test_context(TestState)]
+    #[test_context(TestState<Token2020>)]
     #[tokio::test]
     async fn test_escrow_creation_fail_if_withdrawal_duration_overflows(
-        test_state: &mut TestState,
+        test_state: &mut TestState<Token2020>,
     ) {
         common_escrow_tests::test_escrow_creation_fail_if_withdrawal_duration_overflows(test_state)
             .await
     }
 
-    #[test_context(TestState)]
+    #[test_context(TestState<Token2020>)]
     #[tokio::test]
     async fn test_escrow_creation_fail_if_public_withdrawal_duration_overflows(
-        test_state: &mut TestState,
+        test_state: &mut TestState<Token2020>,
     ) {
         common_escrow_tests::test_escrow_creation_fail_if_public_withdrawal_duration_overflows(
             test_state,
@@ -233,10 +247,10 @@ mod test_escrow_creation {
         .await
     }
 
-    #[test_context(TestState)]
+    #[test_context(TestState<Token2020>)]
     #[tokio::test]
     pub async fn test_escrow_creation_fail_if_cancellation_duration_overflows(
-        test_state: &mut TestState,
+        test_state: &mut TestState<Token2020>,
     ) {
         test_state.test_arguments.cancellation_duration = u32::MAX;
         let (_, _, tx_result) = create_escrow_tx(test_state).await;
@@ -247,49 +261,57 @@ mod test_escrow_creation {
 mod test_escrow_withdraw {
     use super::*;
 
-    #[test_context(TestState)]
+    #[test_context(TestState<Token2020>)]
     #[tokio::test]
-    pub async fn test_withdraw(test_state: &mut TestStateBase<SrcProgram>) {
+    pub async fn test_withdraw(test_state: &mut TestState<Token2020>) {
         common_escrow_tests::test_withdraw(test_state).await
     }
 
-    #[test_context(TestState)]
+    #[test_context(TestState<Token2020>)]
     #[tokio::test]
     pub async fn test_withdraw_does_not_work_with_wrong_secret(
-        test_state: &mut TestStateBase<SrcProgram>,
+        test_state: &mut TestState<Token2020>,
     ) {
         common_escrow_tests::test_withdraw_does_not_work_with_wrong_secret(test_state).await
     }
 
-    #[test_context(TestState)]
+    #[test_context(TestState<Token2020>)]
     #[tokio::test]
     pub async fn test_withdraw_does_not_work_with_non_recipient(
-        test_state: &mut TestStateBase<SrcProgram>,
+        test_state: &mut TestState<Token2020>,
     ) {
         common_escrow_tests::test_withdraw_does_not_work_with_non_recipient(test_state).await
     }
 
-    #[test_context(TestState)]
+    #[test_context(TestState<Token2020>)]
     #[tokio::test]
-    async fn test_withdraw_does_not_work_with_wrong_recipient_ata(test_state: &mut TestState) {
+    async fn test_withdraw_does_not_work_with_wrong_recipient_ata(
+        test_state: &mut TestState<Token2020>,
+    ) {
         common_escrow_tests::test_withdraw_does_not_work_with_wrong_recipient_ata(test_state).await
     }
 
-    #[test_context(TestState)]
+    #[test_context(TestState<Token2020>)]
     #[tokio::test]
-    async fn test_withdraw_does_not_work_with_wrong_escrow_ata(test_state: &mut TestState) {
+    async fn test_withdraw_does_not_work_with_wrong_escrow_ata(
+        test_state: &mut TestState<Token2020>,
+    ) {
         common_escrow_tests::test_withdraw_does_not_work_with_wrong_escrow_ata(test_state).await
     }
 
-    #[test_context(TestState)]
+    #[test_context(TestState<Token2020>)]
     #[tokio::test]
-    async fn test_withdraw_does_not_work_before_withdrawal_start(test_state: &mut TestState) {
+    async fn test_withdraw_does_not_work_before_withdrawal_start(
+        test_state: &mut TestState<Token2020>,
+    ) {
         common_escrow_tests::test_withdraw_does_not_work_before_withdrawal_start(test_state).await
     }
 
-    #[test_context(TestState)]
+    #[test_context(TestState<Token2020>)]
     #[tokio::test]
-    async fn test_withdraw_does_not_work_after_cancellation_start(test_state: &mut TestState) {
+    async fn test_withdraw_does_not_work_after_cancellation_start(
+        test_state: &mut TestState<Token2020>,
+    ) {
         common_escrow_tests::test_withdraw_does_not_work_after_cancellation_start(test_state).await
     }
 }
@@ -297,51 +319,53 @@ mod test_escrow_withdraw {
 mod test_escrow_public_withdraw {
     use super::*;
 
-    #[test_context(TestState)]
+    #[test_context(TestState<Token2020>)]
     #[tokio::test]
     async fn test_public_withdraw_fails_before_start_of_public_withdraw(
-        test_state: &mut TestState,
+        test_state: &mut TestState<Token2020>,
     ) {
         common_escrow_tests::test_public_withdraw_fails_before_start_of_public_withdraw(test_state)
             .await
     }
 
-    #[test_context(TestState)]
+    #[test_context(TestState<Token2020>)]
     #[tokio::test]
-    async fn test_public_withdraw_fails_after_cancellation_start(test_state: &mut TestState) {
+    async fn test_public_withdraw_fails_after_cancellation_start(
+        test_state: &mut TestState<Token2020>,
+    ) {
         common_escrow_tests::test_public_withdraw_fails_after_cancellation_start(test_state).await
     }
 }
 mod test_escrow_cancel {
     use super::*;
 
-    #[test_context(TestState)]
+    #[test_context(TestState<Token2020>)]
     #[tokio::test]
-    async fn test_cancel(test_state: &mut TestState) {
+    async fn test_cancel(test_state: &mut TestState<Token2020>) {
         common_escrow_tests::test_cancel(test_state).await
     }
 
-    #[test_context(TestState)]
+    #[test_context(TestState<Token2020>)]
     #[tokio::test]
-    async fn test_cannot_cancel_by_non_creator(test_state: &mut TestState) {
+    async fn test_cannot_cancel_by_non_creator(test_state: &mut TestState<Token2020>) {
         common_escrow_tests::test_cannot_cancel_by_non_creator(test_state).await
     }
 
-    #[test_context(TestState)]
+    #[test_context(TestState<Token2020>)]
     #[tokio::test]
-    async fn test_cannot_cancel_with_wrong_creator_ata(test_state: &mut TestState) {
+    async fn test_cannot_cancel_with_wrong_creator_ata(test_state: &mut TestState<Token2020>) {
         common_escrow_tests::test_cannot_cancel_with_wrong_creator_ata(test_state).await
     }
 
-    #[test_context(TestState)]
+    #[test_context(TestState<Token2020>)]
     #[tokio::test]
-    async fn test_cannot_cancel_with_wrong_escrow_ata(test_state: &mut TestState) {
+    async fn test_cannot_cancel_with_wrong_escrow_ata(test_state: &mut TestState<Token2020>) {
         common_escrow_tests::test_cannot_cancel_with_wrong_escrow_ata(test_state).await
     }
 
-    #[test_context(TestState)]
+    #[test_context(TestState<Token2020>)]
     #[tokio::test]
-    async fn test_cannot_cancel_before_cancellation_start(test_state: &mut TestState) {
+    async fn test_cannot_cancel_before_cancellation_start(test_state: &mut TestState<Token2020>) {
         common_escrow_tests::test_cannot_cancel_before_cancellation_start(test_state).await
     }
 }
@@ -350,10 +374,10 @@ mod test_escrow_public_cancel {
     use super::*;
     use local_helpers::*;
 
-    #[test_context(TestState)]
+    #[test_context(TestState<Token2020>)]
     #[tokio::test]
     async fn test_cannot_public_cancel_before_public_cancellation_start(
-        test_state: &mut TestState,
+        test_state: &mut TestState<Token2020>,
     ) {
         let (escrow, escrow_ata) = create_escrow(test_state).await;
         let public_cancel_ix = create_public_cancel_ix(test_state, &escrow, &escrow_ata);
@@ -385,8 +409,8 @@ mod local_helpers {
     use solana_program::system_program::ID as system_program_id;
     use solana_sdk::signature::Signer;
 
-    pub fn create_public_cancel_ix(
-        test_state: &TestState,
+    pub fn create_public_cancel_ix<S>(
+        test_state: &TestState<S>,
         escrow: &Pubkey,
         escrow_ata: &Pubkey,
     ) -> Instruction {

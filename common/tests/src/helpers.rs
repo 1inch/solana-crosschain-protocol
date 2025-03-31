@@ -1,12 +1,17 @@
-use anchor_spl::associated_token::{
-    get_associated_token_address,
-    spl_associated_token_account::instruction::create_associated_token_account,
+use anchor_spl::associated_token::spl_associated_token_account::instruction as spl_ata_instruction;
+
+use anchor_spl::token_2022::spl_token_2022::{
+    extension::ExtensionType, instruction as spl2022_instruction, state::Mint as SPL2022_Mint,
+    ID as spl2022_program_id,
 };
+
+use anchor_spl::associated_token::spl_associated_token_account;
 use anchor_spl::token::spl_token::{
     instruction as spl_instruction,
     state::{Account as SplTokenAccount, Mint},
     ID as spl_program_id,
 };
+use async_trait::async_trait;
 use common::constants::RESCUE_DELAY;
 use solana_program::{
     instruction::Instruction,
@@ -52,6 +57,7 @@ pub enum PeriodType {
 pub const DEFAULT_ESCROW_AMOUNT: u64 = 100;
 pub const DEFAULT_SAFETY_DEPOSIT: u64 = 25;
 
+#[derive(Debug)]
 pub struct TestArgs {
     pub escrow_amount: u64,
     pub safety_deposit: u64,
@@ -80,7 +86,8 @@ fn get_default_testargs(nowsecs: u32) -> TestArgs {
 
 // The phantom type argument is supposed to encode different test state initialization logic for
 // src and dst variants.
-pub struct TestStateBase<T: ?Sized> {
+
+pub struct TestStateBase<T: ?Sized, S: ?Sized> {
     pub context: ProgramTestContext,
     pub client: BanksClient,
     pub secret: [u8; 32],
@@ -92,37 +99,272 @@ pub struct TestStateBase<T: ?Sized> {
     pub recipient_wallet: Wallet,
     pub test_arguments: TestArgs,
     pub init_timestamp: u32,
-    pd: PhantomData<T>,
+    _pd: (PhantomData<T>, PhantomData<S>),
+}
+
+#[async_trait]
+pub trait TokenVariant {
+    fn get_token_program_id() -> Pubkey;
+    async fn deploy_spl_token(context: &mut ProgramTestContext) -> Keypair;
+    async fn initialize_spl_associated_account(
+        context: &mut ProgramTestContext,
+        mint_pk: &Pubkey,
+        owner: &Pubkey,
+    ) -> Pubkey;
+    async fn mint_spl_tokens(
+        ctx: &mut ProgramTestContext,
+        mint_pk: &Pubkey,
+        dst: &Pubkey,
+        owner: &Pubkey,
+        signer: &Keypair,
+        amount: u64,
+    );
+}
+
+pub struct Token2020;
+pub struct Token2022;
+
+#[async_trait]
+impl TokenVariant for Token2022 {
+    fn get_token_program_id() -> Pubkey {
+        spl2022_program_id
+    }
+
+    async fn deploy_spl_token(ctx: &mut ProgramTestContext) -> Keypair {
+        // create mint account
+        let mint_keypair = Keypair::new();
+        let account_size = ExtensionType::try_calculate_account_len::<SPL2022_Mint>(&[]).unwrap();
+        let create_mint_acc_ix = system_instruction::create_account(
+            &ctx.payer.pubkey(),
+            &mint_keypair.pubkey(),
+            1_000_000_000,
+            account_size as u64,
+            &spl2022_program_id,
+        );
+
+        // initialize mint account
+        let initialize_mint_ix: Instruction = spl2022_instruction::initialize_mint(
+            &spl2022_program_id,
+            &mint_keypair.pubkey(),
+            &ctx.payer.pubkey(),
+            None,
+            8,
+        )
+        .unwrap();
+
+        let signers: Vec<&Keypair> = vec![&ctx.payer, &mint_keypair];
+
+        let client = &mut ctx.banks_client;
+        client
+            .process_transaction(Transaction::new_signed_with_payer(
+                &[create_mint_acc_ix, initialize_mint_ix],
+                Some(&ctx.payer.pubkey()),
+                &signers,
+                ctx.last_blockhash,
+            ))
+            .await
+            .unwrap();
+        mint_keypair
+    }
+
+    async fn initialize_spl_associated_account(
+        ctx: &mut ProgramTestContext,
+        mint_pubkey: &Pubkey,
+        account: &Pubkey,
+    ) -> Pubkey {
+        let ata = spl_associated_token_account::get_associated_token_address_with_program_id(
+            account,
+            mint_pubkey,
+            &spl2022_program_id,
+        );
+        let create_spl_acc_ix = spl_ata_instruction::create_associated_token_account(
+            &ctx.payer.pubkey(),
+            account,
+            mint_pubkey,
+            &spl2022_program_id,
+        );
+
+        let signers: Vec<&Keypair> = vec![&ctx.payer];
+
+        let client = &mut ctx.banks_client;
+        client
+            .process_transaction(Transaction::new_signed_with_payer(
+                &[create_spl_acc_ix],
+                Some(&ctx.payer.pubkey()),
+                &signers,
+                ctx.last_blockhash,
+            ))
+            .await
+            .unwrap();
+        ata
+    }
+
+    async fn mint_spl_tokens(
+        ctx: &mut ProgramTestContext,
+        mint_pk: &Pubkey,
+        dst: &Pubkey,
+        owner: &Pubkey,
+        signer: &Keypair,
+        amount: u64,
+    ) {
+        let transfer_ix = spl2022_instruction::mint_to(
+            &spl2022_program_id,
+            mint_pk,
+            dst,
+            owner, // mint authority, which should be ctx.payer.
+            &[&signer.pubkey()],
+            amount,
+        )
+        .unwrap();
+        let signers: Vec<&Keypair> = vec![signer];
+        let client = &mut ctx.banks_client;
+        client
+            .process_transaction(Transaction::new_signed_with_payer(
+                &[transfer_ix],
+                Some(&ctx.payer.pubkey()),
+                &signers,
+                ctx.last_blockhash,
+            ))
+            .await
+            .unwrap();
+    }
+}
+
+#[async_trait]
+impl TokenVariant for Token2020 {
+    fn get_token_program_id() -> Pubkey {
+        spl_program_id
+    }
+    async fn deploy_spl_token(ctx: &mut ProgramTestContext) -> Keypair {
+        // create mint account
+        let mint_keypair = Keypair::new();
+        let create_mint_acc_ix = system_instruction::create_account(
+            &ctx.payer.pubkey(),
+            &mint_keypair.pubkey(),
+            1_000_000_000, // Some lamports to pay rent
+            Mint::LEN as u64,
+            &spl_program_id,
+        );
+
+        // initialize mint account
+        let initialize_mint_ix: Instruction = spl_instruction::initialize_mint(
+            &spl_program_id,
+            &mint_keypair.pubkey(),
+            &ctx.payer.pubkey(),
+            Option::None,
+            8,
+        )
+        .unwrap();
+
+        let signers: Vec<&Keypair> = vec![&ctx.payer, &mint_keypair];
+
+        let client = &mut ctx.banks_client;
+        client
+            .process_transaction(Transaction::new_signed_with_payer(
+                &[create_mint_acc_ix, initialize_mint_ix],
+                Some(&ctx.payer.pubkey()),
+                &signers,
+                ctx.last_blockhash,
+            ))
+            .await
+            .unwrap();
+        mint_keypair
+    }
+
+    async fn initialize_spl_associated_account(
+        ctx: &mut ProgramTestContext,
+        mint_pubkey: &Pubkey,
+        account: &Pubkey,
+    ) -> Pubkey {
+        let ata = spl_associated_token_account::get_associated_token_address_with_program_id(
+            account,
+            mint_pubkey,
+            &spl_program_id,
+        );
+        let create_spl_acc_ix = spl_ata_instruction::create_associated_token_account(
+            &ctx.payer.pubkey(),
+            account,
+            mint_pubkey,
+            &spl_program_id,
+        );
+
+        let signers: Vec<&Keypair> = vec![&ctx.payer];
+
+        let client = &mut ctx.banks_client;
+        client
+            .process_transaction(Transaction::new_signed_with_payer(
+                &[create_spl_acc_ix],
+                Some(&ctx.payer.pubkey()),
+                &signers,
+                ctx.last_blockhash,
+            ))
+            .await
+            .unwrap();
+        ata
+    }
+
+    async fn mint_spl_tokens(
+        ctx: &mut ProgramTestContext,
+        mint_pk: &Pubkey,
+        dst: &Pubkey,
+        owner: &Pubkey,
+        signer: &Keypair,
+        amount: u64,
+    ) {
+        let transfer_ix = spl_instruction::mint_to(
+            &spl_program_id,
+            mint_pk,
+            dst,
+            owner, // mint authority, which should be ctx.payer.
+            &[&signer.pubkey()],
+            amount,
+        )
+        .unwrap();
+        let signers: Vec<&Keypair> = vec![signer];
+        let client = &mut ctx.banks_client;
+        client
+            .process_transaction(Transaction::new_signed_with_payer(
+                &[transfer_ix],
+                Some(&ctx.payer.pubkey()),
+                &signers,
+                ctx.last_blockhash,
+            ))
+            .await
+            .unwrap();
+    }
 }
 
 // A trait that is used to specify procedures during testing, that
 // has to be different between variants.
-pub trait EscrowVariant {
+pub trait EscrowVariant<S: TokenVariant> {
     fn get_program_spec() -> (Pubkey, Option<BuiltinFunctionWithContext>);
 
     // Required because withdraw transaction needs to be
     // signed differently in src and dst variants.
-    fn withdraw_ix_to_signed_tx(ix: Instruction, test_state: &TestStateBase<Self>) -> Transaction;
+    fn withdraw_ix_to_signed_tx(
+        ix: Instruction,
+        test_state: &TestStateBase<Self, S>,
+    ) -> Transaction;
 
     // All the instruction creation procedures differ slightly
     // between the variants.
     fn get_public_withdraw_ix(
-        test_state: &TestStateBase<Self>,
+        test_state: &TestStateBase<Self, S>,
         escrow: &Pubkey,
         escrow_ata: &Pubkey,
     ) -> Instruction;
     fn get_withdraw_ix(
-        test_state: &TestStateBase<Self>,
+        test_state: &TestStateBase<Self, S>,
         escrow: &Pubkey,
         escrow_ata: &Pubkey,
     ) -> Instruction;
     fn get_cancel_ix(
-        test_state: &TestStateBase<Self>,
+        test_state: &TestStateBase<Self, S>,
         escrow: &Pubkey,
         escrow_ata: &Pubkey,
     ) -> Instruction;
     fn get_create_ix(
-        test_state: &TestStateBase<Self>,
+        test_state: &TestStateBase<Self, S>,
         escrow: &Pubkey,
         escrow_ata: &Pubkey,
     ) -> Instruction;
@@ -130,11 +372,12 @@ pub trait EscrowVariant {
     fn get_escrow_data_len() -> usize;
 }
 
-impl<T> AsyncTestContext for TestStateBase<T>
+impl<T, S> AsyncTestContext for TestStateBase<T, S>
 where
-    T: EscrowVariant,
+    T: EscrowVariant<S>,
+    S: TokenVariant,
 {
-    async fn setup() -> TestStateBase<T> {
+    async fn setup() -> TestStateBase<T, S> {
         let (program_id, entry_point) = T::get_program_spec();
         let mut context: ProgramTestContext =
             start_context("escrow_contract", program_id, entry_point).await;
@@ -147,10 +390,10 @@ where
             .unwrap();
 
         set_time(&mut context, timestamp);
-        let token = deploy_spl_token(&mut context, 8).await.pubkey();
+        let token = S::deploy_spl_token(&mut context).await.pubkey();
         let secret = hash(b"default_secret").to_bytes();
         let payer_kp = context.payer.insecure_clone();
-        let creator_wallet = create_wallet(
+        let creator_wallet = create_wallet::<S>(
             &mut context,
             &token,
             &payer_kp,
@@ -159,7 +402,7 @@ where
             WALLET_DEFAULT_TOKENS,
         )
         .await;
-        let recipient_wallet = create_wallet(
+        let recipient_wallet = create_wallet::<S>(
             &mut context,
             &token,
             &payer_kp,
@@ -180,11 +423,12 @@ where
             recipient_wallet,
             init_timestamp: timestamp,
             test_arguments: get_default_testargs(timestamp),
-            pd: PhantomData,
+            _pd: (PhantomData, PhantomData),
         }
     }
 }
 
+#[derive(Debug)]
 pub struct Wallet {
     pub keypair: Keypair,
     pub token_account: Pubkey,
@@ -199,8 +443,8 @@ impl Clone for Wallet {
     }
 }
 
-pub fn create_escrow_data<T: EscrowVariant>(
-    test_state: &TestStateBase<T>,
+pub fn create_escrow_data<T: EscrowVariant<S>, S: TokenVariant>(
+    test_state: &TestStateBase<T, S>,
 ) -> (Pubkey, Pubkey, Instruction) {
     let (program_id, _) = T::get_program_spec();
     let (escrow_pda, _) = Pubkey::find_program_address(
@@ -230,15 +474,19 @@ pub fn create_escrow_data<T: EscrowVariant>(
         &program_id,
     );
 
-    let escrow_ata = get_associated_token_address(&escrow_pda, &test_state.token);
+    let escrow_ata = spl_associated_token_account::get_associated_token_address_with_program_id(
+        &escrow_pda,
+        &test_state.token,
+        &S::get_token_program_id(),
+    );
 
     let instruction: Instruction = T::get_create_ix(test_state, &escrow_pda, &escrow_ata);
 
     (escrow_pda, escrow_ata, instruction)
 }
 
-pub async fn create_escrow_tx<T: EscrowVariant>(
-    test_state: &mut TestStateBase<T>,
+pub async fn create_escrow_tx<T: EscrowVariant<S>, S: TokenVariant>(
+    test_state: &mut TestStateBase<T, S>,
 ) -> (Pubkey, Pubkey, Result<(), BanksClientError>) {
     let mut client = test_state.context.banks_client.clone();
     let (escrow, escrow_ata, create_ix) = create_escrow_data(test_state);
@@ -260,15 +508,32 @@ pub async fn create_escrow_tx<T: EscrowVariant>(
     )
 }
 
-pub async fn create_escrow<T: EscrowVariant>(
-    test_state: &mut TestStateBase<T>,
+pub async fn create_escrow<T: EscrowVariant<S>, S: TokenVariant>(
+    test_state: &mut TestStateBase<T, S>,
 ) -> (Pubkey, Pubkey) {
+    println!("{:?}", test_state.creator_wallet.token_account);
+    println!(
+        "{:?}",
+        spl_associated_token_account::get_associated_token_address_with_program_id(
+            &test_state.creator_wallet.keypair.pubkey(),
+            &test_state.token,
+            &spl_program_id
+        )
+    );
+    println!(
+        "{:?}",
+        spl_associated_token_account::get_associated_token_address_with_program_id(
+            &test_state.creator_wallet.keypair.pubkey(),
+            &test_state.token,
+            &spl2022_program_id
+        )
+    );
     let (escrow, escrow_ata, tx) = create_escrow_tx(test_state).await;
     tx.expect_success();
     (escrow, escrow_ata)
 }
 
-pub async fn create_wallet(
+pub async fn create_wallet<S: TokenVariant>(
     ctx: &mut ProgramTestContext,
     token: &Pubkey,
     mint_authority: &Keypair,
@@ -277,8 +542,8 @@ pub async fn create_wallet(
     mint_tokens: u64,
 ) -> Wallet {
     let dummy_kp = Keypair::new();
-    let ata = initialize_spl_associated_account(ctx, token, &dummy_kp.pubkey()).await;
-    mint_spl_tokens(
+    let ata = S::initialize_spl_associated_account(ctx, token, &dummy_kp.pubkey()).await;
+    S::mint_spl_tokens(
         ctx,
         token,
         &ata,
@@ -310,36 +575,6 @@ pub fn set_time(ctx: &mut ProgramTestContext, timestamp: u32) {
     });
 }
 
-pub async fn mint_spl_tokens(
-    ctx: &mut ProgramTestContext,
-    mint_pk: &Pubkey,
-    dst: &Pubkey,
-    owner: &Pubkey,
-    signer: &Keypair,
-    amount: u64,
-) {
-    let transfer_ix = spl_instruction::mint_to(
-        &spl_program_id,
-        mint_pk,
-        dst,
-        owner, // mint authority, which should be ctx.payer.
-        &[&signer.pubkey()],
-        amount,
-    )
-    .unwrap();
-    let signers: Vec<&Keypair> = vec![signer];
-    let client = &mut ctx.banks_client;
-    client
-        .process_transaction(Transaction::new_signed_with_payer(
-            &[transfer_ix],
-            Some(&ctx.payer.pubkey()),
-            &signers,
-            ctx.last_blockhash,
-        ))
-        .await
-        .unwrap();
-}
-
 pub async fn transfer_lamports(
     ctx: &mut ProgramTestContext,
     amount: u64,
@@ -360,76 +595,17 @@ pub async fn transfer_lamports(
         .unwrap();
 }
 
-pub async fn deploy_spl_token(ctx: &mut ProgramTestContext, decimals: u8) -> Keypair {
-    // create mint account
-    let mint_keypair = Keypair::new();
-    let create_mint_acc_ix = system_instruction::create_account(
-        &ctx.payer.pubkey(),
-        &mint_keypair.pubkey(),
-        1_000_000_000, // Some lamports to pay rent
-        Mint::LEN as u64,
-        &spl_program_id,
-    );
-
-    // initialize mint account
-    let initialize_mint_ix: Instruction = spl_instruction::initialize_mint(
-        &spl_program_id,
-        &mint_keypair.pubkey(),
-        &ctx.payer.pubkey(),
-        Option::None,
-        decimals,
-    )
-    .unwrap();
-
-    let signers: Vec<&Keypair> = vec![&ctx.payer, &mint_keypair];
-
-    let client = &mut ctx.banks_client;
-    client
-        .process_transaction(Transaction::new_signed_with_payer(
-            &[create_mint_acc_ix, initialize_mint_ix],
-            Some(&ctx.payer.pubkey()),
-            &signers,
-            ctx.last_blockhash,
-        ))
-        .await
-        .unwrap();
-    mint_keypair
-}
-
 pub async fn get_token_balance(ctx: &mut ProgramTestContext, account: &Pubkey) -> u64 {
+    use anchor_spl::token_2022::spl_token_2022::extension::StateWithExtensionsMut;
+    use anchor_spl::token_2022::spl_token_2022::state::Account as SplToken2022Account;
     let client = &mut ctx.banks_client;
-    let spl_account: SplTokenAccount = client
-        .get_packed_account_data::<SplTokenAccount>(*account)
-        .await
-        .unwrap();
-    spl_account.amount
+    let mut account_data = client.get_account(*account).await.unwrap().unwrap();
+    let state =
+        StateWithExtensionsMut::<SplToken2022Account>::unpack(&mut account_data.data).unwrap();
+    state.base.amount
 }
 
-pub async fn initialize_spl_associated_account(
-    ctx: &mut ProgramTestContext,
-    mint_pubkey: &Pubkey,
-    account: &Pubkey,
-) -> Pubkey {
-    let ata = get_associated_token_address(account, mint_pubkey);
-    let create_spl_acc_ix =
-        create_associated_token_account(&ctx.payer.pubkey(), account, mint_pubkey, &spl_program_id);
-
-    let signers: Vec<&Keypair> = vec![&ctx.payer];
-
-    let client = &mut ctx.banks_client;
-    client
-        .process_transaction(Transaction::new_signed_with_payer(
-            &[create_spl_acc_ix],
-            Some(&ctx.payer.pubkey()),
-            &signers,
-            ctx.last_blockhash,
-        ))
-        .await
-        .unwrap();
-    ata
-}
-
-impl<T> TestStateBase<T> {
+impl<T, S> TestStateBase<T, S> {
     pub async fn expect_err_in_tx_meta(&mut self, mut tx: Transaction, expectation: &str) {
         // retry at most 5 times.
         for _ in 0..5 {

@@ -13,3 +13,4 @@ solana-program-runtime = "1.18.26"
 solana-sdk = "1.18.26"
 test-context = "0.4.1"
 common = { path = "../" }
+async-trait = "0.1.88"
