@@ -1,6 +1,7 @@
 use anchor_lang::prelude::*;
 use anchor_lang::solana_program::keccak::hash;
-use anchor_spl::token::{Token, TokenAccount};
+
+use anchor_spl::token_interface::{TokenAccount, TokenInterface};
 
 use crate::constants::RESCUE_DELAY;
 use crate::error::EscrowError;
@@ -33,9 +34,9 @@ pub trait EscrowBase {
 pub fn create<'info>(
     escrow_size: usize,
     creator: &AccountInfo<'info>,
-    escrow_ata: &Account<'info, TokenAccount>,
-    creator_ata: &Account<'info, TokenAccount>,
-    token_program: &Program<'info, Token>,
+    escrow_ata: &InterfaceAccount<'info, TokenAccount>,
+    creator_ata: &InterfaceAccount<'info, TokenAccount>,
+    token_program: &Interface<'info, TokenInterface>,
     amount: u64,
     safety_deposit: u64,
     rescue_start: u32,
@@ -58,10 +59,10 @@ pub fn create<'info>(
     }
 
     // Transfer tokens from creator to escrow
-    anchor_spl::token::transfer(
+    anchor_spl::token_2022::transfer(
         CpiContext::new(
             token_program.to_account_info(),
-            anchor_spl::token::Transfer {
+            anchor_spl::token_2022::Transfer {
                 from: creator_ata.to_account_info(),
                 to: escrow_ata.to_account_info(),
                 authority: creator.to_account_info(),
@@ -69,16 +70,15 @@ pub fn create<'info>(
         ),
         amount,
     )?;
-
     Ok(())
 }
 
 pub fn withdraw<'info, T>(
     escrow: &Account<'info, T>,
     escrow_bump: u8,
-    escrow_ata: &Account<'info, TokenAccount>,
-    recipient_ata: &Account<'info, TokenAccount>,
-    token_program: &Program<'info, Token>,
+    escrow_ata: &InterfaceAccount<'info, TokenAccount>,
+    recipient_ata: &InterfaceAccount<'info, TokenAccount>,
+    token_program: &Interface<'info, TokenInterface>,
     creator: &AccountInfo<'info>,
     safety_deposit_recipient: &AccountInfo<'info>,
     secret: [u8; 32],
@@ -110,10 +110,10 @@ where
     ];
 
     // Transfer tokens from escrow to recipient
-    anchor_spl::token::transfer(
+    anchor_spl::token_2022::transfer(
         CpiContext::new_with_signer(
             token_program.to_account_info(),
-            anchor_spl::token::Transfer {
+            anchor_spl::token_2022::Transfer {
                 from: escrow_ata.to_account_info(),
                 to: recipient_ata.to_account_info(),
                 authority: escrow.to_account_info(),
@@ -124,9 +124,9 @@ where
     )?;
 
     // Close the escrow_ata account
-    anchor_spl::token::close_account(CpiContext::new_with_signer(
+    anchor_spl::token_2022::close_account(CpiContext::new_with_signer(
         token_program.to_account_info(),
-        anchor_spl::token::CloseAccount {
+        anchor_spl::token_2022::CloseAccount {
             account: escrow_ata.to_account_info(),
             destination: creator.to_account_info(),
             authority: escrow.to_account_info(),
@@ -143,9 +143,9 @@ where
 pub fn cancel<'info, T>(
     escrow: &Account<'info, T>,
     escrow_bump: u8,
-    escrow_ata: &Account<'info, TokenAccount>,
-    creator_ata: &Account<'info, TokenAccount>,
-    token_program: &Program<'info, Token>,
+    escrow_ata: &InterfaceAccount<'info, TokenAccount>,
+    creator_ata: &InterfaceAccount<'info, TokenAccount>,
+    token_program: &Interface<'info, TokenInterface>,
     creator: &AccountInfo<'info>,
     safety_deposit_recipient: &AccountInfo<'info>,
 ) -> Result<()>
@@ -170,10 +170,10 @@ where
     ];
 
     // Return tokens to creator
-    anchor_spl::token::transfer(
+    anchor_spl::token_2022::transfer(
         CpiContext::new_with_signer(
             token_program.to_account_info(),
-            anchor_spl::token::Transfer {
+            anchor_spl::token_2022::Transfer {
                 from: escrow_ata.to_account_info(),
                 to: creator_ata.to_account_info(),
                 authority: escrow.to_account_info(),
@@ -184,9 +184,9 @@ where
     )?;
 
     // Close the escrow_ata account
-    anchor_spl::token::close_account(CpiContext::new_with_signer(
+    anchor_spl::token_2022::close_account(CpiContext::new_with_signer(
         token_program.to_account_info(),
-        anchor_spl::token::CloseAccount {
+        anchor_spl::token_2022::CloseAccount {
             account: escrow_ata.to_account_info(),
             destination: creator.to_account_info(),
             authority: escrow.to_account_info(),
@@ -232,10 +232,10 @@ pub fn rescue_funds<'info>(
     safety_deposit: u64,
     rescue_start: u32,
     escrow_bump: u8,
-    escrow_ata: &Account<'info, TokenAccount>,
+    escrow_ata: &InterfaceAccount<'info, TokenAccount>,
     recipient: &AccountInfo<'info>,
-    recipient_ata: &Account<'info, TokenAccount>,
-    token_program: &Program<'info, Token>,
+    recipient_ata: &InterfaceAccount<'info, TokenAccount>,
+    token_program: &Interface<'info, TokenInterface>,
     rescue_amount: u64,
 ) -> Result<()> {
     let now = utils::get_current_timestamp()?;
