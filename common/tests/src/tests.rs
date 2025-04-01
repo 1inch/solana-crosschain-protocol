@@ -222,6 +222,7 @@ pub async fn test_withdraw<T: EscrowVariant<S>, S: TokenVariant>(
         test_state.init_timestamp + DEFAULT_PERIOD_DURATION * PeriodType::Withdrawal as u32,
     );
 
+    let token_account_rent = test_state.client.get_balance(escrow_ata).await.unwrap();
     test_state
         .client
         .process_transaction(transaction)
@@ -240,8 +241,6 @@ pub async fn test_withdraw<T: EscrowVariant<S>, S: TokenVariant>(
     .await;
 
     // Assert lamport for creator is as expected
-    let token_account_rent =
-        get_min_rent_for_size(&mut test_state.client, get_token_account_size()).await;
     let escrow_rent = get_min_rent_for_size(&mut test_state.client, T::get_escrow_data_len()).await;
 
     assert_eq!(
@@ -511,6 +510,7 @@ pub async fn test_cancel<T: EscrowVariant<S>, S: TokenVariant>(
         &mut test_state.context,
         test_state.init_timestamp + DEFAULT_PERIOD_DURATION * PeriodType::Cancellation as u32,
     );
+    let token_account_rent = test_state.client.get_balance(escrow_ata).await.unwrap();
     test_state
         .client
         .process_transaction(transaction)
@@ -532,8 +532,8 @@ pub async fn test_cancel<T: EscrowVariant<S>, S: TokenVariant>(
         creator_token_balance_after,
         creator_token_balance_before + test_state.test_arguments.escrow_amount
     );
-    let token_account_rent =
-        get_min_rent_for_size(&mut test_state.client, get_token_account_size()).await;
+
+    get_min_rent_for_size(&mut test_state.client, S::get_token_account_size()).await;
     let escrow_rent = get_min_rent_for_size(&mut test_state.client, T::get_escrow_data_len()).await;
 
     assert_eq!(

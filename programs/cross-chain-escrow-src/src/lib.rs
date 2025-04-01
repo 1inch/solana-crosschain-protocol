@@ -225,6 +225,7 @@ pub struct Create<'info> {
         payer = payer,
         associated_token::mint = token,
         associated_token::authority = escrow,
+        associated_token::token_program = token_program
     )]
     escrow_ata: Box<InterfaceAccount<'info, TokenAccount>>,
 
@@ -266,12 +267,14 @@ pub struct Withdraw<'info> {
         mut,
         associated_token::mint = token,
         associated_token::authority = escrow,
+        associated_token::token_program = token_program
     )]
     escrow_ata: Box<InterfaceAccount<'info, TokenAccount>>,
     #[account(
         mut,
         associated_token::mint = token,
         associated_token::authority = recipient,
+        associated_token::token_program = token_program
     )]
     recipient_ata: Box<InterfaceAccount<'info, TokenAccount>>,
     token_program: Interface<'info, TokenInterface>,
@@ -312,12 +315,14 @@ pub struct PublicWithdraw<'info> {
         mut,
         associated_token::mint = token,
         associated_token::authority = escrow,
+        associated_token::token_program = token_program
     )]
     escrow_ata: Box<InterfaceAccount<'info, TokenAccount>>,
     #[account(
         mut,
         associated_token::mint = token,
         associated_token::authority = recipient,
+        associated_token::token_program = token_program
     )]
     recipient_ata: Box<InterfaceAccount<'info, TokenAccount>>,
     token_program: Interface<'info, TokenInterface>,
@@ -353,12 +358,14 @@ pub struct Cancel<'info> {
         mut,
         associated_token::mint = token,
         associated_token::authority = escrow,
+        associated_token::token_program = token_program
     )]
     escrow_ata: Box<InterfaceAccount<'info, TokenAccount>>,
     #[account(
         mut,
         associated_token::mint = token,
         associated_token::authority = creator,
+        associated_token::token_program = token_program
     )]
     creator_ata: Box<InterfaceAccount<'info, TokenAccount>>,
     token_program: Interface<'info, TokenInterface>,
@@ -396,12 +403,14 @@ pub struct PublicCancel<'info> {
         mut,
         associated_token::mint = token,
         associated_token::authority = escrow,
+        associated_token::token_program = token_program
     )]
     escrow_ata: Box<InterfaceAccount<'info, TokenAccount>>,
     #[account(
         mut,
         associated_token::mint = token,
         associated_token::authority = creator,
+        associated_token::token_program = token_program
     )]
     creator_ata: Box<InterfaceAccount<'info, TokenAccount>>,
     token_program: Interface<'info, TokenInterface>,
@@ -436,12 +445,14 @@ pub struct RescueFunds<'info> {
         mut,
         associated_token::mint = token,
         associated_token::authority = escrow,
+        associated_token::token_program = token_program
     )]
     escrow_ata: Box<InterfaceAccount<'info, TokenAccount>>,
     #[account(
         mut,
         associated_token::mint = token,
         associated_token::authority = recipient,
+        associated_token::token_program = token_program
     )]
     recipient_ata: Box<InterfaceAccount<'info, TokenAccount>>,
     token_program: Interface<'info, TokenInterface>,
