@@ -185,7 +185,10 @@ pub async fn test_escrow_creation_fail_with_existing_order_hash<T: EscrowVariant
         .client
         .process_transaction(transaction)
         .await
-        .expect_error((0, ProgramError::Custom(SystemError::AccountAlreadyInUse as u32)));
+        .expect_error((
+            0,
+            ProgramError::Custom(SystemError::AccountAlreadyInUse as u32),
+        ));
 }
 
 pub async fn test_withdraw<T: EscrowVariant>(test_state: &mut TestStateBase<T>) {
