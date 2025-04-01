@@ -1,15 +1,15 @@
-use anchor_spl::associated_token::spl_associated_token_account::instruction as spl_ata_instruction;
-
-use anchor_spl::token_2022::spl_token_2022::{
-    extension::ExtensionType, instruction as spl2022_instruction, state::Mint as SPL2022_Mint,
-    ID as spl2022_program_id,
+use anchor_spl::associated_token::{
+    spl_associated_token_account, spl_associated_token_account::instruction as spl_ata_instruction,
 };
-
-use anchor_spl::associated_token::spl_associated_token_account;
 use anchor_spl::token::spl_token::{
     instruction as spl_instruction,
     state::{Account as SplTokenAccount, Mint},
     ID as spl_program_id,
+};
+use anchor_spl::token_2022::spl_token_2022::{
+    extension::ExtensionType, extension::StateWithExtensionsMut,
+    instruction as spl2022_instruction, state::Account as SplToken2022Account,
+    state::Mint as SPL2022_Mint, ID as spl2022_program_id,
 };
 use async_trait::async_trait;
 use common::constants::RESCUE_DELAY;
@@ -596,8 +596,6 @@ pub async fn transfer_lamports(
 }
 
 pub async fn get_token_balance(ctx: &mut ProgramTestContext, account: &Pubkey) -> u64 {
-    use anchor_spl::token_2022::spl_token_2022::extension::StateWithExtensionsMut;
-    use anchor_spl::token_2022::spl_token_2022::state::Account as SplToken2022Account;
     let client = &mut ctx.banks_client;
     let mut account_data = client.get_account(*account).await.unwrap().unwrap();
     let state =
