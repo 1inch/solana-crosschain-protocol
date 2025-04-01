@@ -25,9 +25,16 @@ pub async fn test_escrow_creation<T: EscrowVariant<S>, S: TokenVariant>(
     // Check the lamport balance of escrow account is as expected.
     let escrow_data_len = T::get_escrow_data_len();
     let rent_lamports = get_min_rent_for_size(&mut test_state.client, escrow_data_len).await;
+    let escrow_ata_lamports =
+        get_min_rent_for_size(&mut test_state.client, S::get_token_account_size()).await;
     assert_eq!(
         rent_lamports,
         test_state.client.get_balance(escrow).await.unwrap()
+    );
+
+    assert_eq!(
+        escrow_ata_lamports,
+        test_state.client.get_balance(escrow_ata).await.unwrap()
     );
 }
 

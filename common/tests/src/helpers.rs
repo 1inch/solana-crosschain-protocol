@@ -129,7 +129,14 @@ pub struct Token2022;
 #[async_trait]
 impl TokenVariant for Token2022 {
     fn get_token_account_size() -> usize {
-        ExtensionType::try_calculate_account_len::<SplToken2022Account>(&[]).unwrap()
+        // Compute account size with immutable owner extension enabled, as done by the Assocaited
+        // Token Account program.
+        //
+        //https://github.com/solana-program/associated-token-account/blob/main/program/src/processor.rs#L121
+        ExtensionType::try_calculate_account_len::<SplToken2022Account>(&[
+            ExtensionType::ImmutableOwner,
+        ])
+        .unwrap()
     }
 
     fn get_token_program_id() -> Pubkey {
