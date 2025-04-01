@@ -3,7 +3,7 @@ use anchor_lang::error::ErrorCode;
 use anchor_spl::token::spl_token::error::TokenError;
 use common::error::EscrowError;
 use solana_program::{keccak::hash, program_error::ProgramError};
-use solana_sdk::{signature::Signer, transaction::Transaction};
+use solana_sdk::{signature::Signer, system_instruction::SystemError, transaction::Transaction};
 
 pub async fn test_escrow_creation<T: EscrowVariant>(test_state: &mut TestStateBase<T>) {
     let (escrow, escrow_ata) = create_escrow(test_state).await;
@@ -185,7 +185,7 @@ pub async fn test_escrow_creation_fail_with_existing_order_hash<T: EscrowVariant
         .client
         .process_transaction(transaction)
         .await
-        .expect_error((0, ProgramError::from(TokenError::AlreadyInUse)));
+        .expect_error((0, ProgramError::Custom(SystemError::AccountAlreadyInUse as u32)));
 }
 
 pub async fn test_withdraw<T: EscrowVariant>(test_state: &mut TestStateBase<T>) {
