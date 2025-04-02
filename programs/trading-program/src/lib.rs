@@ -8,9 +8,15 @@ use borsh::BorshDeserialize;
 
 use common::constants;
 mod utils;
+use cross_chain_escrow_dst::{
+    cpi::{accounts::Create as CreateDst, create as create_dst},
+    program::CrossChainEscrowDst,
+};
+use cross_chain_escrow_src::{
+    cpi::{accounts::Create as CreateSrc, create as create_src},
+    program::CrossChainEscrowSrc,
+};
 pub use utils::{error::TradingProgramError, verify_order_signature};
-use cross_chain_escrow_dst::{cpi::{create as create_dst, accounts::Create as CreateDst}, program::CrossChainEscrowDst};
-use cross_chain_escrow_src::{cpi::{create as create_src, accounts::Create as CreateSrc}, program::CrossChainEscrowSrc};
 
 declare_id!("5ahQ9NWeDmVKG3dJza1ZrFRoJ9wbEUM271HCvfHpAqFC");
 
@@ -23,7 +29,11 @@ pub mod trading_program {
         Ok(())
     }
 
-    pub fn init_escrow_dst(ctx: Context<InitEscrowDst>, src_cancellation_timestamp: u32, rescue_start: u32) -> Result<()> {
+    pub fn init_escrow_dst(
+        ctx: Context<InitEscrowDst>,
+        src_cancellation_timestamp: u32,
+        rescue_start: u32,
+    ) -> Result<()> {
         // 0 is the index of the instruction in the transaction
         let (order_signer, order) = verify_order_signature(&ctx.accounts.ix_sysvar, 0)?;
         // Verify order data matches accounts
@@ -44,7 +54,10 @@ pub mod trading_program {
                     creator_ata: ctx.accounts.trading_account_tokens.to_account_info(),
                     escrow: ctx.accounts.escrow.to_account_info(),
                     escrow_ata: ctx.accounts.escrow_tokens.to_account_info(),
-                    associated_token_program: ctx.accounts.associated_token_program.to_account_info(),
+                    associated_token_program: ctx
+                        .accounts
+                        .associated_token_program
+                        .to_account_info(),
                     token_program: ctx.accounts.token_program.to_account_info(),
                     rent: ctx.accounts.rent.to_account_info(),
                     system_program: ctx.accounts.system_program.to_account_info(),
@@ -69,7 +82,11 @@ pub mod trading_program {
         Ok(())
     }
 
-    pub fn init_escrow_src(ctx: Context<InitEscrowSrc>, src_cancellation_timestamp: u32, rescue_start: u32) -> Result<()> {
+    pub fn init_escrow_src(
+        ctx: Context<InitEscrowSrc>,
+        src_cancellation_timestamp: u32,
+        rescue_start: u32,
+    ) -> Result<()> {
         // 0 is the index of the instruction in the transaction
         let (order_signer, order) = verify_order_signature(&ctx.accounts.ix_sysvar, 0)?;
         // Verify order data matches accounts
@@ -90,7 +107,10 @@ pub mod trading_program {
                     creator_ata: ctx.accounts.trading_account_tokens.to_account_info(),
                     escrow: ctx.accounts.escrow.to_account_info(),
                     escrow_ata: ctx.accounts.escrow_tokens.to_account_info(),
-                    associated_token_program: ctx.accounts.associated_token_program.to_account_info(),
+                    associated_token_program: ctx
+                        .accounts
+                        .associated_token_program
+                        .to_account_info(),
                     token_program: ctx.accounts.token_program.to_account_info(),
                     rent: ctx.accounts.rent.to_account_info(),
                     system_program: ctx.accounts.system_program.to_account_info(),
