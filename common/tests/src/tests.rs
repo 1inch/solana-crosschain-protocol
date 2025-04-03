@@ -147,17 +147,9 @@ pub async fn test_withdraw<T: EscrowVariant>(test_state: &mut TestStateBase<T>) 
     let (escrow, escrow_ata) = create_escrow(test_state).await;
     let transaction = T::get_withdraw_tx(test_state, &escrow, &escrow_ata);
 
-    let creator_balance_before = test_state
-        .client
-        .get_balance(test_state.creator_wallet.keypair.pubkey())
-        .await
-        .unwrap();
-
-    let recipient_token_balance_before = get_token_balance(
-        &mut test_state.context,
-        &test_state.recipient_wallet.token_account,
-    )
-    .await;
+    let token_account_rent =
+        get_min_rent_for_size(&mut test_state.client, get_token_account_size()).await;
+    let escrow_rent = get_min_rent_for_size(&mut test_state.client, T::get_escrow_data_len()).await;
 
     set_time(
         &mut test_state.context,
@@ -165,37 +157,20 @@ pub async fn test_withdraw<T: EscrowVariant>(test_state: &mut TestStateBase<T>) 
     );
 
     test_state
-        .client
-        .process_transaction(transaction)
-        .await
-        .expect_success();
-
-    let creator_balance_after = test_state
-        .client
-        .get_balance(test_state.creator_wallet.keypair.pubkey())
-        .await
-        .unwrap();
-    let recipient_token_balance_after = get_token_balance(
-        &mut test_state.context,
-        &test_state.recipient_wallet.token_account,
-    )
-    .await;
-
-    // Assert lamport for creator is as expected
-    let token_account_rent =
-        get_min_rent_for_size(&mut test_state.client, get_token_account_size()).await;
-    let escrow_rent = get_min_rent_for_size(&mut test_state.client, T::get_escrow_data_len()).await;
-
-    assert_eq!(
-        creator_balance_before + escrow_rent + token_account_rent,
-        creator_balance_after
-    );
-
-    // Assert recipient token balance is as expected.
-    assert_eq!(
-        recipient_token_balance_before + test_state.test_arguments.escrow_amount,
-        recipient_token_balance_after,
-    );
+        .expect_balance_change(
+            transaction,
+            &[
+                native_change(
+                    test_state.creator_wallet.keypair.pubkey(),
+                    escrow_rent + token_account_rent,
+                ),
+                token_change(
+                    test_state.recipient_wallet.token_account,
+                    test_state.test_arguments.escrow_amount,
+                ),
+            ],
+        )
+        .await;
 
     // Assert escrow was closed
     assert!(test_state
@@ -364,49 +339,30 @@ pub async fn test_cancel<T: EscrowVariant>(test_state: &mut TestStateBase<T>) {
     let (escrow, escrow_ata) = create_escrow(test_state).await;
     let transaction = T::get_cancel_tx(test_state, &escrow, &escrow_ata);
 
-    let creator_balance_before = test_state
-        .client
-        .get_balance(test_state.creator_wallet.keypair.pubkey())
-        .await
-        .unwrap();
-    let creator_token_balance_before = get_token_balance(
-        &mut test_state.context,
-        &test_state.creator_wallet.token_account,
-    )
-    .await;
     set_time(
         &mut test_state.context,
         test_state.init_timestamp + DEFAULT_PERIOD_DURATION * PeriodType::Cancellation as u32,
     );
-    test_state
-        .client
-        .process_transaction(transaction)
-        .await
-        .expect_success();
 
-    let creator_token_balance_after = get_token_balance(
-        &mut test_state.context,
-        &test_state.creator_wallet.token_account,
-    )
-    .await;
-    let creator_balance_after = test_state
-        .client
-        .get_balance(test_state.creator_wallet.keypair.pubkey())
-        .await
-        .unwrap();
-
-    assert_eq!(
-        creator_token_balance_after,
-        creator_token_balance_before + test_state.test_arguments.escrow_amount
-    );
     let token_account_rent =
         get_min_rent_for_size(&mut test_state.client, get_token_account_size()).await;
     let escrow_rent = get_min_rent_for_size(&mut test_state.client, T::get_escrow_data_len()).await;
 
-    assert_eq!(
-        creator_balance_before + escrow_rent + token_account_rent,
-        creator_balance_after
-    );
+    test_state
+        .expect_balance_change(
+            transaction,
+            &[
+                native_change(
+                    test_state.creator_wallet.keypair.pubkey(),
+                    escrow_rent + token_account_rent,
+                ),
+                token_change(
+                    test_state.creator_wallet.token_account,
+                    test_state.test_arguments.escrow_amount,
+                ),
+            ],
+        )
+        .await;
 
     let acc_lookup_result = test_state.client.get_account(escrow_ata).await.unwrap();
     assert!(acc_lookup_result.is_none());
@@ -539,41 +495,25 @@ pub async fn test_rescue_all_tokens_and_close_ata<T: EscrowVariant>(
         &escrow_ata,
         &recipient_ata,
     );
-
-    let recipient_balance_before = test_state
-        .client
-        .get_balance(test_state.recipient_wallet.keypair.pubkey())
-        .await
-        .unwrap();
-
-    let recipient_token_balance_before =
-        get_token_balance(&mut test_state.context, &recipient_ata).await;
+    let token_account_rent =
+        get_min_rent_for_size(&mut test_state.client, get_token_account_size()).await;
 
     set_time(
         &mut test_state.context,
         test_state.init_timestamp + RESCUE_DELAY + 100,
     );
-
     test_state
-        .client
-        .process_transaction(transaction)
-        .await
-        .expect_success();
-
-    let recipient_token_balance_after =
-        get_token_balance(&mut test_state.context, &recipient_ata).await;
-
-    let recipient_balance_after = test_state
-        .client
-        .get_balance(test_state.recipient_wallet.keypair.pubkey())
-        .await
-        .unwrap();
-
-    // Assert recipient token balance is as expected.
-    assert_eq!(
-        recipient_token_balance_before + test_state.test_arguments.rescue_amount,
-        recipient_token_balance_after,
-    );
+        .expect_balance_change(
+            transaction,
+            &[
+                native_change(
+                    test_state.recipient_wallet.keypair.pubkey(),
+                    token_account_rent,
+                ),
+                token_change(recipient_ata, test_state.test_arguments.rescue_amount),
+            ],
+        )
+        .await;
 
     // Assert escrow_ata was closed
     assert!(test_state
@@ -582,15 +522,6 @@ pub async fn test_rescue_all_tokens_and_close_ata<T: EscrowVariant>(
         .await
         .unwrap()
         .is_none());
-
-    let token_account_rent =
-        get_min_rent_for_size(&mut test_state.client, get_token_account_size()).await;
-
-    // Assert that rent for escrow_ata has been sent to recipient.
-    assert_eq!(
-        recipient_balance_before + token_account_rent,
-        recipient_balance_after
-    );
 }
 
 pub async fn test_rescue_part_of_tokens_and_not_close_ata<T: EscrowVariant>(
@@ -626,28 +557,20 @@ pub async fn test_rescue_part_of_tokens_and_not_close_ata<T: EscrowVariant>(
         &recipient_ata,
     );
 
-    let recipient_token_balance_before =
-        get_token_balance(&mut test_state.context, &recipient_ata).await;
-
     set_time(
         &mut test_state.context,
         test_state.init_timestamp + RESCUE_DELAY + 100,
     );
 
     test_state
-        .client
-        .process_transaction(transaction)
-        .await
-        .expect_success();
-
-    let recipient_token_balance_after =
-        get_token_balance(&mut test_state.context, &recipient_ata).await;
-
-    // Assert recipient token balance is as expected.
-    assert_eq!(
-        recipient_token_balance_before + test_state.test_arguments.rescue_amount,
-        recipient_token_balance_after,
-    );
+        .expect_balance_change(
+            transaction,
+            &[token_change(
+                recipient_ata,
+                test_state.test_arguments.rescue_amount,
+            )],
+        )
+        .await;
 
     // Assert escrow_ata was not closed
     assert!(test_state

@@ -412,6 +412,14 @@ pub enum Balance {
     Native(Pubkey, i128),
 }
 
+pub fn native_change(k: Pubkey, d: u64) -> Balance {
+    Balance::Native(k, d as i128)
+}
+
+pub fn token_change(k: Pubkey, d: u64) -> Balance {
+    Balance::Token(k, d as i128)
+}
+
 async fn get_balances<T>(test_state: &mut TestStateBase<T>, bq: &[Balance]) -> Vec<u64> {
     let mut result: Vec<u64> = vec![];
     for b in bq {
