@@ -1,7 +1,8 @@
 use crate::helpers::*;
+use anchor_spl::token::spl_token::state::Account as SplTokenAccount;
 use common::error::EscrowError;
-use solana_program::{keccak::hash, program_error::ProgramError};
-use solana_sdk::{signature::Signer, transaction::Transaction};
+use solana_program::{keccak::hash, program_error::ProgramError, program_pack::Pack};
+use solana_sdk::{signature::Signer, signer::keypair::Keypair, transaction::Transaction};
 
 pub async fn test_escrow_creation<T: EscrowVariant>(test_state: &mut TestStateBase<T>) {
     let (escrow, escrow_ata) = create_escrow(test_state).await;
@@ -396,6 +397,115 @@ pub async fn test_withdraw_does_not_work_after_cancellation_start<T: EscrowVaria
     test_state
         .expect_err_in_tx_meta(transaction, ERROR_INVALID_TIME)
         .await;
+}
+
+pub async fn test_public_withdraw_tokens_generic<T: EscrowVariant>(
+    test_state: &mut TestStateBase<T>,
+    withdrawer: Keypair,
+) {
+    let (escrow, escrow_ata) = create_escrow(test_state).await;
+
+    let public_withdraw_ix = T::get_public_withdraw_ix(
+        test_state,
+        &escrow,
+        &escrow_ata,
+        withdrawer.pubkey(),
+        test_state.secret,
+    );
+
+    let transaction = Transaction::new_signed_with_payer(
+        &[public_withdraw_ix],
+        Some(&test_state.payer_kp.pubkey()),
+        &[&withdrawer, &test_state.payer_kp],
+        test_state.context.last_blockhash,
+    );
+
+    set_time(
+        &mut test_state.context,
+        test_state.init_timestamp + DEFAULT_PERIOD_DURATION * PeriodType::PublicWithdrawal as u32,
+    );
+
+    // Check that the escrow balance is correct
+    assert_eq!(
+        get_token_balance(&mut test_state.context, &escrow_ata).await,
+        test_state.test_arguments.escrow_amount
+    );
+    let escrow_data_len = T::get_escrow_data_len();
+    let rent_lamports = get_min_rent_for_size(&mut test_state.client, escrow_data_len).await;
+    let token_account_rent =
+        get_min_rent_for_size(&mut test_state.client, SplTokenAccount::LEN).await;
+    assert_eq!(
+        rent_lamports,
+        test_state.client.get_balance(escrow).await.unwrap()
+    );
+
+    let recipient_token_balance_before = get_token_balance(
+        &mut test_state.context,
+        &test_state.recipient_wallet.token_account,
+    )
+    .await;
+
+    let withdrawer_balance_before = test_state
+        .client
+        .get_balance(withdrawer.pubkey())
+        .await
+        .unwrap();
+
+    let creator_balance_before = test_state
+        .client
+        .get_balance(test_state.creator_wallet.keypair.pubkey())
+        .await
+        .unwrap();
+
+    test_state
+        .client
+        .process_transaction(transaction)
+        .await
+        .expect_success();
+
+    assert_eq!(
+        get_token_balance(
+            &mut test_state.context,
+            &test_state.recipient_wallet.token_account
+        )
+        .await,
+        recipient_token_balance_before + test_state.test_arguments.escrow_amount
+    );
+
+    assert_eq!(
+        test_state
+            .client
+            .get_balance(withdrawer.pubkey())
+            .await
+            .unwrap(),
+        withdrawer_balance_before + test_state.test_arguments.safety_deposit
+    );
+
+    assert_eq!(
+        test_state
+            .client
+            .get_balance(test_state.creator_wallet.keypair.pubkey())
+            .await
+            .unwrap(),
+        creator_balance_before + token_account_rent + rent_lamports
+            - test_state.test_arguments.safety_deposit
+    );
+
+    // Assert accounts were closed
+    assert!(test_state
+        .client
+        .get_account(escrow)
+        .await
+        .unwrap()
+        .is_none());
+
+    // Assert escrow_ata was closed
+    assert!(test_state
+        .client
+        .get_account(escrow_ata)
+        .await
+        .unwrap()
+        .is_none());
 }
 
 pub async fn test_public_withdraw_fails_with_wrong_secret<T: EscrowVariant>(
