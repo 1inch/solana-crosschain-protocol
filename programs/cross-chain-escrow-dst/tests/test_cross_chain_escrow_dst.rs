@@ -32,11 +32,11 @@ impl EscrowVariant for DstProgram {
         )
     }
 
-    fn get_public_withdraw_ix(
+    fn get_public_withdraw_tx(
         test_state: &TestState,
         escrow: &Pubkey,
         escrow_ata: &Pubkey,
-    ) -> Instruction {
+    ) -> Transaction {
         let instruction_data =
             InstructionData::data(&cross_chain_escrow_dst::instruction::PublicWithdraw {
                 secret: test_state.secret,
@@ -58,25 +58,19 @@ impl EscrowVariant for DstProgram {
             data: instruction_data,
         };
 
-        instruction
-    }
-
-    fn withdraw_ix_to_signed_tx(ix: Instruction, test_state: &TestState) -> Transaction {
         Transaction::new_signed_with_payer(
-            &[ix],
+            &[instruction],
             Some(&test_state.payer_kp.pubkey()),
-            &[
-                &test_state.context.payer,
-                &test_state.creator_wallet.keypair,
-            ],
+            &[&test_state.payer_kp],
             test_state.context.last_blockhash,
         )
     }
-    fn get_withdraw_ix(
+
+    fn get_withdraw_tx(
         test_state: &TestState,
         escrow: &Pubkey,
         escrow_ata: &Pubkey,
-    ) -> Instruction {
+    ) -> Transaction {
         let instruction_data =
             InstructionData::data(&cross_chain_escrow_dst::instruction::Withdraw {
                 secret: test_state.secret,
@@ -97,14 +91,22 @@ impl EscrowVariant for DstProgram {
             data: instruction_data,
         };
 
-        instruction
+        Transaction::new_signed_with_payer(
+            &[instruction],
+            Some(&test_state.payer_kp.pubkey()),
+            &[
+                &test_state.context.payer,
+                &test_state.creator_wallet.keypair,
+            ],
+            test_state.context.last_blockhash,
+        )
     }
 
-    fn get_cancel_ix(
+    fn get_cancel_tx(
         test_state: &TestStateBase<DstProgram>,
         escrow: &Pubkey,
         escrow_ata: &Pubkey,
-    ) -> Instruction {
+    ) -> Transaction {
         let instruction_data =
             InstructionData::data(&cross_chain_escrow_dst::instruction::Cancel {});
 
@@ -122,14 +124,22 @@ impl EscrowVariant for DstProgram {
             data: instruction_data,
         };
 
-        instruction
+        Transaction::new_signed_with_payer(
+            &[instruction],
+            Some(&test_state.payer_kp.pubkey()),
+            &[
+                &test_state.context.payer,
+                &test_state.creator_wallet.keypair,
+            ],
+            test_state.context.last_blockhash,
+        )
     }
 
-    fn get_create_ix(
+    fn get_create_tx(
         test_state: &TestStateBase<DstProgram>,
         escrow: &Pubkey,
         escrow_ata: &Pubkey,
-    ) -> Instruction {
+    ) -> Transaction {
         let instruction_data =
             InstructionData::data(&cross_chain_escrow_dst::instruction::Create {
                 amount: test_state.test_arguments.escrow_amount,
@@ -160,16 +170,24 @@ impl EscrowVariant for DstProgram {
             ],
             data: instruction_data,
         };
-        instruction
+        Transaction::new_signed_with_payer(
+            &[instruction],
+            Some(&test_state.payer_kp.pubkey()),
+            &[
+                &test_state.context.payer,
+                &test_state.creator_wallet.keypair,
+            ],
+            test_state.context.last_blockhash,
+        )
     }
 
-    fn get_rescue_funds_ix(
+    fn get_rescue_funds_tx(
         test_state: &TestState,
         escrow: &Pubkey,
         token_to_rescue: &Pubkey,
         escrow_ata: &Pubkey,
         recipient_ata: &Pubkey,
-    ) -> Instruction {
+    ) -> Transaction {
         let instruction_data =
             InstructionData::data(&cross_chain_escrow_dst::instruction::RescueFunds {
                 hashlock: test_state.hashlock.to_bytes(),
@@ -196,7 +214,15 @@ impl EscrowVariant for DstProgram {
             data: instruction_data,
         };
 
-        instruction
+        Transaction::new_signed_with_payer(
+            &[instruction],
+            Some(&test_state.payer_kp.pubkey()),
+            &[
+                &test_state.context.payer,
+                &test_state.recipient_wallet.keypair,
+            ],
+            test_state.context.last_blockhash,
+        )
     }
 
     fn get_escrow_data_len() -> usize {
@@ -281,17 +307,7 @@ mod test_escrow_creation {
     ) {
         let c: Clock = test_state.client.get_sysvar().await.unwrap();
         test_state.test_arguments.src_cancellation_timestamp = c.unix_timestamp as u32 + 1;
-        let (_, _, create_ix) = create_escrow_data(test_state);
-
-        let transaction = Transaction::new_signed_with_payer(
-            &[create_ix],
-            Some(&test_state.payer_kp.pubkey()),
-            &[
-                &test_state.context.payer,
-                &test_state.creator_wallet.keypair,
-            ],
-            test_state.context.last_blockhash,
-        );
+        let (_, _, transaction) = create_escrow_data(test_state);
 
         test_state
             .client
@@ -359,6 +375,7 @@ mod test_escrow_withdraw {
         common_escrow_tests::test_withdraw_does_not_work_after_cancellation_start(test_state).await
     }
 }
+
 mod test_escrow_public_withdraw {
     use super::*;
 
