@@ -404,13 +404,6 @@ pub async fn test_public_withdraw_fails_with_wrong_secret<T: EscrowVariant>(
     let withdrawer = test_state.payer_kp.insecure_clone();
     let (escrow, escrow_ata) = create_escrow(test_state).await;
 
-    transfer_lamports(
-        &mut test_state.context,
-        WALLET_DEFAULT_LAMPORTS,
-        &test_state.payer_kp,
-        &withdrawer.pubkey(),
-    )
-    .await;
     let public_withdraw_ix = T::get_public_withdraw_ix(
         test_state,
         &escrow,
@@ -446,13 +439,6 @@ pub async fn test_public_withdraw_fails_with_wrong_recipient_ata<T: EscrowVarian
     test_state.recipient_wallet.token_account = test_state.creator_wallet.token_account;
     let (escrow, escrow_ata) = create_escrow(test_state).await;
 
-    transfer_lamports(
-        &mut test_state.context,
-        WALLET_DEFAULT_LAMPORTS,
-        &test_state.payer_kp,
-        &withdrawer.pubkey(),
-    )
-    .await;
     let public_withdraw_ix = T::get_public_withdraw_ix(
         test_state,
         &escrow,
@@ -488,13 +474,6 @@ pub async fn test_public_withdraw_fails_with_wrong_escrow_ata<T: EscrowVariant>(
     test_state.test_arguments.escrow_amount += 1;
     let (_, escrow_ata_2) = create_escrow(test_state).await;
 
-    transfer_lamports(
-        &mut test_state.context,
-        WALLET_DEFAULT_LAMPORTS,
-        &test_state.payer_kp,
-        &withdrawer.pubkey(),
-    )
-    .await;
     let public_withdraw_ix = T::get_public_withdraw_ix(
         test_state,
         &escrow,
