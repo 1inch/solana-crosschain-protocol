@@ -406,7 +406,59 @@ pub async fn initialize_spl_associated_account(
     ata
 }
 
+#[derive(Clone)]
+pub enum Balance {
+    Token(Pubkey, i128),
+    Native(Pubkey, i128),
+}
+
+async fn get_balances<T>(test_state: &mut TestStateBase<T>, bq: &[Balance]) -> Vec<u64> {
+    let mut result: Vec<u64> = vec![];
+    for b in bq {
+        match b {
+            Balance::Token(k, _) => {
+                result.push(get_token_balance(&mut test_state.context, k).await)
+            }
+            Balance::Native(k, _) => result.push(test_state.client.get_balance(*k).await.unwrap()),
+        }
+    }
+    result
+}
+
 impl<T> TestStateBase<T> {
+    pub async fn expect_balance_change(&mut self, tx: Transaction, diff: &[Balance]) {
+        let balances_before = get_balances(self, diff).await;
+
+        // execute transaction
+        self.client.process_transaction(tx).await.expect_success();
+
+        // compare balances
+        let balances_after = get_balances(self, diff).await;
+        for ((before, after), exp) in balances_before
+            .iter()
+            .zip(balances_after.iter())
+            .zip(diff.iter())
+        {
+            let real_diff: i128 = *after as i128 - *before as i128;
+            match exp {
+                Balance::Token(k, token_expected_diff) => {
+                    assert_eq!(
+                        real_diff, *token_expected_diff,
+                        "Token balance changed unexpectedley for {}, left = {}, right = {}",
+                        k, real_diff, token_expected_diff
+                    )
+                }
+                Balance::Native(k, native_expected_diff) => {
+                    assert_eq!(
+                        real_diff, *native_expected_diff,
+                        "SOL balance changed unexpectedley for {}, left = {}, right = {}",
+                        k, real_diff, native_expected_diff
+                    )
+                }
+            }
+        }
+    }
+
     pub async fn expect_err_in_tx_meta(&mut self, mut tx: Transaction, expectation: &str) {
         // retry at most 5 times.
         for _ in 0..5 {
