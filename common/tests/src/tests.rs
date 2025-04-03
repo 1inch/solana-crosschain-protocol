@@ -429,7 +429,7 @@ pub async fn test_withdraw_does_not_work_after_cancellation_start<T: EscrowVaria
         .await;
 }
 
-pub async fn test_public_withdraw_tokens_generic<T: EscrowVariant>(
+pub async fn test_public_withdraw_tokens<T: EscrowVariant>(
     test_state: &mut TestStateBase<T>,
     withdrawer: Keypair,
 ) {

@@ -477,7 +477,7 @@ mod test_escrow_public_withdraw {
             &withdrawer.pubkey(),
         )
         .await;
-        common_escrow_tests::test_public_withdraw_tokens_generic(test_state, withdrawer).await
+        common_escrow_tests::test_public_withdraw_tokens(test_state, withdrawer).await
     }
 
     #[test_context(TestState)]

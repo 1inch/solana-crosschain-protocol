@@ -341,7 +341,7 @@ mod test_escrow_public_withdraw {
     #[test_context(TestState)]
     #[tokio::test]
     async fn test_public_withdraw_tokens_by_recipient(test_state: &mut TestState) {
-        common_escrow_tests::test_public_withdraw_tokens_generic(
+        common_escrow_tests::test_public_withdraw_tokens(
             test_state,
             test_state.recipient_wallet.keypair.insecure_clone(),
         )
@@ -359,7 +359,7 @@ mod test_escrow_public_withdraw {
             &withdrawer.pubkey(),
         )
         .await;
-        common_escrow_tests::test_public_withdraw_tokens_generic(test_state, withdrawer).await
+        common_escrow_tests::test_public_withdraw_tokens(test_state, withdrawer).await
     }
 
     #[test_context(TestState)]
