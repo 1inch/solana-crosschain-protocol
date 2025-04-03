@@ -161,6 +161,43 @@ impl EscrowVariant for SrcProgram {
 
         instruction
     }
+
+    fn get_rescue_funds_ix(
+        test_state: &TestState,
+        escrow: &Pubkey,
+        token_to_rescue: &Pubkey,
+        escrow_ata: &Pubkey,
+        recipient_ata: &Pubkey,
+    ) -> Instruction {
+        let instruction_data =
+            InstructionData::data(&cross_chain_escrow_src::instruction::RescueFunds {
+                hashlock: test_state.hashlock.to_bytes(),
+                order_hash: test_state.order_hash.to_bytes(),
+                escrow_creator: test_state.creator_wallet.keypair.pubkey(),
+                escrow_mint: test_state.token,
+                escrow_amount: test_state.test_arguments.escrow_amount,
+                safety_deposit: test_state.test_arguments.safety_deposit,
+                rescue_start: test_state.test_arguments.rescue_start,
+                rescue_amount: test_state.test_arguments.rescue_amount,
+            });
+
+        let instruction: Instruction = Instruction {
+            program_id: cross_chain_escrow_src::id(),
+            accounts: vec![
+                AccountMeta::new(test_state.recipient_wallet.keypair.pubkey(), true),
+                AccountMeta::new_readonly(*token_to_rescue, false),
+                AccountMeta::new(*escrow, false),
+                AccountMeta::new(*escrow_ata, false),
+                AccountMeta::new(*recipient_ata, false),
+                AccountMeta::new_readonly(spl_program_id, false),
+                AccountMeta::new_readonly(system_program_id, false),
+            ],
+            data: instruction_data,
+        };
+
+        instruction
+    }
+
     fn get_escrow_data_len() -> usize {
         cross_chain_escrow_src::constants::DISCRIMINATOR
             + cross_chain_escrow_src::EscrowSrc::INIT_SPACE
@@ -242,6 +279,12 @@ mod test_escrow_creation {
         let (_, _, tx_result) = create_escrow_tx(test_state).await;
         tx_result.expect_error((0, ProgramError::ArithmeticOverflow));
     }
+
+    #[test_context(TestState)]
+    #[tokio::test]
+    async fn test_escrow_creation_fail_with_invalid_rescue_start(test_state: &mut TestState) {
+        common_escrow_tests::test_escrow_creation_fail_with_invalid_rescue_start(test_state).await
+    }
 }
 
 mod test_escrow_withdraw {
@@ -300,7 +343,7 @@ mod test_escrow_public_withdraw {
     #[test_context(TestState)]
     #[tokio::test]
     async fn test_public_withdraw_tokens_by_recipient(test_state: &mut TestState) {
-        test_public_withdraw_tokens_generic(
+        common_escrow_tests::test_public_withdraw_tokens_generic(
             test_state,
             test_state.recipient_wallet.keypair.insecure_clone(),
         )
@@ -318,114 +361,7 @@ mod test_escrow_public_withdraw {
             &withdrawer.pubkey(),
         )
         .await;
-        test_public_withdraw_tokens_generic(test_state, withdrawer).await
-    }
-
-    async fn test_public_withdraw_tokens_generic(test_state: &mut TestState, withdrawer: Keypair) {
-        let (escrow, escrow_ata) = create_escrow(test_state).await;
-
-        let public_withdraw_ix = SrcProgram::get_public_withdraw_ix(
-            test_state,
-            &escrow,
-            &escrow_ata,
-            withdrawer.pubkey(),
-            test_state.secret,
-        );
-
-        let transaction = Transaction::new_signed_with_payer(
-            &[public_withdraw_ix],
-            Some(&test_state.payer_kp.pubkey()),
-            &[&withdrawer, &test_state.payer_kp],
-            test_state.context.last_blockhash,
-        );
-
-        set_time(
-            &mut test_state.context,
-            test_state.init_timestamp
-                + DEFAULT_PERIOD_DURATION * PeriodType::PublicWithdrawal as u32,
-        );
-
-        // Check that the escrow balance is correct
-        assert_eq!(
-            get_token_balance(&mut test_state.context, &escrow_ata).await,
-            test_state.test_arguments.escrow_amount
-        );
-        let escrow_data_len = SrcProgram::get_escrow_data_len();
-        let rent_lamports = get_min_rent_for_size(&mut test_state.client, escrow_data_len).await;
-        let token_account_rent =
-            get_min_rent_for_size(&mut test_state.client, SplTokenAccount::LEN).await;
-        assert_eq!(
-            rent_lamports,
-            test_state.client.get_balance(escrow).await.unwrap()
-        );
-
-        let recipient_token_balance_before = get_token_balance(
-            &mut test_state.context,
-            &test_state.recipient_wallet.token_account,
-        )
-        .await;
-
-        let withdrawer_balance_before = test_state
-            .client
-            .get_balance(withdrawer.pubkey())
-            .await
-            .unwrap();
-
-        let creator_balance_before = test_state
-            .client
-            .get_balance(test_state.creator_wallet.keypair.pubkey())
-            .await
-            .unwrap();
-
-        test_state
-            .client
-            .process_transaction(transaction)
-            .await
-            .expect_success();
-
-        assert_eq!(
-            get_token_balance(
-                &mut test_state.context,
-                &test_state.recipient_wallet.token_account
-            )
-            .await,
-            recipient_token_balance_before + test_state.test_arguments.escrow_amount
-        );
-
-        assert_eq!(
-            test_state
-                .client
-                .get_balance(withdrawer.pubkey())
-                .await
-                .unwrap(),
-            withdrawer_balance_before + test_state.test_arguments.safety_deposit
-        );
-
-        assert_eq!(
-            test_state
-                .client
-                .get_balance(test_state.creator_wallet.keypair.pubkey())
-                .await
-                .unwrap(),
-            creator_balance_before + token_account_rent + rent_lamports
-                - test_state.test_arguments.safety_deposit
-        );
-
-        // Assert accounts were closed
-        assert!(test_state
-            .client
-            .get_account(escrow)
-            .await
-            .unwrap()
-            .is_none());
-
-        // Assert escrow_ata was closed
-        assert!(test_state
-            .client
-            .get_account(escrow_ata)
-            .await
-            .unwrap()
-            .is_none());
+        common_escrow_tests::test_public_withdraw_tokens_generic(test_state, withdrawer).await
     }
 
     #[test_context(TestState)]
@@ -814,6 +750,46 @@ mod test_escrow_public_cancel {
         test_state
             .expect_err_in_tx_meta(transaction, ERROR_INVALID_TIME)
             .await;
+    }
+}
+
+mod test_escrow_rescue_funds {
+    use super::*;
+
+    #[test_context(TestState)]
+    #[tokio::test]
+    async fn test_rescue_all_tokens_and_close_ata(test_state: &mut TestState) {
+        common_escrow_tests::test_rescue_all_tokens_and_close_ata(test_state).await
+    }
+
+    #[test_context(TestState)]
+    #[tokio::test]
+    async fn test_rescue_part_of_tokens_and_not_close_ata(test_state: &mut TestState) {
+        common_escrow_tests::test_rescue_part_of_tokens_and_not_close_ata(test_state).await
+    }
+
+    #[test_context(TestState)]
+    #[tokio::test]
+    async fn test_cannot_rescue_funds_before_rescue_delay_pass(test_state: &mut TestState) {
+        common_escrow_tests::test_cannot_rescue_funds_before_rescue_delay_pass(test_state).await
+    }
+
+    #[test_context(TestState)]
+    #[tokio::test]
+    async fn test_cannot_rescue_funds_by_non_recipient(test_state: &mut TestState) {
+        common_escrow_tests::test_cannot_rescue_funds_by_non_recipient(test_state).await
+    }
+
+    #[test_context(TestState)]
+    #[tokio::test]
+    async fn test_cannot_rescue_funds_with_wrong_recipient_ata(test_state: &mut TestState) {
+        common_escrow_tests::test_cannot_rescue_funds_with_wrong_recipient_ata(test_state).await
+    }
+
+    #[test_context(TestState)]
+    #[tokio::test]
+    async fn test_cannot_rescue_funds_with_wrong_escrow_ata(test_state: &mut TestState) {
+        common_escrow_tests::test_cannot_rescue_funds_with_wrong_escrow_ata(test_state).await
     }
 }
 
