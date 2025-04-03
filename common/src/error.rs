@@ -14,6 +14,6 @@ pub enum EscrowError {
     InvalidCreationTime,
     #[msg("Invalid time")]
     InvalidTime,
-    #[msg("Invalid rescue delay")]
-    InvalidRescueDelay,
+    #[msg("Invalid rescue start")]
+    InvalidRescueStart,
 }
