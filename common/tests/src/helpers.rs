@@ -116,18 +116,21 @@ pub trait EscrowVariant {
         escrow: &Pubkey,
         escrow_ata: &Pubkey,
         safety_deposit_recipient: Pubkey,
-        recipient_ata: &Pubkey,
-        secret: [u8; 32],
+        recipient_ata_override: Option<Pubkey>,
+        secret_override: Option<[u8; 32]>,
     ) -> Instruction;
     fn get_withdraw_ix(
         test_state: &TestStateBase<Self>,
         escrow: &Pubkey,
         escrow_ata: &Pubkey,
+        recipient_ata_override: Option<Pubkey>,
+        secret_override: Option<[u8; 32]>,
     ) -> Instruction;
     fn get_cancel_ix(
         test_state: &TestStateBase<Self>,
         escrow: &Pubkey,
         escrow_ata: &Pubkey,
+        canceller_override: Option<Wallet>,
     ) -> Instruction;
     fn get_create_ix(
         test_state: &TestStateBase<Self>,
@@ -139,7 +142,7 @@ pub trait EscrowVariant {
         escrow: &Pubkey,
         token_to_rescue: &Pubkey,
         escrow_ata: &Pubkey,
-        recipient_ata: &Pubkey,
+        recipient_wallet_override: Option<Wallet>,
     ) -> Instruction;
 
     fn get_escrow_data_len() -> usize;

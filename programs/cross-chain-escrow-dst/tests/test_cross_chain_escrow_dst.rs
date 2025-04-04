@@ -41,11 +41,13 @@ impl EscrowVariant for DstProgram {
         escrow: &Pubkey,
         escrow_ata: &Pubkey,
         withdrawer: Pubkey,
-        recipient_ata: &Pubkey,
-        secret: [u8; 32],
+        recipient_ata_override: Option<Pubkey>,
+        secret_override: Option<[u8; 32]>,
     ) -> Instruction {
         let instruction_data =
-            InstructionData::data(&cross_chain_escrow_dst::instruction::PublicWithdraw { secret });
+            InstructionData::data(&cross_chain_escrow_dst::instruction::PublicWithdraw {
+                secret: secret_override.unwrap_or(test_state.secret),
+            });
 
         let instruction: Instruction = Instruction {
             program_id: cross_chain_escrow_dst::id(),
@@ -56,7 +58,10 @@ impl EscrowVariant for DstProgram {
                 AccountMeta::new_readonly(test_state.token, false),
                 AccountMeta::new(*escrow, false),
                 AccountMeta::new(*escrow_ata, false),
-                AccountMeta::new(*recipient_ata, false),
+                AccountMeta::new(
+                    recipient_ata_override.unwrap_or(test_state.recipient_wallet.token_account),
+                    false,
+                ),
                 AccountMeta::new_readonly(spl_program_id, false),
                 AccountMeta::new_readonly(system_program_id, false),
             ],
@@ -81,10 +86,12 @@ impl EscrowVariant for DstProgram {
         test_state: &TestState,
         escrow: &Pubkey,
         escrow_ata: &Pubkey,
+        recipient_ata_override: Option<Pubkey>,
+        secret_override: Option<[u8; 32]>,
     ) -> Instruction {
         let instruction_data =
             InstructionData::data(&cross_chain_escrow_dst::instruction::Withdraw {
-                secret: test_state.secret,
+                secret: secret_override.unwrap_or(test_state.secret),
             });
 
         let instruction: Instruction = Instruction {
@@ -95,7 +102,10 @@ impl EscrowVariant for DstProgram {
                 AccountMeta::new_readonly(test_state.token, false),
                 AccountMeta::new(*escrow, false),
                 AccountMeta::new(*escrow_ata, false),
-                AccountMeta::new(test_state.recipient_wallet.token_account, false),
+                AccountMeta::new(
+                    recipient_ata_override.unwrap_or(test_state.recipient_wallet.token_account),
+                    false,
+                ),
                 AccountMeta::new_readonly(spl_program_id, false),
                 AccountMeta::new_readonly(system_program_id, false),
             ],
@@ -109,18 +119,20 @@ impl EscrowVariant for DstProgram {
         test_state: &TestStateBase<DstProgram>,
         escrow: &Pubkey,
         escrow_ata: &Pubkey,
+        canceller_override: Option<Wallet>,
     ) -> Instruction {
+        let canceller = canceller_override.unwrap_or(test_state.creator_wallet.clone());
         let instruction_data =
             InstructionData::data(&cross_chain_escrow_dst::instruction::Cancel {});
 
         let instruction: Instruction = Instruction {
             program_id: cross_chain_escrow_dst::id(),
             accounts: vec![
-                AccountMeta::new(test_state.creator_wallet.keypair.pubkey(), true),
+                AccountMeta::new(canceller.keypair.pubkey(), true),
                 AccountMeta::new_readonly(test_state.token, false),
                 AccountMeta::new(*escrow, false),
                 AccountMeta::new(*escrow_ata, false),
-                AccountMeta::new(test_state.creator_wallet.token_account, false),
+                AccountMeta::new(canceller.token_account, false),
                 AccountMeta::new_readonly(spl_program_id, false),
                 AccountMeta::new_readonly(system_program_id, false),
             ],
@@ -173,8 +185,10 @@ impl EscrowVariant for DstProgram {
         escrow: &Pubkey,
         token_to_rescue: &Pubkey,
         escrow_ata: &Pubkey,
-        recipient_ata: &Pubkey,
+        recipient_wallet_override: Option<Wallet>,
     ) -> Instruction {
+        let recipient_wallet =
+            recipient_wallet_override.unwrap_or(test_state.recipient_wallet.clone());
         let instruction_data =
             InstructionData::data(&cross_chain_escrow_dst::instruction::RescueFunds {
                 hashlock: test_state.hashlock.to_bytes(),
@@ -190,11 +204,11 @@ impl EscrowVariant for DstProgram {
         let instruction: Instruction = Instruction {
             program_id: cross_chain_escrow_dst::id(),
             accounts: vec![
-                AccountMeta::new(test_state.recipient_wallet.keypair.pubkey(), true),
+                AccountMeta::new(recipient_wallet.keypair.pubkey(), true),
                 AccountMeta::new_readonly(*token_to_rescue, false),
                 AccountMeta::new(*escrow, false),
                 AccountMeta::new(*escrow_ata, false),
-                AccountMeta::new(*recipient_ata, false),
+                AccountMeta::new(recipient_wallet.token_account, false),
                 AccountMeta::new_readonly(spl_program_id, false),
                 AccountMeta::new_readonly(system_program_id, false),
             ],
@@ -375,8 +389,8 @@ mod test_escrow_public_withdraw {
             &escrow,
             &escrow_ata,
             test_state.creator_wallet.keypair.pubkey(),
-            &test_state.recipient_wallet.token_account,
-            test_state.secret,
+            None,
+            None,
         );
 
         let transaction = Transaction::new_signed_with_payer(
