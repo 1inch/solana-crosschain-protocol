@@ -41,6 +41,7 @@ impl EscrowVariant for DstProgram {
         escrow: &Pubkey,
         escrow_ata: &Pubkey,
         withdrawer: Pubkey,
+        recipient_ata: &Pubkey,
         secret: [u8; 32],
     ) -> Instruction {
         let instruction_data =
@@ -55,7 +56,7 @@ impl EscrowVariant for DstProgram {
                 AccountMeta::new_readonly(test_state.token, false),
                 AccountMeta::new(*escrow, false),
                 AccountMeta::new(*escrow_ata, false),
-                AccountMeta::new(test_state.recipient_wallet.token_account, false),
+                AccountMeta::new(*recipient_ata, false),
                 AccountMeta::new_readonly(spl_program_id, false),
                 AccountMeta::new_readonly(system_program_id, false),
             ],
@@ -374,6 +375,7 @@ mod test_escrow_public_withdraw {
             &escrow,
             &escrow_ata,
             test_state.creator_wallet.keypair.pubkey(),
+            &test_state.recipient_wallet.token_account,
             test_state.secret,
         );
 
