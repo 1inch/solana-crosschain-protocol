@@ -6190,8 +6190,15 @@ dependencies = [
  "anchor-lang",
  "anchor-spl",
  "common",
+ "common_tests",
  "cross-chain-escrow-dst",
  "cross-chain-escrow-src",
+ "solana-program",
+ "solana-program-pack",
+ "solana-program-runtime",
+ "solana-program-test",
+ "solana-sdk",
+ "test-context",
 ]
 
 [[package]]

@@ -64,7 +64,7 @@ pub struct TestArgs {
     pub rescue_start: u32,
 }
 
-fn get_default_testargs(nowsecs: u32) -> TestArgs {
+pub fn get_default_testargs(nowsecs: u32) -> TestArgs {
     TestArgs {
         escrow_amount: DEFAULT_ESCROW_AMOUNT,
         safety_deposit: DEFAULT_SAFETY_DEPOSIT,
@@ -92,7 +92,7 @@ pub struct TestStateBase<T: ?Sized> {
     pub recipient_wallet: Wallet,
     pub test_arguments: TestArgs,
     pub init_timestamp: u32,
-    pd: PhantomData<T>,
+    pub pd: PhantomData<T>,
 }
 
 // A trait that is used to specify procedures during testing, that
@@ -135,9 +135,10 @@ where
     T: EscrowVariant,
 {
     async fn setup() -> TestStateBase<T> {
-        let (program_id, entry_point) = T::get_program_spec();
-        let mut context: ProgramTestContext =
-            start_context("escrow_contract", program_id, entry_point).await;
+        let mut program_test: ProgramTest = ProgramTest::default();
+        add_program_to_test(&mut program_test, "escrow_contract", T::get_program_spec);
+        let mut context: ProgramTestContext = program_test.start_with_context().await;
+
         let client: BanksClient = context.banks_client.clone();
         let timestamp: u32 = SystemTime::now()
             .duration_since(UNIX_EPOCH)
@@ -294,13 +295,15 @@ pub async fn create_wallet(
     }
 }
 
-pub async fn start_context(
-    contract_name: &str,
-    program_id: Pubkey,
-    entry_point: Option<BuiltinFunctionWithContext>,
-) -> ProgramTestContext {
-    let program_test = ProgramTest::new(contract_name, program_id, entry_point);
-    program_test.start_with_context().await
+pub fn add_program_to_test<F>(
+    program_test: &mut ProgramTest,
+    program_name: &str,
+    get_program_spec: F,
+) where
+    F: Fn() -> (Pubkey, Option<BuiltinFunctionWithContext>),
+{
+    let (program_id, entry_point) = get_program_spec();
+    program_test.add_program(program_name, program_id, entry_point);
 }
 
 pub fn set_time(ctx: &mut ProgramTestContext, timestamp: u32) {

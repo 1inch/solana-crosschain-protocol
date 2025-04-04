@@ -22,7 +22,7 @@ use test_context::test_context;
 
 type TestState = TestStateBase<DstProgram>;
 
-struct DstProgram;
+pub struct DstProgram;
 
 impl EscrowVariant for DstProgram {
     fn get_program_spec() -> (Pubkey, Option<BuiltinFunctionWithContext>) {
