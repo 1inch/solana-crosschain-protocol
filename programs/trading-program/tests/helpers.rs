@@ -49,8 +49,6 @@ where
         let creator_wallet = create_wallet(
             &mut context,
             &token,
-            &payer_kp,
-            &payer_kp,
             WALLET_DEFAULT_LAMPORTS,
             WALLET_DEFAULT_TOKENS,
         )
@@ -58,8 +56,6 @@ where
         let recipient_wallet = create_wallet(
             &mut context,
             &token,
-            &payer_kp,
-            &payer_kp,
             WALLET_DEFAULT_LAMPORTS,
             WALLET_DEFAULT_TOKENS,
         )

@@ -24,14 +24,5 @@ anchor-lang = "0.30.1"
 anchor-spl = "0.30.1"
 common = { path = "../../common" }
 
-[dev-dependencies]
-solana-program = "1.18.26"
-solana-program-pack = "2.1.11"
-solana-program-test = "1.18.26"
-solana-program-runtime = "1.18.26"
-solana-sdk = "1.18.26"
-test-context = "0.4.1"
-common_tests = { path = "../../common/tests" }
-
 [lints.rust]
 unexpected_cfgs = { level = "allow", check-cfg = ["cfg(solana)"] }
