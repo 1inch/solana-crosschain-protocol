@@ -16,10 +16,7 @@ use solana_program::{
     pubkey::Pubkey,
 };
 use solana_program_runtime::invoke_context::BuiltinFunctionWithContext;
-use solana_program_test::{
-    BanksClient, BanksClientError, BanksTransactionResultWithMetadata, ProgramTest,
-    ProgramTestContext,
-};
+use solana_program_test::{BanksClient, BanksClientError, ProgramTest, ProgramTestContext};
 use solana_sdk::{
     signature::Signer,
     signer::keypair::Keypair,
@@ -30,11 +27,6 @@ use solana_sdk::{
 use std::marker::PhantomData;
 use std::time::{SystemTime, UNIX_EPOCH};
 use test_context::AsyncTestContext;
-
-pub const ERROR_INSUFFICIENT_FUNDS: &str = "Error: insufficient funds";
-pub const ERROR_ALREADY_USED: &str = "already in use";
-pub const ERROR_CONSTRAINT_TOKENOWNER: &str = "Error Code: ConstraintTokenOwner";
-pub const ERROR_INVALID_TIME: &str = "Error Code: InvalidTime";
 
 pub const WALLET_DEFAULT_LAMPORTS: u64 = 10000000;
 pub const WALLET_DEFAULT_TOKENS: u64 = 1000;
@@ -50,6 +42,7 @@ pub enum PeriodType {
 }
 
 pub const DEFAULT_ESCROW_AMOUNT: u64 = 100;
+pub const DEFAULT_RESCUE_AMOUNT: u64 = 100;
 pub const DEFAULT_SAFETY_DEPOSIT: u64 = 25;
 
 pub struct TestArgs {
@@ -62,6 +55,7 @@ pub struct TestArgs {
     pub src_cancellation_timestamp: u32,
     pub init_timestamp: u32,
     pub rescue_start: u32,
+    pub rescue_amount: u64,
 }
 
 pub fn get_default_testargs(nowsecs: u32) -> TestArgs {
@@ -75,6 +69,7 @@ pub fn get_default_testargs(nowsecs: u32) -> TestArgs {
         src_cancellation_timestamp: nowsecs + 10000,
         init_timestamp: nowsecs,
         rescue_start: nowsecs + RESCUE_DELAY + 100,
+        rescue_amount: DEFAULT_RESCUE_AMOUNT,
     }
 }
 
@@ -126,6 +121,13 @@ pub trait EscrowVariant {
         escrow: &Pubkey,
         escrow_ata: &Pubkey,
     ) -> Instruction;
+    fn get_rescue_funds_ix(
+        test_state: &TestStateBase<Self>,
+        escrow: &Pubkey,
+        token_to_rescue: &Pubkey,
+        escrow_ata: &Pubkey,
+        recipient_ata: &Pubkey,
+    ) -> Instruction;
 
     fn get_escrow_data_len() -> usize;
 }
@@ -154,8 +156,6 @@ where
         let creator_wallet = create_wallet(
             &mut context,
             &token,
-            &payer_kp,
-            &payer_kp,
             WALLET_DEFAULT_LAMPORTS,
             WALLET_DEFAULT_TOKENS,
         )
@@ -163,8 +163,6 @@ where
         let recipient_wallet = create_wallet(
             &mut context,
             &token,
-            &payer_kp,
-            &payer_kp,
             WALLET_DEFAULT_LAMPORTS,
             WALLET_DEFAULT_TOKENS,
         )
@@ -272,23 +270,19 @@ pub async fn create_escrow<T: EscrowVariant>(
 pub async fn create_wallet(
     ctx: &mut ProgramTestContext,
     token: &Pubkey,
-    mint_authority: &Keypair,
-    payer: &Keypair,
     fund_lamports: u64,
     mint_tokens: u64,
 ) -> Wallet {
     let dummy_kp = Keypair::new();
     let ata = initialize_spl_associated_account(ctx, token, &dummy_kp.pubkey()).await;
-    mint_spl_tokens(
+    mint_spl_tokens(ctx, token, &ata, mint_tokens).await;
+    transfer_lamports(
         ctx,
-        token,
-        &ata,
-        &mint_authority.pubkey(),
-        mint_authority,
-        mint_tokens,
+        fund_lamports,
+        &ctx.payer.insecure_clone(),
+        &dummy_kp.pubkey(),
     )
     .await;
-    transfer_lamports(ctx, fund_lamports, payer, &dummy_kp.pubkey()).await;
     Wallet {
         keypair: dummy_kp,
         token_account: ata,
@@ -317,20 +311,19 @@ pub async fn mint_spl_tokens(
     ctx: &mut ProgramTestContext,
     mint_pk: &Pubkey,
     dst: &Pubkey,
-    owner: &Pubkey,
-    signer: &Keypair,
     amount: u64,
 ) {
     let transfer_ix = spl_instruction::mint_to(
         &spl_program_id,
         mint_pk,
         dst,
-        owner, // mint authority, which should be ctx.payer.
-        &[&signer.pubkey()],
+        &ctx.payer.pubkey(),
+        &[&ctx.payer.pubkey()],
         amount,
     )
     .unwrap();
-    let signers: Vec<&Keypair> = vec![signer];
+
+    let signers: Vec<&Keypair> = vec![&ctx.payer];
     let client = &mut ctx.banks_client;
     client
         .process_transaction(Transaction::new_signed_with_payer(
@@ -430,30 +423,6 @@ pub async fn initialize_spl_associated_account(
         .await
         .unwrap();
     ata
-}
-
-impl<T> TestStateBase<T> {
-    pub async fn expect_err_in_tx_meta(&mut self, mut tx: Transaction, expectation: &str) {
-        // retry at most 5 times.
-        for _ in 0..5 {
-            let r = self
-                .client
-                .process_transaction_with_metadata(tx.clone())
-                .await;
-            match r {
-                Result::Ok(BanksTransactionResultWithMetadata {
-                    metadata: Some(m), ..
-                }) => {
-                    return assert!(m.log_messages.iter().any(|x| x.contains(expectation)));
-                }
-                _ => {
-                    let new_hash = self.context.get_new_latest_blockhash().await.unwrap();
-                    tx.message.recent_blockhash = new_hash;
-                }
-            }
-        }
-        panic!("Failed to fetch transaction metadata!")
-    }
 }
 
 pub trait Expectation {
