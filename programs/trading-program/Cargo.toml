@@ -31,8 +31,6 @@ solana-program-runtime = "1.18.26"
 solana-sdk = "1.18.26"
 test-context = "0.4.1"
 common_tests = { path = "../../common/tests" }
-cross_chain_escrow_dst_tests = { path = "../cross-chain-escrow-dst/tests" }
-cross_chain_escrow_src_tests = { path = "../cross-chain-escrow-src/tests" }
 
 [lints.rust]
 unexpected_cfgs = { level = "allow", check-cfg = ["cfg(solana)"] }

@@ -1073,6 +1073,8 @@ dependencies = [
  "anchor-lang",
  "anchor-spl",
  "common",
+ "cross-chain-escrow-dst",
+ "cross-chain-escrow-src",
  "solana-program",
  "solana-program-pack",
  "solana-program-runtime",
@@ -1176,6 +1178,13 @@ dependencies = [
  "anchor-lang",
  "anchor-spl",
  "common",
+ "common_tests",
+ "solana-program",
+ "solana-program-pack",
+ "solana-program-runtime",
+ "solana-program-test",
+ "solana-sdk",
+ "test-context",
 ]
 
 [[package]]
@@ -1186,40 +1195,6 @@ dependencies = [
  "anchor-spl",
  "common",
  "common_tests",
- "solana-program",
- "solana-program-pack",
- "solana-program-runtime",
- "solana-program-test",
- "solana-sdk",
- "test-context",
-]
-
-[[package]]
-name = "cross_chain_escrow_dst_tests"
-version = "0.1.0"
-dependencies = [
- "anchor-lang",
- "anchor-spl",
- "common",
- "common_tests",
- "cross-chain-escrow-dst",
- "solana-program",
- "solana-program-pack",
- "solana-program-runtime",
- "solana-program-test",
- "solana-sdk",
- "test-context",
-]
-
-[[package]]
-name = "cross_chain_escrow_src_tests"
-version = "0.1.0"
-dependencies = [
- "anchor-lang",
- "anchor-spl",
- "common",
- "common_tests",
- "cross-chain-escrow-src",
  "solana-program",
  "solana-program-pack",
  "solana-program-runtime",
@@ -6220,8 +6195,6 @@ dependencies = [
  "common_tests",
  "cross-chain-escrow-dst",
  "cross-chain-escrow-src",
- "cross_chain_escrow_dst_tests",
- "cross_chain_escrow_src_tests",
  "solana-program",
  "solana-program-pack",
  "solana-program-runtime",
