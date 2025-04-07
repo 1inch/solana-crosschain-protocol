@@ -576,9 +576,9 @@ pub async fn test_public_withdraw_fails_with_wrong_recipient_ata<T: EscrowVarian
 ) {
     let withdrawer = test_state.recipient_wallet.keypair.insecure_clone();
 
-    test_state.recipient_wallet.token_account = test_state.creator_wallet.token_account;
     let (escrow, escrow_ata) = create_escrow(test_state).await;
 
+    test_state.recipient_wallet.token_account = test_state.creator_wallet.token_account;
     let public_withdraw_ix = T::get_public_withdraw_ix(
         test_state,
         &escrow,
