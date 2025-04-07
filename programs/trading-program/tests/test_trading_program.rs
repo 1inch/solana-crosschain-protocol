@@ -1,5 +1,5 @@
 use common_tests::tests as common_escrow_tests;
-use solana_program_test::{processor, tokio};
+use solana_program_test::tokio;
 use test_context::test_context;
 
 mod utils;

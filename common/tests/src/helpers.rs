@@ -17,9 +17,7 @@ use solana_program::{
     pubkey::Pubkey,
 };
 use solana_program_runtime::invoke_context::BuiltinFunctionWithContext;
-use solana_program_test::{
-    processor, BanksClient, BanksClientError, ProgramTest, ProgramTestContext,
-};
+use solana_program_test::{BanksClient, BanksClientError, ProgramTest, ProgramTestContext};
 use solana_sdk::{
     signature::Signer,
     signer::keypair::Keypair,
@@ -191,7 +189,7 @@ pub mod src_program {
     use super::*;
     use crate::wrap_entry;
     use anchor_lang::InstructionData;
-    use solana_program_test::{processor, tokio};
+    use solana_program_test::processor;
 
     use anchor_lang::Space;
     use anchor_spl::{
@@ -200,7 +198,6 @@ pub mod src_program {
 
     use solana_program::{
         instruction::{AccountMeta, Instruction},
-        program_error::ProgramError,
         pubkey::Pubkey,
         system_program::ID as system_program_id,
         sysvar::rent::ID as rent_id,
@@ -395,7 +392,7 @@ pub mod dst_program {
     use super::*;
     use crate::wrap_entry;
     use anchor_lang::InstructionData;
-    use solana_program_test::{processor, tokio};
+    use solana_program_test::processor;
 
     use anchor_lang::Space;
     use anchor_spl::{
@@ -404,7 +401,6 @@ pub mod dst_program {
 
     use solana_program::{
         instruction::{AccountMeta, Instruction},
-        program_error::ProgramError,
         pubkey::Pubkey,
         system_program::ID as system_program_id,
         sysvar::rent::ID as rent_id,
@@ -898,7 +894,9 @@ macro_rules! wrap_entry {
             |program_id: &Pubkey, accounts: &[AccountInfo], instruction_data: &[u8]| {
                 $entry(
                     program_id,
-                    unsafe { std::mem::transmute(accounts) },
+                    unsafe {
+                        std::mem::transmute::<&[AccountInfo<'_>], &[AccountInfo<'_>]>(accounts)
+                    },
                     instruction_data,
                 )
             }
