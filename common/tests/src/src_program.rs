@@ -30,68 +30,10 @@ impl EscrowVariant for SrcProgram {
             wrap_entry!(cross_chain_escrow_src::entry),
         )
     }
-    fn get_public_withdraw_ix(
-        test_state: &TestState,
-        escrow: &Pubkey,
-        escrow_ata: &Pubkey,
-    ) -> Instruction {
-        let instruction_data =
-            InstructionData::data(&cross_chain_escrow_src::instruction::PublicWithdraw {
-                secret: test_state.secret,
-            });
 
-        let instruction: Instruction = Instruction {
-            program_id: cross_chain_escrow_src::id(),
-            accounts: vec![
-                AccountMeta::new(test_state.creator_wallet.keypair.pubkey(), false),
-                AccountMeta::new_readonly(test_state.recipient_wallet.keypair.pubkey(), false),
-                AccountMeta::new_readonly(test_state.context.payer.pubkey(), false),
-                AccountMeta::new_readonly(test_state.token, false),
-                AccountMeta::new(*escrow, false),
-                AccountMeta::new(*escrow_ata, false),
-                AccountMeta::new(test_state.recipient_wallet.token_account, false),
-                AccountMeta::new_readonly(spl_program_id, false),
-                AccountMeta::new_readonly(system_program_id, false),
-            ],
-            data: instruction_data,
-        };
-
-        instruction
-    }
-    fn withdraw_ix_to_signed_tx(ix: Instruction, test_state: &TestState) -> Transaction {
-        Transaction::new_signed_with_payer(
-            &[ix],
-            Some(&test_state.payer_kp.pubkey()),
-            &[
-                &test_state.context.payer,
-                &test_state.recipient_wallet.keypair,
-            ],
-            test_state.context.last_blockhash,
-        )
-    }
-    fn get_cancel_ix(
-        test_state: &TestStateBase<SrcProgram>,
-        escrow: &Pubkey,
-        escrow_ata: &Pubkey,
-    ) -> Instruction {
-        let instruction_data =
-            InstructionData::data(&cross_chain_escrow_src::instruction::Cancel {});
-
-        let instruction: Instruction = Instruction {
-            program_id: cross_chain_escrow_src::id(),
-            accounts: vec![
-                AccountMeta::new(test_state.creator_wallet.keypair.pubkey(), true),
-                AccountMeta::new_readonly(test_state.token, false),
-                AccountMeta::new(*escrow, false),
-                AccountMeta::new(*escrow_ata, false),
-                AccountMeta::new(test_state.creator_wallet.token_account, false),
-                AccountMeta::new_readonly(spl_program_id, false),
-                AccountMeta::new_readonly(system_program_id, false),
-            ],
-            data: instruction_data,
-        };
-
-        instruction
+    fn get_escrow_data_len() -> usize {
+        cross_chain_escrow_src::constants::DISCRIMINATOR
+            + cross_chain_escrow_src::EscrowSrc::INIT_SPACE
     }
 
     fn get_create_ix(
@@ -131,6 +73,7 @@ impl EscrowVariant for SrcProgram {
         };
         instruction
     }
+
     fn get_withdraw_ix(
         test_state: &TestState,
         escrow: &Pubkey,
@@ -150,6 +93,72 @@ impl EscrowVariant for SrcProgram {
                 AccountMeta::new(*escrow, false),
                 AccountMeta::new(*escrow_ata, false),
                 AccountMeta::new(test_state.recipient_wallet.token_account, false),
+                AccountMeta::new_readonly(spl_program_id, false),
+                AccountMeta::new_readonly(system_program_id, false),
+            ],
+            data: instruction_data,
+        };
+
+        instruction
+    }
+
+    fn withdraw_ix_to_signed_tx(ix: Instruction, test_state: &TestState) -> Transaction {
+        Transaction::new_signed_with_payer(
+            &[ix],
+            Some(&test_state.payer_kp.pubkey()),
+            &[
+                &test_state.context.payer,
+                &test_state.recipient_wallet.keypair,
+            ],
+            test_state.context.last_blockhash,
+        )
+    }
+
+    fn get_public_withdraw_ix(
+        test_state: &TestState,
+        escrow: &Pubkey,
+        escrow_ata: &Pubkey,
+    ) -> Instruction {
+        let instruction_data =
+            InstructionData::data(&cross_chain_escrow_src::instruction::PublicWithdraw {
+                secret: test_state.secret,
+            });
+
+        let instruction: Instruction = Instruction {
+            program_id: cross_chain_escrow_src::id(),
+            accounts: vec![
+                AccountMeta::new(test_state.creator_wallet.keypair.pubkey(), false),
+                AccountMeta::new_readonly(test_state.recipient_wallet.keypair.pubkey(), false),
+                AccountMeta::new_readonly(test_state.context.payer.pubkey(), false),
+                AccountMeta::new_readonly(test_state.token, false),
+                AccountMeta::new(*escrow, false),
+                AccountMeta::new(*escrow_ata, false),
+                AccountMeta::new(test_state.recipient_wallet.token_account, false),
+                AccountMeta::new_readonly(spl_program_id, false),
+                AccountMeta::new_readonly(system_program_id, false),
+            ],
+            data: instruction_data,
+        };
+
+        instruction
+    }
+
+    fn get_cancel_ix(
+        test_state: &TestStateBase<SrcProgram>,
+        escrow: &Pubkey,
+        escrow_ata: &Pubkey,
+    ) -> Instruction {
+        let instruction_data =
+            InstructionData::data(&cross_chain_escrow_src::instruction::Cancel {});
+
+        let instruction: Instruction = Instruction {
+            program_id: cross_chain_escrow_src::id(),
+            accounts: vec![
+                AccountMeta::new(test_state.creator_wallet.keypair.pubkey(), true),
+                AccountMeta::new_readonly(test_state.token, false),
+                AccountMeta::new(*escrow, false),
+                AccountMeta::new(*escrow_ata, false),
+                AccountMeta::new(test_state.creator_wallet.token_account, false),
                 AccountMeta::new_readonly(spl_program_id, false),
                 AccountMeta::new_readonly(system_program_id, false),
             ],
@@ -193,10 +202,5 @@ impl EscrowVariant for SrcProgram {
         };
 
         instruction
-    }
-
-    fn get_escrow_data_len() -> usize {
-        cross_chain_escrow_src::constants::DISCRIMINATOR
-            + cross_chain_escrow_src::EscrowSrc::INIT_SPACE
     }
 }
