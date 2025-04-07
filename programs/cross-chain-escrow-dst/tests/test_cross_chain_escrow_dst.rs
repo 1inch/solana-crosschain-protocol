@@ -1,5 +1,5 @@
 use common::error::EscrowError;
-use common_tests::helpers::dst_program::*;
+use common_tests::dst_program::DstProgram;
 use common_tests::helpers::*;
 use common_tests::tests as common_escrow_tests;
 

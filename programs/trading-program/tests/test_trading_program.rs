@@ -6,7 +6,7 @@ mod utils;
 
 mod test_escrow_creation_src {
     use super::*;
-    use common_tests::helpers::src_program::*;
+    use common_tests::src_program::SrcProgram;
 
     type TestState = utils::TestStateTrading<SrcProgram>;
 
@@ -19,7 +19,7 @@ mod test_escrow_creation_src {
 
 mod test_escrow_creation_dst {
     use super::*;
-    use common_tests::helpers::dst_program::*;
+    use common_tests::dst_program::DstProgram;
 
     type TestState = utils::TestStateTrading<DstProgram>;
 

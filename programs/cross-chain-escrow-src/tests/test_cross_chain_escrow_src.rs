@@ -1,6 +1,6 @@
 use common::error::EscrowError;
-use common_tests::helpers::src_program::SrcProgram;
 use common_tests::helpers::*;
+use common_tests::src_program::SrcProgram;
 use common_tests::tests as common_escrow_tests;
 
 use solana_program::program_error::ProgramError;
