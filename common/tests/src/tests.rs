@@ -1,8 +1,12 @@
 use crate::helpers::*;
-use anchor_spl::token::spl_token::state::Account as SplTokenAccount;
+use anchor_lang::error::ErrorCode;
+use anchor_spl::token::spl_token::{error::TokenError, state::Account as SplTokenAccount};
 use common::{constants::RESCUE_DELAY, error::EscrowError};
 use solana_program::{keccak::hash, program_error::ProgramError, program_pack::Pack};
-use solana_sdk::{signature::Signer, signer::keypair::Keypair, transaction::Transaction};
+use solana_sdk::{
+    signature::Signer, signer::keypair::Keypair, system_instruction::SystemError,
+    transaction::Transaction,
+};
 
 pub async fn test_escrow_creation<T: EscrowVariant>(test_state: &mut TestStateBase<T>) {
     let (escrow, escrow_ata) = create_escrow(test_state).await;
@@ -137,8 +141,10 @@ pub async fn test_escrow_creation_fail_with_insufficient_tokens<T: EscrowVariant
     );
 
     test_state
-        .expect_err_in_tx_meta(transaction, ERROR_INSUFFICIENT_FUNDS)
-        .await;
+        .client
+        .process_transaction(transaction)
+        .await
+        .expect_error((0, ProgramError::from(TokenError::InsufficientFunds)));
 
     let acc_lookup_result = test_state.client.get_account(escrow_ata).await.unwrap();
     assert!(acc_lookup_result.is_none());
@@ -179,8 +185,13 @@ pub async fn test_escrow_creation_fail_with_existing_order_hash<T: EscrowVariant
                   // for being replayed.
     );
     test_state
-        .expect_err_in_tx_meta(transaction, ERROR_ALREADY_USED)
-        .await;
+        .client
+        .process_transaction(transaction)
+        .await
+        .expect_error((
+            0,
+            ProgramError::Custom(SystemError::AccountAlreadyInUse as u32),
+        ));
 }
 
 pub async fn test_escrow_creation_fail_with_invalid_rescue_start<T: EscrowVariant>(
@@ -370,8 +381,13 @@ pub async fn test_withdraw_does_not_work_with_wrong_recipient_ata<T: EscrowVaria
     );
 
     test_state
-        .expect_err_in_tx_meta(transaction, ERROR_CONSTRAINT_TOKENOWNER)
-        .await;
+        .client
+        .process_transaction(transaction)
+        .await
+        .expect_error((
+            0,
+            ProgramError::Custom(ErrorCode::ConstraintTokenOwner.into()),
+        ))
 }
 
 pub async fn test_withdraw_does_not_work_with_wrong_escrow_ata<T: EscrowVariant>(
@@ -387,8 +403,13 @@ pub async fn test_withdraw_does_not_work_with_wrong_escrow_ata<T: EscrowVariant>
     let transaction = T::withdraw_ix_to_signed_tx(withdraw_ix, test_state);
 
     test_state
-        .expect_err_in_tx_meta(transaction, ERROR_CONSTRAINT_TOKENOWNER)
-        .await;
+        .client
+        .process_transaction(transaction)
+        .await
+        .expect_error((
+            0,
+            ProgramError::Custom(ErrorCode::ConstraintTokenOwner.into()),
+        ))
 }
 
 pub async fn test_withdraw_does_not_work_before_withdrawal_start<T: EscrowVariant>(
@@ -406,8 +427,10 @@ pub async fn test_withdraw_does_not_work_before_withdrawal_start<T: EscrowVarian
         test_state.init_timestamp + DEFAULT_PERIOD_DURATION * PeriodType::Finality as u32,
     );
     test_state
-        .expect_err_in_tx_meta(transaction, ERROR_INVALID_TIME)
-        .await;
+        .client
+        .process_transaction(transaction)
+        .await
+        .expect_error((0, ProgramError::Custom(EscrowError::InvalidTime.into())))
 }
 
 pub async fn test_withdraw_does_not_work_after_cancellation_start<T: EscrowVariant>(
@@ -425,23 +448,20 @@ pub async fn test_withdraw_does_not_work_after_cancellation_start<T: EscrowVaria
         test_state.init_timestamp + DEFAULT_PERIOD_DURATION * PeriodType::Cancellation as u32,
     );
     test_state
-        .expect_err_in_tx_meta(transaction, ERROR_INVALID_TIME)
-        .await;
+        .client
+        .process_transaction(transaction)
+        .await
+        .expect_error((0, ProgramError::Custom(EscrowError::InvalidTime.into())))
 }
 
-pub async fn test_public_withdraw_tokens_generic<T: EscrowVariant>(
+pub async fn test_public_withdraw_tokens<T: EscrowVariant>(
     test_state: &mut TestStateBase<T>,
     withdrawer: Keypair,
 ) {
     let (escrow, escrow_ata) = create_escrow(test_state).await;
 
-    let public_withdraw_ix = T::get_public_withdraw_ix(
-        test_state,
-        &escrow,
-        &escrow_ata,
-        withdrawer.pubkey(),
-        test_state.secret,
-    );
+    let public_withdraw_ix =
+        T::get_public_withdraw_ix(test_state, &escrow, &escrow_ata, withdrawer.pubkey());
 
     let transaction = Transaction::new_signed_with_payer(
         &[public_withdraw_ix],
@@ -544,13 +564,9 @@ pub async fn test_public_withdraw_fails_with_wrong_secret<T: EscrowVariant>(
     let withdrawer = test_state.payer_kp.insecure_clone();
     let (escrow, escrow_ata) = create_escrow(test_state).await;
 
-    let public_withdraw_ix = T::get_public_withdraw_ix(
-        test_state,
-        &escrow,
-        &escrow_ata,
-        withdrawer.pubkey(),
-        [0u8; 32], // bad secret
-    );
+    test_state.secret = [0u8; 32]; // bad secret
+    let public_withdraw_ix =
+        T::get_public_withdraw_ix(test_state, &escrow, &escrow_ata, withdrawer.pubkey());
 
     let transaction = Transaction::new_signed_with_payer(
         &[public_withdraw_ix],
@@ -576,16 +592,11 @@ pub async fn test_public_withdraw_fails_with_wrong_recipient_ata<T: EscrowVarian
 ) {
     let withdrawer = test_state.recipient_wallet.keypair.insecure_clone();
 
-    test_state.recipient_wallet.token_account = test_state.creator_wallet.token_account;
     let (escrow, escrow_ata) = create_escrow(test_state).await;
 
-    let public_withdraw_ix = T::get_public_withdraw_ix(
-        test_state,
-        &escrow,
-        &escrow_ata,
-        withdrawer.pubkey(),
-        test_state.secret,
-    );
+    test_state.recipient_wallet.token_account = test_state.creator_wallet.token_account;
+    let public_withdraw_ix =
+        T::get_public_withdraw_ix(test_state, &escrow, &escrow_ata, withdrawer.pubkey());
 
     let transaction = Transaction::new_signed_with_payer(
         &[public_withdraw_ix],
@@ -600,8 +611,13 @@ pub async fn test_public_withdraw_fails_with_wrong_recipient_ata<T: EscrowVarian
     );
 
     test_state
-        .expect_err_in_tx_meta(transaction, ERROR_CONSTRAINT_TOKENOWNER)
+        .client
+        .process_transaction(transaction)
         .await
+        .expect_error((
+            0,
+            ProgramError::Custom(ErrorCode::ConstraintTokenOwner.into()),
+        ))
 }
 
 pub async fn test_public_withdraw_fails_with_wrong_escrow_ata<T: EscrowVariant>(
@@ -614,13 +630,8 @@ pub async fn test_public_withdraw_fails_with_wrong_escrow_ata<T: EscrowVariant>(
     test_state.test_arguments.escrow_amount += 1;
     let (_, escrow_ata_2) = create_escrow(test_state).await;
 
-    let public_withdraw_ix = T::get_public_withdraw_ix(
-        test_state,
-        &escrow,
-        &escrow_ata_2,
-        withdrawer.pubkey(),
-        test_state.secret,
-    );
+    let public_withdraw_ix =
+        T::get_public_withdraw_ix(test_state, &escrow, &escrow_ata_2, withdrawer.pubkey());
 
     let transaction = Transaction::new_signed_with_payer(
         &[public_withdraw_ix],
@@ -635,8 +646,13 @@ pub async fn test_public_withdraw_fails_with_wrong_escrow_ata<T: EscrowVariant>(
     );
 
     test_state
-        .expect_err_in_tx_meta(transaction, ERROR_CONSTRAINT_TOKENOWNER)
+        .client
+        .process_transaction(transaction)
         .await
+        .expect_error((
+            0,
+            ProgramError::Custom(ErrorCode::ConstraintTokenOwner.into()),
+        ))
 }
 
 pub async fn test_public_withdraw_fails_before_start_of_public_withdraw<T: EscrowVariant>(
@@ -648,7 +664,6 @@ pub async fn test_public_withdraw_fails_before_start_of_public_withdraw<T: Escro
         &escrow,
         &escrow_ata,
         test_state.payer_kp.pubkey(),
-        test_state.secret,
     );
 
     let transaction = Transaction::new_signed_with_payer(
@@ -664,8 +679,10 @@ pub async fn test_public_withdraw_fails_before_start_of_public_withdraw<T: Escro
     );
 
     test_state
-        .expect_err_in_tx_meta(transaction, ERROR_INVALID_TIME)
-        .await;
+        .client
+        .process_transaction(transaction)
+        .await
+        .expect_error((0, ProgramError::Custom(EscrowError::InvalidTime.into())))
 }
 
 pub async fn test_public_withdraw_fails_after_cancellation_start<T: EscrowVariant>(
@@ -677,7 +694,6 @@ pub async fn test_public_withdraw_fails_after_cancellation_start<T: EscrowVarian
         &escrow,
         &escrow_ata,
         test_state.payer_kp.pubkey(),
-        test_state.secret,
     );
 
     let transaction = Transaction::new_signed_with_payer(
@@ -693,8 +709,10 @@ pub async fn test_public_withdraw_fails_after_cancellation_start<T: EscrowVarian
     );
 
     test_state
-        .expect_err_in_tx_meta(transaction, ERROR_INVALID_TIME)
-        .await;
+        .client
+        .process_transaction(transaction)
+        .await
+        .expect_error((0, ProgramError::Custom(EscrowError::InvalidTime.into())))
 }
 
 pub async fn test_cancel<T: EscrowVariant>(test_state: &mut TestStateBase<T>) {
@@ -806,8 +824,13 @@ pub async fn test_cannot_cancel_with_wrong_creator_ata<T: EscrowVariant>(
     );
 
     test_state
-        .expect_err_in_tx_meta(transaction, ERROR_CONSTRAINT_TOKENOWNER)
-        .await;
+        .client
+        .process_transaction(transaction)
+        .await
+        .expect_error((
+            0,
+            ProgramError::Custom(ErrorCode::ConstraintTokenOwner.into()),
+        ))
 }
 
 pub async fn test_cannot_cancel_with_wrong_escrow_ata<T: EscrowVariant>(
@@ -831,8 +854,13 @@ pub async fn test_cannot_cancel_with_wrong_escrow_ata<T: EscrowVariant>(
     );
 
     test_state
-        .expect_err_in_tx_meta(transaction, ERROR_CONSTRAINT_TOKENOWNER)
-        .await;
+        .client
+        .process_transaction(transaction)
+        .await
+        .expect_error((
+            0,
+            ProgramError::Custom(ErrorCode::ConstraintTokenOwner.into()),
+        ))
 }
 
 pub async fn test_cannot_cancel_before_cancellation_start<T: EscrowVariant>(
@@ -856,8 +884,10 @@ pub async fn test_cannot_cancel_before_cancellation_start<T: EscrowVariant>(
         test_state.init_timestamp + DEFAULT_PERIOD_DURATION * PeriodType::Withdrawal as u32,
     );
     test_state
-        .expect_err_in_tx_meta(transaction, ERROR_INVALID_TIME)
-        .await;
+        .client
+        .process_transaction(transaction)
+        .await
+        .expect_error((0, ProgramError::Custom(EscrowError::InvalidTime.into())))
 }
 
 pub async fn test_escrow_creation_fail_if_finality_duration_overflows<T: EscrowVariant>(
@@ -1154,8 +1184,10 @@ pub async fn test_cannot_rescue_funds_by_non_recipient<T: EscrowVariant>(
     );
 
     test_state
-        .expect_err_in_tx_meta(transaction, ERROR_CONSTRAINT_SEEDS)
-        .await;
+        .client
+        .process_transaction(transaction)
+        .await
+        .expect_error((0, ProgramError::Custom(ErrorCode::ConstraintSeeds.into())))
 }
 
 pub async fn test_cannot_rescue_funds_with_wrong_recipient_ata<T: EscrowVariant>(
@@ -1206,8 +1238,13 @@ pub async fn test_cannot_rescue_funds_with_wrong_recipient_ata<T: EscrowVariant>
     );
 
     test_state
-        .expect_err_in_tx_meta(transaction, ERROR_CONSTRAINT_TOKENOWNER)
-        .await;
+        .client
+        .process_transaction(transaction)
+        .await
+        .expect_error((
+            0,
+            ProgramError::Custom(ErrorCode::ConstraintTokenOwner.into()),
+        ))
 }
 
 pub async fn test_cannot_rescue_funds_with_wrong_escrow_ata<T: EscrowVariant>(
@@ -1247,6 +1284,11 @@ pub async fn test_cannot_rescue_funds_with_wrong_escrow_ata<T: EscrowVariant>(
     );
 
     test_state
-        .expect_err_in_tx_meta(transaction, ERROR_CONSTRAINT_ASSOCIATED)
-        .await;
+        .client
+        .process_transaction(transaction)
+        .await
+        .expect_error((
+            0,
+            ProgramError::Custom(ErrorCode::ConstraintAssociated.into()),
+        ))
 }

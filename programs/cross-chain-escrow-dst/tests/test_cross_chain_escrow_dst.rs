@@ -41,10 +41,11 @@ impl EscrowVariant for DstProgram {
         escrow: &Pubkey,
         escrow_ata: &Pubkey,
         withdrawer: Pubkey,
-        secret: [u8; 32],
     ) -> Instruction {
         let instruction_data =
-            InstructionData::data(&cross_chain_escrow_dst::instruction::PublicWithdraw { secret });
+            InstructionData::data(&cross_chain_escrow_dst::instruction::PublicWithdraw {
+                secret: test_state.secret,
+            });
 
         let instruction: Instruction = Instruction {
             program_id: cross_chain_escrow_dst::id(),
@@ -374,7 +375,6 @@ mod test_escrow_public_withdraw {
             &escrow,
             &escrow_ata,
             test_state.creator_wallet.keypair.pubkey(),
-            test_state.secret,
         );
 
         let transaction = Transaction::new_signed_with_payer(
@@ -477,7 +477,7 @@ mod test_escrow_public_withdraw {
             &withdrawer.pubkey(),
         )
         .await;
-        common_escrow_tests::test_public_withdraw_tokens_generic(test_state, withdrawer).await
+        common_escrow_tests::test_public_withdraw_tokens(test_state, withdrawer).await
     }
 
     #[test_context(TestState)]

@@ -1,5 +1,6 @@
-use anchor_lang::prelude::AccountInfo;
+use anchor_lang::prelude::{AccountInfo, ErrorCode};
 use anchor_spl::token::spl_token::state::Account as SplTokenAccount;
+use common::error::EscrowError;
 use common_tests::helpers::*;
 use common_tests::tests as common_escrow_tests;
 use common_tests::wrap_entry;
@@ -38,10 +39,11 @@ impl EscrowVariant for SrcProgram {
         escrow: &Pubkey,
         escrow_ata: &Pubkey,
         withdrawer: Pubkey,
-        secret: [u8; 32],
     ) -> Instruction {
         let instruction_data =
-            InstructionData::data(&cross_chain_escrow_src::instruction::PublicWithdraw { secret });
+            InstructionData::data(&cross_chain_escrow_src::instruction::PublicWithdraw {
+                secret: test_state.secret,
+            });
 
         let instruction: Instruction = Instruction {
             program_id: cross_chain_escrow_src::id(),
@@ -343,7 +345,7 @@ mod test_escrow_public_withdraw {
     #[test_context(TestState)]
     #[tokio::test]
     async fn test_public_withdraw_tokens_by_recipient(test_state: &mut TestState) {
-        common_escrow_tests::test_public_withdraw_tokens_generic(
+        common_escrow_tests::test_public_withdraw_tokens(
             test_state,
             test_state.recipient_wallet.keypair.insecure_clone(),
         )
@@ -361,7 +363,7 @@ mod test_escrow_public_withdraw {
             &withdrawer.pubkey(),
         )
         .await;
-        common_escrow_tests::test_public_withdraw_tokens_generic(test_state, withdrawer).await
+        common_escrow_tests::test_public_withdraw_tokens(test_state, withdrawer).await
     }
 
     #[test_context(TestState)]
@@ -682,8 +684,13 @@ mod test_escrow_public_cancel {
         );
 
         test_state
-            .expect_err_in_tx_meta(transaction, ERROR_CONSTRAINT_TOKENOWNER)
-            .await;
+            .client
+            .process_transaction(transaction)
+            .await
+            .expect_error((
+                0,
+                ProgramError::Custom(ErrorCode::ConstraintTokenOwner.into()),
+            ))
     }
 
     #[test_context(TestState)]
@@ -719,8 +726,13 @@ mod test_escrow_public_cancel {
         );
 
         test_state
-            .expect_err_in_tx_meta(transaction, ERROR_CONSTRAINT_TOKENOWNER)
-            .await;
+            .client
+            .process_transaction(transaction)
+            .await
+            .expect_error((
+                0,
+                ProgramError::Custom(ErrorCode::ConstraintTokenOwner.into()),
+            ))
     }
 
     #[test_context(TestState)]
@@ -748,8 +760,10 @@ mod test_escrow_public_cancel {
             test_state.init_timestamp + DEFAULT_PERIOD_DURATION * PeriodType::Cancellation as u32,
         );
         test_state
-            .expect_err_in_tx_meta(transaction, ERROR_INVALID_TIME)
-            .await;
+            .client
+            .process_transaction(transaction)
+            .await
+            .expect_error((0, ProgramError::Custom(EscrowError::InvalidTime.into())))
     }
 }
 
