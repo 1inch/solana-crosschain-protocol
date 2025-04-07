@@ -440,7 +440,6 @@ pub async fn test_public_withdraw_tokens<T: EscrowVariant>(
         &escrow,
         &escrow_ata,
         withdrawer.pubkey(),
-        &test_state.recipient_wallet.token_account,
         test_state.secret,
     );
 
@@ -550,7 +549,6 @@ pub async fn test_public_withdraw_fails_with_wrong_secret<T: EscrowVariant>(
         &escrow,
         &escrow_ata,
         withdrawer.pubkey(),
-        &test_state.recipient_wallet.token_account,
         [0u8; 32], // bad secret
     );
 
@@ -578,6 +576,7 @@ pub async fn test_public_withdraw_fails_with_wrong_recipient_ata<T: EscrowVarian
 ) {
     let withdrawer = test_state.recipient_wallet.keypair.insecure_clone();
 
+    test_state.recipient_wallet.token_account = test_state.creator_wallet.token_account;
     let (escrow, escrow_ata) = create_escrow(test_state).await;
 
     let public_withdraw_ix = T::get_public_withdraw_ix(
@@ -585,7 +584,6 @@ pub async fn test_public_withdraw_fails_with_wrong_recipient_ata<T: EscrowVarian
         &escrow,
         &escrow_ata,
         withdrawer.pubkey(),
-        &test_state.creator_wallet.token_account, // wrong recipient ata
         test_state.secret,
     );
 
@@ -621,7 +619,6 @@ pub async fn test_public_withdraw_fails_with_wrong_escrow_ata<T: EscrowVariant>(
         &escrow,
         &escrow_ata_2,
         withdrawer.pubkey(),
-        &test_state.recipient_wallet.token_account,
         test_state.secret,
     );
 
@@ -651,7 +648,6 @@ pub async fn test_public_withdraw_fails_before_start_of_public_withdraw<T: Escro
         &escrow,
         &escrow_ata,
         test_state.payer_kp.pubkey(),
-        &test_state.recipient_wallet.token_account,
         test_state.secret,
     );
 
@@ -681,7 +677,6 @@ pub async fn test_public_withdraw_fails_after_cancellation_start<T: EscrowVarian
         &escrow,
         &escrow_ata,
         test_state.payer_kp.pubkey(),
-        &test_state.recipient_wallet.token_account,
         test_state.secret,
     );
 
