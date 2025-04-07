@@ -1,4 +1,5 @@
 use anchor_lang::prelude::AccountInfo;
+use common::error::EscrowError;
 use common_tests::helpers::*;
 use common_tests::tests as common_escrow_tests;
 use common_tests::wrap_entry;
@@ -439,8 +440,10 @@ mod test_escrow_public_cancel {
             test_state.init_timestamp + DEFAULT_PERIOD_DURATION * PeriodType::Cancellation as u32,
         );
         test_state
-            .expect_err_in_tx_meta(transaction, ERROR_INVALID_TIME)
-            .await;
+            .client
+            .process_transaction(transaction)
+            .await
+            .expect_error((0, ProgramError::Custom(EscrowError::InvalidTime.into())))
     }
 }
 
