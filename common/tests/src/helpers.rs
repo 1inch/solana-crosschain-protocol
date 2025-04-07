@@ -106,7 +106,6 @@ pub trait EscrowVariant {
         escrow: &Pubkey,
         escrow_ata: &Pubkey,
         safety_deposit_recipient: Pubkey,
-        secret: [u8; 32],
     ) -> Instruction;
     fn get_withdraw_ix(
         test_state: &TestStateBase<Self>,

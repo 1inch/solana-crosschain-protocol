@@ -460,13 +460,8 @@ pub async fn test_public_withdraw_tokens<T: EscrowVariant>(
 ) {
     let (escrow, escrow_ata) = create_escrow(test_state).await;
 
-    let public_withdraw_ix = T::get_public_withdraw_ix(
-        test_state,
-        &escrow,
-        &escrow_ata,
-        withdrawer.pubkey(),
-        test_state.secret,
-    );
+    let public_withdraw_ix =
+        T::get_public_withdraw_ix(test_state, &escrow, &escrow_ata, withdrawer.pubkey());
 
     let transaction = Transaction::new_signed_with_payer(
         &[public_withdraw_ix],
@@ -569,13 +564,9 @@ pub async fn test_public_withdraw_fails_with_wrong_secret<T: EscrowVariant>(
     let withdrawer = test_state.payer_kp.insecure_clone();
     let (escrow, escrow_ata) = create_escrow(test_state).await;
 
-    let public_withdraw_ix = T::get_public_withdraw_ix(
-        test_state,
-        &escrow,
-        &escrow_ata,
-        withdrawer.pubkey(),
-        [0u8; 32], // bad secret
-    );
+    test_state.secret = [0u8; 32]; // bad secret
+    let public_withdraw_ix =
+        T::get_public_withdraw_ix(test_state, &escrow, &escrow_ata, withdrawer.pubkey());
 
     let transaction = Transaction::new_signed_with_payer(
         &[public_withdraw_ix],
@@ -604,13 +595,8 @@ pub async fn test_public_withdraw_fails_with_wrong_recipient_ata<T: EscrowVarian
     let (escrow, escrow_ata) = create_escrow(test_state).await;
 
     test_state.recipient_wallet.token_account = test_state.creator_wallet.token_account;
-    let public_withdraw_ix = T::get_public_withdraw_ix(
-        test_state,
-        &escrow,
-        &escrow_ata,
-        withdrawer.pubkey(),
-        test_state.secret,
-    );
+    let public_withdraw_ix =
+        T::get_public_withdraw_ix(test_state, &escrow, &escrow_ata, withdrawer.pubkey());
 
     let transaction = Transaction::new_signed_with_payer(
         &[public_withdraw_ix],
@@ -644,13 +630,8 @@ pub async fn test_public_withdraw_fails_with_wrong_escrow_ata<T: EscrowVariant>(
     test_state.test_arguments.escrow_amount += 1;
     let (_, escrow_ata_2) = create_escrow(test_state).await;
 
-    let public_withdraw_ix = T::get_public_withdraw_ix(
-        test_state,
-        &escrow,
-        &escrow_ata_2,
-        withdrawer.pubkey(),
-        test_state.secret,
-    );
+    let public_withdraw_ix =
+        T::get_public_withdraw_ix(test_state, &escrow, &escrow_ata_2, withdrawer.pubkey());
 
     let transaction = Transaction::new_signed_with_payer(
         &[public_withdraw_ix],
@@ -683,7 +664,6 @@ pub async fn test_public_withdraw_fails_before_start_of_public_withdraw<T: Escro
         &escrow,
         &escrow_ata,
         test_state.payer_kp.pubkey(),
-        test_state.secret,
     );
 
     let transaction = Transaction::new_signed_with_payer(
@@ -714,7 +694,6 @@ pub async fn test_public_withdraw_fails_after_cancellation_start<T: EscrowVarian
         &escrow,
         &escrow_ata,
         test_state.payer_kp.pubkey(),
-        test_state.secret,
     );
 
     let transaction = Transaction::new_signed_with_payer(
