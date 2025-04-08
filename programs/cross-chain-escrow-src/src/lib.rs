@@ -12,7 +12,6 @@ declare_id!("6NwMYeUmigiMDjhYeYpbxC6Kc63NzZy1dfGd7fGcdkVS");
 pub mod cross_chain_escrow_src {
     use super::*;
 
-    // TODO: add gasless escrow_src creation
     pub fn create(
         ctx: Context<Create>,
         order_hash: [u8; 32],
@@ -327,7 +326,6 @@ pub struct Cancel<'info> {
         mut, // Needed because this account receives lamports (safety deposit and from closed accounts)
         constraint = creator.key() == escrow.creator @ EscrowError::InvalidAccount
     )]
-    // TODO: change signer after adding gasless creation
     creator: Signer<'info>,
     token: Box<Account<'info, Mint>>,
     #[account(

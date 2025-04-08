@@ -12,20 +12,7 @@ mod test_escrow_creation_src {
 
     #[test_context(TestState)]
     #[tokio::test]
-    async fn test_escrow_creation(test_state: &mut TestState) {
-        common_escrow_tests::test_escrow_creation(&mut test_state.base).await
-    }
-}
-
-mod test_escrow_creation_dst {
-    use super::*;
-    use common_tests::dst_program::DstProgram;
-
-    type TestState = utils::TestStateTrading<DstProgram>;
-
-    #[test_context(TestState)]
-    #[tokio::test]
-    async fn test_escrow_creation(test_state: &mut TestState) {
+    async fn test_escrow_creation_via_trading_program(test_state: &mut TestState) {
         common_escrow_tests::test_escrow_creation(&mut test_state.base).await
     }
 }

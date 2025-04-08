@@ -198,9 +198,7 @@ impl Clone for Wallet {
     }
 }
 
-pub fn create_escrow_data<T: EscrowVariant>(
-    test_state: &TestStateBase<T>,
-) -> (Pubkey, Pubkey, Instruction) {
+pub fn get_escrow_addresses<T: EscrowVariant>(test_state: &TestStateBase<T>) -> (Pubkey, Pubkey) {
     let (program_id, _) = T::get_program_spec();
     let (escrow_pda, _) = Pubkey::find_program_address(
         &[
@@ -230,6 +228,14 @@ pub fn create_escrow_data<T: EscrowVariant>(
     );
 
     let escrow_ata = get_associated_token_address(&escrow_pda, &test_state.token);
+
+    (escrow_pda, escrow_ata)
+}
+
+pub fn create_escrow_data<T: EscrowVariant>(
+    test_state: &TestStateBase<T>,
+) -> (Pubkey, Pubkey, Instruction) {
+    let (escrow_pda, escrow_ata) = get_escrow_addresses(test_state);
 
     let instruction: Instruction = T::get_create_ix(test_state, &escrow_pda, &escrow_ata);
 
