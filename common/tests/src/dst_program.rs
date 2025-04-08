@@ -75,7 +75,10 @@ impl EscrowVariant for DstProgram {
         Transaction::new_signed_with_payer(
             &[instruction],
             Some(&test_state.payer_kp.pubkey()),
-            &[&test_state.payer_kp],
+            &[
+                &test_state.context.payer,
+                &test_state.creator_wallet.keypair,
+            ],
             test_state.context.last_blockhash,
         )
     }
