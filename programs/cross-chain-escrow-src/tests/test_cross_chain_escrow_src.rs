@@ -85,8 +85,12 @@ mod test_escrow_creation {
         test_state: &mut TestState,
     ) {
         test_state.test_arguments.cancellation_duration = u32::MAX;
-        let (_, _, tx_result) = create_escrow_tx(test_state).await;
-        tx_result.expect_error((0, ProgramError::ArithmeticOverflow));
+        let (_, _, transaction) = create_escrow_data(test_state);
+        test_state
+            .client
+            .process_transaction(transaction)
+            .await
+            .expect_error((0, ProgramError::ArithmeticOverflow));
     }
 
     #[test_context(TestState)]
@@ -164,6 +168,7 @@ mod test_escrow_public_withdraw {
         common_escrow_tests::test_public_withdraw_fails_after_cancellation_start(test_state).await
     }
 }
+
 mod test_escrow_cancel {
     use super::*;
 
@@ -208,14 +213,7 @@ mod test_escrow_public_cancel {
         test_state: &mut TestState,
     ) {
         let (escrow, escrow_ata) = create_escrow(test_state).await;
-        let public_cancel_ix = create_public_cancel_ix(test_state, &escrow, &escrow_ata);
-
-        let transaction = Transaction::new_signed_with_payer(
-            &[public_cancel_ix],
-            Some(&test_state.payer_kp.pubkey()),
-            &[&test_state.payer_kp],
-            test_state.context.last_blockhash,
-        );
+        let transaction = create_public_cancel_tx(test_state, &escrow, &escrow_ata);
 
         set_time(
             &mut test_state.context,
@@ -279,11 +277,11 @@ mod local_helpers {
     use solana_program::system_program::ID as system_program_id;
     use solana_sdk::signature::Signer;
 
-    pub fn create_public_cancel_ix(
+    pub fn create_public_cancel_tx(
         test_state: &TestState,
         escrow: &Pubkey,
         escrow_ata: &Pubkey,
-    ) -> Instruction {
+    ) -> Transaction {
         let instruction_data =
             InstructionData::data(&cross_chain_escrow_src::instruction::PublicCancel {});
 
@@ -302,6 +300,11 @@ mod local_helpers {
             data: instruction_data,
         };
 
-        instruction
+        Transaction::new_signed_with_payer(
+            &[instruction],
+            Some(&test_state.payer_kp.pubkey()),
+            &[&test_state.payer_kp],
+            test_state.context.last_blockhash,
+        )
     }
 }

@@ -86,17 +86,7 @@ mod test_escrow_creation {
     ) {
         let c: Clock = test_state.client.get_sysvar().await.unwrap();
         test_state.test_arguments.src_cancellation_timestamp = c.unix_timestamp as u32 + 1;
-        let (_, _, create_ix) = create_escrow_data(test_state);
-
-        let transaction = Transaction::new_signed_with_payer(
-            &[create_ix],
-            Some(&test_state.payer_kp.pubkey()),
-            &[
-                &test_state.context.payer,
-                &test_state.creator_wallet.keypair,
-            ],
-            test_state.context.last_blockhash,
-        );
+        let (_, _, transaction) = create_escrow_data(test_state);
 
         test_state
             .client
@@ -164,6 +154,7 @@ mod test_escrow_withdraw {
         common_escrow_tests::test_withdraw_does_not_work_after_cancellation_start(test_state).await
     }
 }
+
 mod test_escrow_public_withdraw {
     use super::*;
 

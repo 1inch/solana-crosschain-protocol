@@ -36,11 +36,11 @@ impl EscrowVariant for DstProgram {
             + cross_chain_escrow_dst::EscrowDst::INIT_SPACE
     }
 
-    fn get_create_ix(
+    fn get_create_tx(
         test_state: &TestStateBase<DstProgram>,
         escrow: &Pubkey,
         escrow_ata: &Pubkey,
-    ) -> Instruction {
+    ) -> Transaction {
         let instruction_data =
             InstructionData::data(&cross_chain_escrow_dst::instruction::Create {
                 amount: test_state.test_arguments.escrow_amount,
@@ -71,14 +71,20 @@ impl EscrowVariant for DstProgram {
             ],
             data: instruction_data,
         };
-        instruction
+
+        Transaction::new_signed_with_payer(
+            &[instruction],
+            Some(&test_state.payer_kp.pubkey()),
+            &[&test_state.payer_kp],
+            test_state.context.last_blockhash,
+        )
     }
 
-    fn get_withdraw_ix(
+    fn get_withdraw_tx(
         test_state: &TestState,
         escrow: &Pubkey,
         escrow_ata: &Pubkey,
-    ) -> Instruction {
+    ) -> Transaction {
         let instruction_data =
             InstructionData::data(&cross_chain_escrow_dst::instruction::Withdraw {
                 secret: test_state.secret,
@@ -99,12 +105,8 @@ impl EscrowVariant for DstProgram {
             data: instruction_data,
         };
 
-        instruction
-    }
-
-    fn withdraw_ix_to_signed_tx(ix: Instruction, test_state: &TestState) -> Transaction {
         Transaction::new_signed_with_payer(
-            &[ix],
+            &[instruction],
             Some(&test_state.payer_kp.pubkey()),
             &[
                 &test_state.context.payer,
@@ -114,11 +116,11 @@ impl EscrowVariant for DstProgram {
         )
     }
 
-    fn get_public_withdraw_ix(
+    fn get_public_withdraw_tx(
         test_state: &TestState,
         escrow: &Pubkey,
         escrow_ata: &Pubkey,
-    ) -> Instruction {
+    ) -> Transaction {
         let instruction_data =
             InstructionData::data(&cross_chain_escrow_dst::instruction::PublicWithdraw {
                 secret: test_state.secret,
@@ -140,14 +142,19 @@ impl EscrowVariant for DstProgram {
             data: instruction_data,
         };
 
-        instruction
+        Transaction::new_signed_with_payer(
+            &[instruction],
+            Some(&test_state.payer_kp.pubkey()),
+            &[&test_state.payer_kp],
+            test_state.context.last_blockhash,
+        )
     }
 
-    fn get_cancel_ix(
+    fn get_cancel_tx(
         test_state: &TestStateBase<DstProgram>,
         escrow: &Pubkey,
         escrow_ata: &Pubkey,
-    ) -> Instruction {
+    ) -> Transaction {
         let instruction_data =
             InstructionData::data(&cross_chain_escrow_dst::instruction::Cancel {});
 
@@ -165,16 +172,24 @@ impl EscrowVariant for DstProgram {
             data: instruction_data,
         };
 
-        instruction
+        Transaction::new_signed_with_payer(
+            &[instruction],
+            Some(&test_state.payer_kp.pubkey()),
+            &[
+                &test_state.context.payer,
+                &test_state.creator_wallet.keypair,
+            ],
+            test_state.context.last_blockhash,
+        )
     }
 
-    fn get_rescue_funds_ix(
+    fn get_rescue_funds_tx(
         test_state: &TestState,
         escrow: &Pubkey,
         token_to_rescue: &Pubkey,
         escrow_ata: &Pubkey,
         recipient_ata: &Pubkey,
-    ) -> Instruction {
+    ) -> Transaction {
         let instruction_data =
             InstructionData::data(&cross_chain_escrow_dst::instruction::RescueFunds {
                 hashlock: test_state.hashlock.to_bytes(),
@@ -201,6 +216,14 @@ impl EscrowVariant for DstProgram {
             data: instruction_data,
         };
 
-        instruction
+        Transaction::new_signed_with_payer(
+            &[instruction],
+            Some(&test_state.payer_kp.pubkey()),
+            &[
+                &test_state.context.payer,
+                &test_state.recipient_wallet.keypair,
+            ],
+            test_state.context.last_blockhash,
+        )
     }
 }
