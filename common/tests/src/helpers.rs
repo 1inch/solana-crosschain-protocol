@@ -101,6 +101,7 @@ pub trait EscrowVariant {
         test_state: &TestStateBase<Self>,
         escrow: &Pubkey,
         escrow_ata: &Pubkey,
+        safety_deposit_recipient: &Keypair,
     ) -> Transaction;
     fn get_withdraw_tx(
         test_state: &TestStateBase<Self>,
