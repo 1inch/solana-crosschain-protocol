@@ -5,7 +5,7 @@ use common_tests::tests as common_escrow_tests;
 
 use solana_program::program_error::ProgramError;
 use solana_program_test::tokio;
-use solana_sdk::{signature::Signer, transaction::Transaction};
+use solana_sdk::transaction::Transaction;
 use test_context::test_context;
 
 type TestState = TestStateBase<SrcProgram>;

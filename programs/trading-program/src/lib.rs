@@ -6,7 +6,6 @@ use anchor_spl::{
 };
 use borsh::BorshDeserialize;
 
-use common::constants;
 mod utils;
 use cross_chain_escrow_src::{
     cpi::{accounts::Create as CreateSrc, create as create_src},
@@ -19,11 +18,6 @@ declare_id!("5ahQ9NWeDmVKG3dJza1ZrFRoJ9wbEUM271HCvfHpAqFC");
 #[program]
 pub mod trading_program {
     use super::*;
-
-    pub fn create_trading_account(ctx: Context<CreateTradingAccount>) -> Result<()> {
-        ctx.accounts.trading_account.owner = ctx.accounts.owner.key();
-        Ok(())
-    }
 
     pub fn init_escrow_src(
         ctx: Context<InitEscrowSrc>,
@@ -86,21 +80,6 @@ pub struct TradingAccount {
 }
 
 #[derive(Accounts)]
-pub struct CreateTradingAccount<'info> {
-    #[account(mut)]
-    pub owner: Signer<'info>,
-    #[account(
-        init,
-        payer = owner,
-        space = constants::DISCRIMINATOR + TradingAccount::INIT_SPACE,
-        seeds = [owner.key.as_ref()],
-        bump
-    )]
-    pub trading_account: Account<'info, TradingAccount>,
-    pub system_program: Program<'info, System>,
-}
-
-#[derive(Accounts)]
 pub struct InitEscrowSrc<'info> {
     #[account(mut)]
     pub taker: Signer<'info>,
@@ -132,8 +111,8 @@ pub struct InitEscrowSrc<'info> {
     #[account(mut)]
     pub escrow_tokens: AccountInfo<'info>,
 
-    #[account(address = IX_ID)]
     /// CHECK: Address verification is done in constraint
+    #[account(address = IX_ID)]
     pub ix_sysvar: AccountInfo<'info>,
 
     pub associated_token_program: Program<'info, AssociatedToken>,

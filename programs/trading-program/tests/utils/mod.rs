@@ -1,6 +1,7 @@
 use anchor_lang::{prelude::AccountInfo, InstructionData};
 use anchor_spl::{
-    associated_token::ID as spl_associated_token_id, token::spl_token::ID as spl_program_id,
+    associated_token::{get_associated_token_address, ID as spl_associated_token_id},
+    token::spl_token::ID as spl_program_id,
 };
 use common_tests::src_program::SrcProgram;
 use common_tests::{helpers::*, wrap_entry};
@@ -9,31 +10,31 @@ use solana_program::{
     keccak::{hash, Hash},
     pubkey::Pubkey,
     system_program::ID as system_program_id,
-    sysvar::rent::ID as rent_id,
+    sysvar::{instructions::ID as ix_sysvar_id, rent::ID as rent_id},
 };
 use solana_program_runtime::invoke_context::BuiltinFunctionWithContext;
-use solana_program_test::processor;
-use solana_program_test::{BanksClient, ProgramTest, ProgramTestContext};
+use solana_program_test::{processor, BanksClient, ProgramTest, ProgramTestContext};
 use solana_sdk::{signature::Signer, transaction::Transaction};
 use std::marker::PhantomData;
 use std::time::{SystemTime, UNIX_EPOCH};
 use test_context::AsyncTestContext;
 
-pub struct TestStateTrading<T: ?Sized> {
-    pub base: TestStateBase<T>,
+pub struct TestStateTrading {
+    pub base: TestStateBase<SrcProgram>,
 }
 
 fn get_trading_program_spec() -> (Pubkey, Option<BuiltinFunctionWithContext>) {
     (trading_program::id(), wrap_entry!(trading_program::entry))
 }
 
-impl<T> AsyncTestContext for TestStateTrading<T>
-where
-    T: EscrowVariant,
-{
-    async fn setup() -> TestStateTrading<T> {
+impl AsyncTestContext for TestStateTrading {
+    async fn setup() -> TestStateTrading {
         let mut program_test: ProgramTest = ProgramTest::default();
-        add_program_to_test(&mut program_test, "escrow_contract", T::get_program_spec);
+        add_program_to_test(
+            &mut program_test,
+            "escrow_contract",
+            SrcProgram::get_program_spec,
+        );
         add_program_to_test(
             &mut program_test,
             "trading_program",
@@ -86,23 +87,38 @@ where
     }
 }
 
+fn get_trading_addresses<T: EscrowVariant>(test_state: &TestStateBase<T>) -> (Pubkey, Pubkey) {
+    let (program_id, _) = T::get_program_spec();
+    let (trading_pda, _) = Pubkey::find_program_address(
+        &[
+            b"trading",
+            test_state.creator_wallet.keypair.pubkey().as_ref(),
+        ],
+        &program_id,
+    );
+    let trading_ata = get_associated_token_address(&trading_pda, &test_state.token);
+
+    (trading_pda, trading_ata)
+}
+
 pub fn create_escrow_via_trading_program(
     test_state: &TestStateBase<SrcProgram>,
-) -> (Pubkey, Pubkey, Transaction) {
+) -> (Pubkey, Pubkey, Pubkey, Pubkey, Transaction) {
     let (escrow_pda, escrow_ata) = get_escrow_addresses(test_state);
+    let (trading_pda, trading_ata) = get_trading_addresses(test_state);
     let (src_program_id, _) = SrcProgram::get_program_spec();
 
     let instruction: Instruction = Instruction {
         program_id: trading_program::id(),
         accounts: vec![
-            AccountMeta::new_readonly(test_state.recipient_wallet.keypair.pubkey(), true), // taker
+            AccountMeta::new(test_state.recipient_wallet.keypair.pubkey(), true), // taker
             AccountMeta::new_readonly(test_state.creator_wallet.keypair.pubkey(), false), // maker
-            AccountMeta::new_readonly(test_state.trading_account, false), // trading_account
-            AccountMeta::new_readonly(test_state.trading_account_ata, false), // trading_account_tokens
-            AccountMeta::new(escrow_pda, false), // escrow
+            AccountMeta::new(trading_pda, false),                                 // trading_account
+            AccountMeta::new(trading_ata, false), // trading_account_tokens
+            AccountMeta::new(escrow_pda, false),  // escrow
             AccountMeta::new_readonly(test_state.token, false), // token
-            AccountMeta::new(escrow_ata, false), // escrow_tokens
-            // ix_sysvar
+            AccountMeta::new(escrow_ata, false),  // escrow_tokens
+            AccountMeta::new_readonly(ix_sysvar_id, false),
             AccountMeta::new_readonly(spl_associated_token_id, false),
             AccountMeta::new_readonly(spl_program_id, false),
             AccountMeta::new_readonly(rent_id, false),
@@ -118,11 +134,15 @@ pub fn create_escrow_via_trading_program(
     let transaction = Transaction::new_signed_with_payer(
         &[instruction],
         Some(&test_state.recipient_wallet.keypair.pubkey()),
-        &[
-            &test_state.recipient_wallet.keypair,
-        ],
+        &[&test_state.recipient_wallet.keypair],
         test_state.context.last_blockhash,
     );
 
-    (escrow_pda, escrow_ata, transaction)
+    (
+        escrow_pda,
+        escrow_ata,
+        trading_pda,
+        trading_ata,
+        transaction,
+    )
 }

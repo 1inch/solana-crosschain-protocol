@@ -5,7 +5,7 @@ use common_tests::tests as common_escrow_tests;
 
 use solana_program::program_error::ProgramError;
 use solana_program_test::tokio;
-use solana_sdk::{signature::Signer, sysvar::clock::Clock, transaction::Transaction};
+use solana_sdk::sysvar::clock::Clock;
 use test_context::test_context;
 
 type TestState = TestStateBase<DstProgram>;
