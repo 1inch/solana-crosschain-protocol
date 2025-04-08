@@ -6,12 +6,12 @@ use anchor_spl::{
 };
 use borsh::BorshDeserialize;
 
-mod utils;
+pub mod utils;
 use cross_chain_escrow_src::{
     cpi::{accounts::Create as CreateSrc, create as create_src},
     program::CrossChainEscrowSrc,
 };
-pub use utils::{error::TradingProgramError, verify_order_signature};
+use utils::{error::TradingProgramError, verify_order_signature};
 
 declare_id!("5ahQ9NWeDmVKG3dJza1ZrFRoJ9wbEUM271HCvfHpAqFC");
 
@@ -27,7 +27,7 @@ pub mod trading_program {
         // 0 is the index of the instruction in the transaction
         let (order_signer, order) = verify_order_signature(&ctx.accounts.ix_sysvar, 0)?;
         // Verify order data matches accounts
-        if order_signer != ctx.accounts.trading_account.owner.key()
+        if order_signer != ctx.accounts.maker.key()
             || order.token != ctx.accounts.token.to_account_info().key()
         {
             return Err(TradingProgramError::OrderDataMismatch.into());
@@ -53,6 +53,7 @@ pub mod trading_program {
                     system_program: ctx.accounts.system_program.to_account_info(),
                 },
                 &[&[
+                    "trading".as_bytes(),
                     ctx.accounts.maker.key().as_ref(),
                     &[ctx.bumps.trading_account],
                 ]],
@@ -73,12 +74,6 @@ pub mod trading_program {
     }
 }
 
-#[account]
-#[derive(InitSpace)]
-pub struct TradingAccount {
-    pub owner: Pubkey,
-}
-
 #[derive(Accounts)]
 pub struct InitEscrowSrc<'info> {
     #[account(mut)]
@@ -88,11 +83,10 @@ pub struct InitEscrowSrc<'info> {
     pub maker: AccountInfo<'info>,
 
     #[account(
-        mut,
-        seeds = [maker.key().as_ref()],
+        seeds = ["trading".as_bytes(), maker.key().as_ref()],
         bump
     )]
-    pub trading_account: Account<'info, TradingAccount>,
+    pub trading_account: AccountInfo<'info>,
 
     #[account(
         mut,

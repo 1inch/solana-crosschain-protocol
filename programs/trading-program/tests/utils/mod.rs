@@ -1,10 +1,11 @@
-use anchor_lang::{prelude::AccountInfo, InstructionData};
+use anchor_lang::{prelude::AccountInfo, AnchorSerialize, InstructionData};
 use anchor_spl::{
     associated_token::{get_associated_token_address, ID as spl_associated_token_id},
     token::spl_token::ID as spl_program_id,
 };
 use common_tests::src_program::SrcProgram;
 use common_tests::{helpers::*, wrap_entry};
+use ed25519_dalek::Keypair as DalekKeypair;
 use solana_program::{
     instruction::{AccountMeta, Instruction},
     keccak::{hash, Hash},
@@ -14,10 +15,14 @@ use solana_program::{
 };
 use solana_program_runtime::invoke_context::BuiltinFunctionWithContext;
 use solana_program_test::{processor, BanksClient, ProgramTest, ProgramTestContext};
-use solana_sdk::{signature::Signer, transaction::Transaction};
+use solana_sdk::{
+    ed25519_instruction::new_ed25519_instruction, signature::Signer, transaction::Transaction,
+};
+
 use std::marker::PhantomData;
 use std::time::{SystemTime, UNIX_EPOCH};
 use test_context::AsyncTestContext;
+use trading_program::utils::Order;
 
 pub struct TestStateTrading {
     pub base: TestStateBase<SrcProgram>,
@@ -87,28 +92,54 @@ impl AsyncTestContext for TestStateTrading {
     }
 }
 
-fn get_trading_addresses<T: EscrowVariant>(test_state: &TestStateBase<T>) -> (Pubkey, Pubkey) {
-    let (program_id, _) = T::get_program_spec();
+fn get_trading_addresses(test_state: &TestStateBase<SrcProgram>) -> (Pubkey, Pubkey) {
     let (trading_pda, _) = Pubkey::find_program_address(
         &[
             b"trading",
             test_state.creator_wallet.keypair.pubkey().as_ref(),
         ],
-        &program_id,
+        &trading_program::id(),
     );
     let trading_ata = get_associated_token_address(&trading_pda, &test_state.token);
 
     (trading_pda, trading_ata)
 }
 
-pub fn create_escrow_via_trading_program(
-    test_state: &TestStateBase<SrcProgram>,
+pub async fn create_escrow_via_trading_program(
+    test_state: &mut TestStateBase<SrcProgram>,
 ) -> (Pubkey, Pubkey, Pubkey, Pubkey, Transaction) {
-    let (escrow_pda, escrow_ata) = get_escrow_addresses(test_state);
-    let (trading_pda, trading_ata) = get_trading_addresses(test_state);
-    let (src_program_id, _) = SrcProgram::get_program_spec();
+    let (trading_pda, _) = get_trading_addresses(test_state);
+    let (escrow_pda, escrow_ata) = get_escrow_addresses(test_state, trading_pda);
 
-    let instruction: Instruction = Instruction {
+    let trading_ata =
+        initialize_spl_associated_account(&mut test_state.context, &test_state.token, &trading_pda)
+            .await;
+
+    mint_spl_tokens(
+        &mut test_state.context,
+        &test_state.token,
+        &trading_ata,
+        test_state.test_arguments.escrow_amount,
+    )
+    .await;
+
+    let order = Order {
+        order_hash: test_state.order_hash.to_bytes(),
+        hashlock: test_state.hashlock.to_bytes(),
+        maker: test_state.creator_wallet.keypair.pubkey(),
+        token: test_state.token,
+        amount: test_state.test_arguments.escrow_amount,
+        safety_deposit: test_state.test_arguments.safety_deposit,
+        finality_duration: test_state.test_arguments.finality_duration,
+        withdrawal_duration: test_state.test_arguments.withdrawal_duration,
+        public_withdrawal_duration: test_state.test_arguments.public_withdrawal_duration,
+    };
+    let order_bytes = order.try_to_vec().unwrap();
+
+    let dalek_kp = DalekKeypair::from_bytes(&test_state.creator_wallet.keypair.to_bytes()).unwrap();
+    let instruction0 = new_ed25519_instruction(&dalek_kp, &order_bytes);
+
+    let instruction1: Instruction = Instruction {
         program_id: trading_program::id(),
         accounts: vec![
             AccountMeta::new(test_state.recipient_wallet.keypair.pubkey(), true), // taker
@@ -123,7 +154,7 @@ pub fn create_escrow_via_trading_program(
             AccountMeta::new_readonly(spl_program_id, false),
             AccountMeta::new_readonly(rent_id, false),
             AccountMeta::new_readonly(system_program_id, false),
-            AccountMeta::new_readonly(src_program_id, false),
+            AccountMeta::new_readonly(cross_chain_escrow_src::id(), false),
         ],
         data: InstructionData::data(&trading_program::instruction::InitEscrowSrc {
             src_cancellation_timestamp: test_state.test_arguments.src_cancellation_timestamp,
@@ -132,7 +163,7 @@ pub fn create_escrow_via_trading_program(
     };
 
     let transaction = Transaction::new_signed_with_payer(
-        &[instruction],
+        &[instruction0, instruction1],
         Some(&test_state.recipient_wallet.keypair.pubkey()),
         &[&test_state.recipient_wallet.keypair],
         test_state.context.last_blockhash,

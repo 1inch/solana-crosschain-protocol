@@ -2,7 +2,7 @@ use anchor_lang::prelude::*;
 use anchor_lang::solana_program::{
     instruction::Instruction, sysvar::instructions::load_instruction_at_checked,
 };
-use borsh::BorshDeserialize;
+use borsh::{BorshDeserialize, BorshSerialize};
 
 /// This mod contains functions that validate that an instruction
 /// is constructed the way we expect. In this case, this is for
@@ -13,7 +13,7 @@ pub mod error;
 
 pub use ed25519::resolve_order;
 
-#[derive(BorshDeserialize)]
+#[derive(BorshSerialize, BorshDeserialize)]
 pub struct Order {
     pub order_hash: [u8; 32],
     pub hashlock: [u8; 32],
