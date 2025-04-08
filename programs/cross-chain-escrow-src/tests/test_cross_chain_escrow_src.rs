@@ -505,41 +505,21 @@ mod test_escrow_public_cancel {
             test_state.test_arguments.escrow_amount
         );
 
-        let creator_token_balance_before = get_token_balance(
-            &mut test_state.context,
-            &test_state.creator_wallet.token_account,
-        )
-        .await;
-
-        let creator_balance_before = test_state
-            .client
-            .get_balance(test_state.creator_wallet.keypair.pubkey())
-            .await
-            .unwrap();
-
         test_state
-            .client
-            .process_transaction(transaction)
-            .await
-            .expect_success();
-
-        assert_eq!(
-            get_token_balance(
-                &mut test_state.context,
-                &test_state.creator_wallet.token_account
+            .expect_balance_change(
+                transaction,
+                &[
+                    native_change(
+                        test_state.creator_wallet.keypair.pubkey(),
+                        rent_lamports + token_account_rent,
+                    ),
+                    token_change(
+                        test_state.creator_wallet.token_account,
+                        test_state.test_arguments.escrow_amount,
+                    ),
+                ],
             )
-            .await,
-            creator_token_balance_before + test_state.test_arguments.escrow_amount
-        );
-
-        assert_eq!(
-            test_state
-                .client
-                .get_balance(test_state.creator_wallet.keypair.pubkey())
-                .await
-                .unwrap(),
-            creator_balance_before + rent_lamports + token_account_rent
-        );
+            .await;
 
         // Assert accounts were closed
         assert!(test_state
@@ -595,66 +575,23 @@ mod test_escrow_public_cancel {
             test_state.client.get_balance(escrow).await.unwrap()
         );
 
-        let creator_token_balance_before = get_token_balance(
-            &mut test_state.context,
-            &test_state.creator_wallet.token_account,
-        )
-        .await;
-
-        let canceller_balance_before = test_state
-            .client
-            .get_balance(canceller.pubkey())
-            .await
-            .unwrap();
-
-        let creator_balance_before = test_state
-            .client
-            .get_balance(test_state.creator_wallet.keypair.pubkey())
-            .await
-            .unwrap();
-
         test_state
-            .client
-            .process_transaction(transaction)
-            .await
-            .expect_success();
-
-        assert_eq!(
-            get_token_balance(
-                &mut test_state.context,
-                &test_state.creator_wallet.token_account
+            .expect_balance_change(
+                transaction,
+                &[
+                    token_change(
+                        test_state.creator_wallet.token_account,
+                        test_state.test_arguments.escrow_amount,
+                    ),
+                    native_change(canceller.pubkey(), test_state.test_arguments.safety_deposit),
+                    native_change(
+                        test_state.creator_wallet.keypair.pubkey(),
+                        rent_lamports + token_account_rent
+                            - test_state.test_arguments.safety_deposit,
+                    ),
+                ],
             )
-            .await,
-            creator_token_balance_before + test_state.test_arguments.escrow_amount
-        );
-
-        assert_eq!(
-            test_state
-                .client
-                .get_balance(canceller.pubkey())
-                .await
-                .unwrap(),
-            creator_balance_before + test_state.test_arguments.safety_deposit
-        );
-
-        assert_eq!(
-            test_state
-                .client
-                .get_balance(test_state.creator_wallet.keypair.pubkey())
-                .await
-                .unwrap(),
-            creator_balance_before + token_account_rent + rent_lamports
-                - test_state.test_arguments.safety_deposit
-        );
-
-        assert_eq!(
-            test_state
-                .client
-                .get_balance(canceller.pubkey())
-                .await
-                .unwrap(),
-            canceller_balance_before + test_state.test_arguments.safety_deposit
-        );
+            .await;
 
         // Assert accounts were closed
         assert!(test_state
