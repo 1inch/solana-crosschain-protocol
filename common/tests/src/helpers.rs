@@ -95,40 +95,36 @@ pub struct TestStateBase<T: ?Sized> {
 pub trait EscrowVariant {
     fn get_program_spec() -> (Pubkey, Option<BuiltinFunctionWithContext>);
 
-    // Required because withdraw transaction needs to be
-    // signed differently in src and dst variants.
-    fn withdraw_ix_to_signed_tx(ix: Instruction, test_state: &TestStateBase<Self>) -> Transaction;
-
     // All the instruction creation procedures differ slightly
     // between the variants.
-    fn get_public_withdraw_ix(
+    fn get_public_withdraw_tx(
         test_state: &TestStateBase<Self>,
         escrow: &Pubkey,
         escrow_ata: &Pubkey,
-        safety_deposit_recipient: Pubkey,
-    ) -> Instruction;
-    fn get_withdraw_ix(
+        safety_deposit_recipient: &Keypair,
+    ) -> Transaction;
+    fn get_withdraw_tx(
         test_state: &TestStateBase<Self>,
         escrow: &Pubkey,
         escrow_ata: &Pubkey,
-    ) -> Instruction;
-    fn get_cancel_ix(
+    ) -> Transaction;
+    fn get_cancel_tx(
         test_state: &TestStateBase<Self>,
         escrow: &Pubkey,
         escrow_ata: &Pubkey,
-    ) -> Instruction;
-    fn get_create_ix(
+    ) -> Transaction;
+    fn get_create_tx(
         test_state: &TestStateBase<Self>,
         escrow: &Pubkey,
         escrow_ata: &Pubkey,
-    ) -> Instruction;
-    fn get_rescue_funds_ix(
+    ) -> Transaction;
+    fn get_rescue_funds_tx(
         test_state: &TestStateBase<Self>,
         escrow: &Pubkey,
         token_to_rescue: &Pubkey,
         escrow_ata: &Pubkey,
         recipient_ata: &Pubkey,
-    ) -> Instruction;
+    ) -> Transaction;
 
     fn get_escrow_data_len() -> usize;
 }
@@ -200,7 +196,7 @@ impl Clone for Wallet {
 
 pub fn create_escrow_data<T: EscrowVariant>(
     test_state: &TestStateBase<T>,
-) -> (Pubkey, Pubkey, Instruction) {
+) -> (Pubkey, Pubkey, Transaction) {
     let (program_id, _) = T::get_program_spec();
     let (escrow_pda, _) = Pubkey::find_program_address(
         &[
@@ -228,42 +224,20 @@ pub fn create_escrow_data<T: EscrowVariant>(
         ],
         &program_id,
     );
-
     let escrow_ata = get_associated_token_address(&escrow_pda, &test_state.token);
-
-    let instruction: Instruction = T::get_create_ix(test_state, &escrow_pda, &escrow_ata);
-
-    (escrow_pda, escrow_ata, instruction)
-}
-
-pub async fn create_escrow_tx<T: EscrowVariant>(
-    test_state: &mut TestStateBase<T>,
-) -> (Pubkey, Pubkey, Result<(), BanksClientError>) {
-    let mut client = test_state.context.banks_client.clone();
-    let (escrow, escrow_ata, create_ix) = create_escrow_data(test_state);
-
-    let transaction = Transaction::new_signed_with_payer(
-        &[create_ix],
-        Some(&test_state.payer_kp.pubkey()),
-        &[
-            &test_state.context.payer,
-            &test_state.creator_wallet.keypair,
-        ],
-        test_state.context.last_blockhash,
-    );
-
-    (
-        escrow,
-        escrow_ata,
-        client.process_transaction(transaction).await,
-    )
+    let transaction: Transaction = T::get_create_tx(test_state, &escrow_pda, &escrow_ata);
+    (escrow_pda, escrow_ata, transaction)
 }
 
 pub async fn create_escrow<T: EscrowVariant>(
     test_state: &mut TestStateBase<T>,
 ) -> (Pubkey, Pubkey) {
-    let (escrow, escrow_ata, tx) = create_escrow_tx(test_state).await;
-    tx.expect_success();
+    let (escrow, escrow_ata, tx) = create_escrow_data(test_state);
+    test_state
+        .client
+        .process_transaction(tx)
+        .await
+        .expect_success();
     (escrow, escrow_ata)
 }
 
@@ -421,6 +395,73 @@ pub async fn initialize_spl_associated_account(
         .await
         .unwrap();
     ata
+}
+
+#[derive(Clone)]
+pub enum BalanceChange {
+    Token(Pubkey, i128),
+    Native(Pubkey, i128),
+}
+
+pub fn native_change(k: Pubkey, d: u64) -> BalanceChange {
+    BalanceChange::Native(k, d as i128)
+}
+
+pub fn token_change(k: Pubkey, d: u64) -> BalanceChange {
+    BalanceChange::Token(k, d as i128)
+}
+
+async fn get_balances<T>(
+    test_state: &mut TestStateBase<T>,
+    balance_query: &[BalanceChange],
+) -> Vec<u64> {
+    let mut result: Vec<u64> = vec![];
+    for b in balance_query {
+        match b {
+            BalanceChange::Token(k, _) => {
+                result.push(get_token_balance(&mut test_state.context, k).await)
+            }
+            BalanceChange::Native(k, _) => {
+                result.push(test_state.client.get_balance(*k).await.unwrap())
+            }
+        }
+    }
+    result
+}
+
+impl<T> TestStateBase<T> {
+    pub async fn expect_balance_change(&mut self, tx: Transaction, diff: &[BalanceChange]) {
+        let balances_before = get_balances(self, diff).await;
+
+        // execute transaction
+        self.client.process_transaction(tx).await.expect_success();
+
+        // compare balances
+        let balances_after = get_balances(self, diff).await;
+        for ((before, after), exp) in balances_before
+            .iter()
+            .zip(balances_after.iter())
+            .zip(diff.iter())
+        {
+            let real_diff: i128 = *after as i128 - *before as i128;
+            match exp {
+                BalanceChange::Token(k, token_expected_diff) => {
+                    assert_eq!(
+                        real_diff, *token_expected_diff,
+                        "Token balance changed unexpectedley for {}, left = {}, right = {}",
+                        k, real_diff, token_expected_diff
+                    )
+                }
+                BalanceChange::Native(k, native_expected_diff) => {
+                    assert_eq!(
+                        real_diff, *native_expected_diff,
+                        "SOL balance changed unexpectedley for {}, left = {}, right = {}",
+                        k, real_diff, native_expected_diff
+                    )
+                }
+            }
+        }
+    }
 }
 
 pub trait Expectation {

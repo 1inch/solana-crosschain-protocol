@@ -34,12 +34,12 @@ impl EscrowVariant for SrcProgram {
             wrap_entry!(cross_chain_escrow_src::entry),
         )
     }
-    fn get_public_withdraw_ix(
+    fn get_public_withdraw_tx(
         test_state: &TestState,
         escrow: &Pubkey,
         escrow_ata: &Pubkey,
-        withdrawer: Pubkey,
-    ) -> Instruction {
+        withdrawer: &Keypair,
+    ) -> Transaction {
         let instruction_data =
             InstructionData::data(&cross_chain_escrow_src::instruction::PublicWithdraw {
                 secret: test_state.secret,
@@ -50,7 +50,7 @@ impl EscrowVariant for SrcProgram {
             accounts: vec![
                 AccountMeta::new(test_state.creator_wallet.keypair.pubkey(), false),
                 AccountMeta::new_readonly(test_state.recipient_wallet.keypair.pubkey(), false),
-                AccountMeta::new(withdrawer, true),
+                AccountMeta::new(withdrawer.pubkey(), true),
                 AccountMeta::new_readonly(test_state.token, false),
                 AccountMeta::new(*escrow, false),
                 AccountMeta::new(*escrow_ata, false),
@@ -61,24 +61,21 @@ impl EscrowVariant for SrcProgram {
             data: instruction_data,
         };
 
-        instruction
-    }
-    fn withdraw_ix_to_signed_tx(ix: Instruction, test_state: &TestState) -> Transaction {
         Transaction::new_signed_with_payer(
-            &[ix],
-            Some(&test_state.payer_kp.pubkey()),
-            &[
-                &test_state.context.payer,
-                &test_state.recipient_wallet.keypair,
-            ],
+            &[instruction],
+            Some(&test_state.payer_kp.pubkey()), // so that withdrawer does not incurr transaction
+            // charges and mess up computation of withdrawer's
+            // balance expectation.
+            &[withdrawer, &test_state.payer_kp],
             test_state.context.last_blockhash,
         )
     }
-    fn get_cancel_ix(
+
+    fn get_cancel_tx(
         test_state: &TestStateBase<SrcProgram>,
         escrow: &Pubkey,
         escrow_ata: &Pubkey,
-    ) -> Instruction {
+    ) -> Transaction {
         let instruction_data =
             InstructionData::data(&cross_chain_escrow_src::instruction::Cancel {});
 
@@ -96,14 +93,22 @@ impl EscrowVariant for SrcProgram {
             data: instruction_data,
         };
 
-        instruction
+        Transaction::new_signed_with_payer(
+            &[instruction],
+            Some(&test_state.payer_kp.pubkey()),
+            &[
+                &test_state.context.payer,
+                &test_state.creator_wallet.keypair,
+            ],
+            test_state.context.last_blockhash,
+        )
     }
 
-    fn get_create_ix(
+    fn get_create_tx(
         test_state: &TestStateBase<SrcProgram>,
         escrow: &Pubkey,
         escrow_ata: &Pubkey,
-    ) -> Instruction {
+    ) -> Transaction {
         let instruction_data =
             InstructionData::data(&cross_chain_escrow_src::instruction::Create {
                 amount: test_state.test_arguments.escrow_amount,
@@ -134,13 +139,22 @@ impl EscrowVariant for SrcProgram {
             ],
             data: instruction_data,
         };
-        instruction
+        Transaction::new_signed_with_payer(
+            &[instruction],
+            Some(&test_state.payer_kp.pubkey()),
+            &[
+                &test_state.context.payer,
+                &test_state.creator_wallet.keypair,
+            ],
+            test_state.context.last_blockhash,
+        )
     }
-    fn get_withdraw_ix(
+
+    fn get_withdraw_tx(
         test_state: &TestState,
         escrow: &Pubkey,
         escrow_ata: &Pubkey,
-    ) -> Instruction {
+    ) -> Transaction {
         let instruction_data =
             InstructionData::data(&cross_chain_escrow_src::instruction::Withdraw {
                 secret: test_state.secret,
@@ -161,16 +175,24 @@ impl EscrowVariant for SrcProgram {
             data: instruction_data,
         };
 
-        instruction
+        Transaction::new_signed_with_payer(
+            &[instruction],
+            Some(&test_state.payer_kp.pubkey()),
+            &[
+                &test_state.context.payer,
+                &test_state.recipient_wallet.keypair,
+            ],
+            test_state.context.last_blockhash,
+        )
     }
 
-    fn get_rescue_funds_ix(
+    fn get_rescue_funds_tx(
         test_state: &TestState,
         escrow: &Pubkey,
         token_to_rescue: &Pubkey,
         escrow_ata: &Pubkey,
         recipient_ata: &Pubkey,
-    ) -> Instruction {
+    ) -> Transaction {
         let instruction_data =
             InstructionData::data(&cross_chain_escrow_src::instruction::RescueFunds {
                 hashlock: test_state.hashlock.to_bytes(),
@@ -197,7 +219,15 @@ impl EscrowVariant for SrcProgram {
             data: instruction_data,
         };
 
-        instruction
+        Transaction::new_signed_with_payer(
+            &[instruction],
+            Some(&test_state.payer_kp.pubkey()),
+            &[
+                &test_state.context.payer,
+                &test_state.recipient_wallet.keypair,
+            ],
+            test_state.context.last_blockhash,
+        )
     }
 
     fn get_escrow_data_len() -> usize {
@@ -278,8 +308,12 @@ mod test_escrow_creation {
         test_state: &mut TestState,
     ) {
         test_state.test_arguments.cancellation_duration = u32::MAX;
-        let (_, _, tx_result) = create_escrow_tx(test_state).await;
-        tx_result.expect_error((0, ProgramError::ArithmeticOverflow));
+        let (_, _, transaction) = create_escrow_data(test_state);
+        test_state
+            .client
+            .process_transaction(transaction)
+            .await
+            .expect_error((0, ProgramError::ArithmeticOverflow));
     }
 
     #[test_context(TestState)]
@@ -399,6 +433,7 @@ mod test_escrow_public_withdraw {
         common_escrow_tests::test_public_withdraw_fails_after_cancellation_start(test_state).await
     }
 }
+
 mod test_escrow_cancel {
     use super::*;
 
@@ -441,18 +476,11 @@ mod test_escrow_public_cancel {
     #[tokio::test]
     async fn test_public_cancel_by_creator(test_state: &mut TestState) {
         let (escrow, escrow_ata) = create_escrow(test_state).await;
-        let public_cancel_ix = create_public_cancel_ix(
+        let transaction = create_public_cancel_tx(
             test_state,
             &escrow,
             &escrow_ata,
-            test_state.creator_wallet.keypair.pubkey(),
-        );
-
-        let transaction = Transaction::new_signed_with_payer(
-            &[public_cancel_ix],
-            Some(&test_state.payer_kp.pubkey()),
-            &[&test_state.creator_wallet.keypair, &test_state.payer_kp],
-            test_state.context.last_blockhash,
+            &test_state.creator_wallet.keypair,
         );
 
         set_time(
@@ -543,15 +571,7 @@ mod test_escrow_public_cancel {
             &canceller.pubkey(),
         )
         .await;
-        let public_cancel_ix =
-            create_public_cancel_ix(test_state, &escrow, &escrow_ata, canceller.pubkey());
-
-        let transaction = Transaction::new_signed_with_payer(
-            &[public_cancel_ix],
-            Some(&test_state.payer_kp.pubkey()),
-            &[&canceller, &test_state.payer_kp],
-            test_state.context.last_blockhash,
-        );
+        let transaction = create_public_cancel_tx(test_state, &escrow, &escrow_ata, &canceller);
 
         set_time(
             &mut test_state.context,
@@ -667,15 +687,7 @@ mod test_escrow_public_cancel {
             &canceller.pubkey(),
         )
         .await;
-        let public_cancel_ix =
-            create_public_cancel_ix(test_state, &escrow, &escrow_ata, canceller.pubkey());
-
-        let transaction = Transaction::new_signed_with_payer(
-            &[public_cancel_ix],
-            Some(&test_state.payer_kp.pubkey()),
-            &[&canceller, &test_state.payer_kp],
-            test_state.context.last_blockhash,
-        );
+        let transaction = create_public_cancel_tx(test_state, &escrow, &escrow_ata, &canceller);
 
         set_time(
             &mut test_state.context,
@@ -709,15 +721,7 @@ mod test_escrow_public_cancel {
             &canceller.pubkey(),
         )
         .await;
-        let public_cancel_ix =
-            create_public_cancel_ix(test_state, &escrow, &escrow_ata_2, canceller.pubkey());
-
-        let transaction = Transaction::new_signed_with_payer(
-            &[public_cancel_ix],
-            Some(&test_state.payer_kp.pubkey()),
-            &[&canceller, &test_state.payer_kp],
-            test_state.context.last_blockhash,
-        );
+        let transaction = create_public_cancel_tx(test_state, &escrow, &escrow_ata_2, &canceller);
 
         set_time(
             &mut test_state.context,
@@ -741,19 +745,8 @@ mod test_escrow_public_cancel {
         test_state: &mut TestState,
     ) {
         let (escrow, escrow_ata) = create_escrow(test_state).await;
-        let public_cancel_ix = create_public_cancel_ix(
-            test_state,
-            &escrow,
-            &escrow_ata,
-            test_state.payer_kp.pubkey(),
-        );
-
-        let transaction = Transaction::new_signed_with_payer(
-            &[public_cancel_ix],
-            Some(&test_state.payer_kp.pubkey()),
-            &[&test_state.payer_kp],
-            test_state.context.last_blockhash,
-        );
+        let transaction =
+            create_public_cancel_tx(test_state, &escrow, &escrow_ata, &test_state.payer_kp);
 
         set_time(
             &mut test_state.context,
@@ -817,12 +810,12 @@ mod local_helpers {
     use solana_program::system_program::ID as system_program_id;
     use solana_sdk::signature::Signer;
 
-    pub fn create_public_cancel_ix(
+    pub fn create_public_cancel_tx(
         test_state: &TestState,
         escrow: &Pubkey,
         escrow_ata: &Pubkey,
-        canceller: Pubkey,
-    ) -> Instruction {
+        canceller: &Keypair,
+    ) -> Transaction {
         let instruction_data =
             InstructionData::data(&cross_chain_escrow_src::instruction::PublicCancel {});
 
@@ -831,7 +824,7 @@ mod local_helpers {
             accounts: vec![
                 AccountMeta::new(test_state.creator_wallet.keypair.pubkey(), false),
                 AccountMeta::new_readonly(test_state.token, false),
-                AccountMeta::new(canceller, true),
+                AccountMeta::new(canceller.pubkey(), true),
                 AccountMeta::new(*escrow, false),
                 AccountMeta::new(*escrow_ata, false),
                 AccountMeta::new(test_state.creator_wallet.token_account, false),
@@ -841,6 +834,11 @@ mod local_helpers {
             data: instruction_data,
         };
 
-        instruction
+        Transaction::new_signed_with_payer(
+            &[instruction],
+            Some(&test_state.payer_kp.pubkey()),
+            &[&test_state.payer_kp, canceller],
+            test_state.context.last_blockhash,
+        )
     }
 }
