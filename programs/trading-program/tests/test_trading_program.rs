@@ -1,3 +1,4 @@
+use anchor_lang::error::ErrorCode;
 use common_tests::{helpers::*, src_program::SrcProgram};
 
 use solana_program::program_error::ProgramError;
@@ -53,7 +54,7 @@ mod test_trading_program {
 
         let instruction0 = create_signinig_default_order_ix(
             test_state,
-            test_state.recipient_wallet.keypair.insecure_clone(), // wrong signer
+            test_state.recipient_wallet.keypair.insecure_clone(), // Wrong signer
         );
 
         let transaction = init_escrow_erc_tx(
@@ -82,32 +83,15 @@ mod test_trading_program {
     ) {
         let test_state = &mut test_state_trading.base;
 
+        let instruction0 = create_signinig_default_order_ix(
+            test_state,
+            test_state.creator_wallet.keypair.insecure_clone(),
+        );
+
+        test_state.creator_wallet = test_state.recipient_wallet.clone(); // Set wrong wallet to compute and use wrong accounts
         let (escrow_pda, escrow_ata, trading_pda, trading_ata) =
             prepare_trading_account(test_state).await;
 
-        // An attacker wants to bypass signature validation.
-        // To do this, he creates an order where he set himself as the maker and signs it with his own signature
-        let instruction0 = {
-            std::mem::swap(
-                &mut test_state.creator_wallet,
-                &mut test_state.recipient_wallet,
-            );
-
-            let ix = create_signinig_default_order_ix(
-                test_state,
-                test_state.creator_wallet.keypair.insecure_clone(), // recipient_wallet is signing instruction
-            );
-
-            std::mem::swap(
-                &mut test_state.creator_wallet,
-                &mut test_state.recipient_wallet,
-            );
-
-            ix
-        };
-
-        // Then attacker constructs a transaction using accounts calculated for the victim's order
-        // and attempts to execute it, aiming to use the tokens stored in the victim's trading account
         let transaction = init_escrow_erc_tx(
             test_state,
             escrow_pda,
@@ -117,7 +101,6 @@ mod test_trading_program {
             instruction0,
         );
 
-        // The transaction should fail
         test_state
             .client
             .process_transaction(transaction)
@@ -140,7 +123,7 @@ mod test_trading_program {
             test_state.creator_wallet.keypair.insecure_clone(),
         );
 
-        test_state.token = deploy_spl_token(&mut test_state.context, 9).await.pubkey(); // wrong token
+        test_state.token = deploy_spl_token(&mut test_state.context, 9).await.pubkey(); // Wrong token
         let (escrow_pda, escrow_ata, trading_pda, trading_ata) =
             prepare_trading_account(test_state).await;
 
@@ -160,6 +143,73 @@ mod test_trading_program {
             .expect_error((
                 1,
                 ProgramError::Custom(TradingProgramError::OrderDataMismatch.into()),
+            ));
+    }
+
+    #[test_context(TestStateTrading)]
+    #[tokio::test]
+    async fn test_escrow_creation_via_trading_program_fail_with_wrong_trading_account_seed(
+        test_state_trading: &mut TestStateTrading,
+    ) {
+        let test_state = &mut test_state_trading.base;
+
+        let (escrow_pda, escrow_ata, trading_pda, trading_ata) =
+            prepare_trading_account(test_state).await;
+
+        let instruction0 = create_signinig_default_order_ix(
+            test_state,
+            test_state.creator_wallet.keypair.insecure_clone(),
+        );
+
+        test_state.creator_wallet = test_state.recipient_wallet.clone(); // Wrong derivation of the trading_account
+        let transaction = init_escrow_erc_tx(
+            test_state,
+            escrow_pda,
+            escrow_ata,
+            trading_pda,
+            trading_ata,
+            instruction0,
+        );
+
+        test_state
+            .client
+            .process_transaction(transaction)
+            .await
+            .expect_error((1, ProgramError::Custom(ErrorCode::ConstraintSeeds.into())));
+    }
+
+    #[test_context(TestStateTrading)]
+    #[tokio::test]
+    async fn test_escrow_creation_via_trading_program_fail_with_wrong_trading_account_ata_seed(
+        test_state_trading: &mut TestStateTrading,
+    ) {
+        let test_state = &mut test_state_trading.base;
+
+        let (escrow_pda, escrow_ata, trading_pda, trading_ata) =
+            prepare_trading_account(test_state).await;
+
+        let instruction0 = create_signinig_default_order_ix(
+            test_state,
+            test_state.creator_wallet.keypair.insecure_clone(),
+        );
+
+        test_state.token = deploy_spl_token(&mut test_state.context, 9).await.pubkey(); // Wrong derivation of the trading_account_tokens
+        let transaction = init_escrow_erc_tx(
+            test_state,
+            escrow_pda,
+            escrow_ata,
+            trading_pda,
+            trading_ata,
+            instruction0,
+        );
+
+        test_state
+            .client
+            .process_transaction(transaction)
+            .await
+            .expect_error((
+                1,
+                ProgramError::Custom(ErrorCode::ConstraintAssociated.into()),
             ));
     }
 }
