@@ -179,7 +179,7 @@ mod test_escrow_public_withdraw {
             test_state.test_arguments.escrow_amount
         );
         let rent_lamports = DstProgram::get_rent(test_state).await;
-        let token_account_rent = *RENT_FOR_ATA.get().unwrap();
+        let token_account_rent = test_state.get_ata_rent().await;
         assert_eq!(
             rent_lamports,
             test_state.client.get_balance(escrow).await.unwrap()
