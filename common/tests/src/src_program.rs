@@ -33,7 +33,7 @@ impl EscrowVariant for SrcProgram {
         )
     }
 
-    async fn get_cached_rent(test_state: &mut TestState) -> u64 {
+    async fn get_rent(test_state: &mut TestState) -> u64 {
         RENT_FOR_ESCROW
             .get_or_init(|| async {
                 let size = cross_chain_escrow_src::constants::DISCRIMINATOR

@@ -264,7 +264,7 @@ mod test_escrow_public_cancel {
                 + DEFAULT_PERIOD_DURATION * PeriodType::PublicCancellation as u32,
         );
 
-        let rent_lamports = SrcProgram::get_cached_rent(test_state).await;
+        let rent_lamports = SrcProgram::get_rent(test_state).await;
 
         let token_account_rent = *RENT_FOR_ATA.get().unwrap();
 
@@ -332,7 +332,7 @@ mod test_escrow_public_cancel {
                 + DEFAULT_PERIOD_DURATION * PeriodType::PublicCancellation as u32,
         );
 
-        let rent_lamports = SrcProgram::get_cached_rent(test_state).await;
+        let rent_lamports = SrcProgram::get_rent(test_state).await;
         let token_account_rent = *RENT_FOR_ATA.get().unwrap();
 
         assert_eq!(

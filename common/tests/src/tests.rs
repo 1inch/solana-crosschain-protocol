@@ -23,7 +23,7 @@ pub async fn test_escrow_creation<T: EscrowVariant>(test_state: &mut TestStateBa
     );
 
     // Check the lamport balance of escrow account is as expected.
-    let rent_lamports = T::get_cached_rent(test_state).await;
+    let rent_lamports = T::get_rent(test_state).await;
     assert_eq!(
         rent_lamports,
         test_state.client.get_balance(escrow).await.unwrap()
@@ -162,7 +162,7 @@ pub async fn test_withdraw<T: EscrowVariant>(test_state: &mut TestStateBase<T>) 
     let transaction = T::get_withdraw_tx(test_state, &escrow, &escrow_ata);
 
     let token_account_rent = *RENT_FOR_ATA.get().unwrap();
-    let escrow_rent = T::get_cached_rent(test_state).await;
+    let escrow_rent = T::get_rent(test_state).await;
 
     set_time(
         &mut test_state.context,
@@ -238,7 +238,7 @@ pub async fn test_withdraw_does_not_work_with_wrong_secret<T: EscrowVariant>(
 
     assert_eq!(
         test_state.client.get_balance(escrow).await.unwrap(),
-        T::get_cached_rent(test_state).await
+        T::get_rent(test_state).await
     );
 }
 
@@ -348,7 +348,7 @@ pub async fn test_public_withdraw_tokens<T: EscrowVariant>(
         get_token_balance(&mut test_state.context, &escrow_ata).await,
         test_state.test_arguments.escrow_amount
     );
-    let rent_lamports = T::get_cached_rent(test_state).await;
+    let rent_lamports = T::get_rent(test_state).await;
     let token_account_rent = *RENT_FOR_ATA.get().unwrap();
     assert_eq!(
         rent_lamports,
@@ -513,7 +513,7 @@ pub async fn test_cancel<T: EscrowVariant>(test_state: &mut TestStateBase<T>) {
     );
 
     let token_account_rent = *RENT_FOR_ATA.get().unwrap();
-    let escrow_rent = T::get_cached_rent(test_state).await;
+    let escrow_rent = T::get_rent(test_state).await;
 
     test_state
         .expect_balance_change(

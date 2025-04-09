@@ -98,9 +98,9 @@ pub struct TestStateBase<T: ?Sized> {
 // has to be different between variants.
 pub trait EscrowVariant {
     fn get_program_spec() -> (Pubkey, Option<BuiltinFunctionWithContext>);
-    fn get_cached_rent(
+    fn get_rent(
         test_state: &mut TestStateBase<Self>,
-    ) -> impl std::future::Future<Output = u64> + Send; // async fn get_cached_rent(test_state: &mut TestStateBase<Self>)
+    ) -> impl std::future::Future<Output = u64> + Send; // async fn get_rent(test_state: &mut TestStateBase<Self>)
 
     // All the instruction creation procedures differ slightly
     // between the variants.
