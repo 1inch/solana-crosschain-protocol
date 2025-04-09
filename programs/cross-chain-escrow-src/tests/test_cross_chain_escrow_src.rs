@@ -1,10 +1,9 @@
 use anchor_lang::prelude::ErrorCode;
-use anchor_spl::token::spl_token::state::Account as SplTokenAccount;
 use common::error::EscrowError;
 use common_tests::helpers::*;
 use common_tests::src_program::SrcProgram;
 use common_tests::tests as common_escrow_tests;
-use solana_program::{program_error::ProgramError, program_pack::Pack};
+use solana_program::program_error::ProgramError;
 use solana_program_test::tokio;
 use solana_sdk::{signature::Signer, signer::keypair::Keypair, transaction::Transaction};
 
@@ -267,8 +266,7 @@ mod test_escrow_public_cancel {
 
         let rent_lamports = SrcProgram::get_cached_rent(test_state).await;
 
-        let token_account_rent =
-            get_min_rent_for_size(&mut test_state.client, SplTokenAccount::LEN).await;
+        let token_account_rent = *RENT_FOR_ATA.get().unwrap();
 
         assert_eq!(
             rent_lamports,
@@ -335,9 +333,7 @@ mod test_escrow_public_cancel {
         );
 
         let rent_lamports = SrcProgram::get_cached_rent(test_state).await;
-
-        let token_account_rent =
-            get_min_rent_for_size(&mut test_state.client, SplTokenAccount::LEN).await;
+        let token_account_rent = *RENT_FOR_ATA.get().unwrap();
 
         assert_eq!(
             get_token_balance(&mut test_state.context, &escrow_ata).await,

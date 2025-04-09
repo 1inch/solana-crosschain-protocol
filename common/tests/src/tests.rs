@@ -1,8 +1,8 @@
 use crate::helpers::*;
 use anchor_lang::error::ErrorCode;
-use anchor_spl::token::spl_token::{error::TokenError, state::Account as SplTokenAccount};
+use anchor_spl::token::spl_token::error::TokenError;
 use common::{constants::RESCUE_DELAY, error::EscrowError};
-use solana_program::{keccak::hash, program_error::ProgramError, program_pack::Pack};
+use solana_program::{keccak::hash, program_error::ProgramError};
 use solana_sdk::{signature::Signer, signer::keypair::Keypair, system_instruction::SystemError};
 
 pub async fn test_escrow_creation<T: EscrowVariant>(test_state: &mut TestStateBase<T>) {
@@ -161,8 +161,7 @@ pub async fn test_withdraw<T: EscrowVariant>(test_state: &mut TestStateBase<T>) 
     let (escrow, escrow_ata) = create_escrow(test_state).await;
     let transaction = T::get_withdraw_tx(test_state, &escrow, &escrow_ata);
 
-    let token_account_rent =
-        get_min_rent_for_size(&mut test_state.client, get_token_account_size()).await;
+    let token_account_rent = *RENT_FOR_ATA.get().unwrap();
     let escrow_rent = T::get_cached_rent(test_state).await;
 
     set_time(
@@ -350,8 +349,7 @@ pub async fn test_public_withdraw_tokens<T: EscrowVariant>(
         test_state.test_arguments.escrow_amount
     );
     let rent_lamports = T::get_cached_rent(test_state).await;
-    let token_account_rent =
-        get_min_rent_for_size(&mut test_state.client, SplTokenAccount::LEN).await;
+    let token_account_rent = *RENT_FOR_ATA.get().unwrap();
     assert_eq!(
         rent_lamports,
         test_state.client.get_balance(escrow).await.unwrap()
@@ -514,8 +512,7 @@ pub async fn test_cancel<T: EscrowVariant>(test_state: &mut TestStateBase<T>) {
         test_state.init_timestamp + DEFAULT_PERIOD_DURATION * PeriodType::Cancellation as u32,
     );
 
-    let token_account_rent =
-        get_min_rent_for_size(&mut test_state.client, get_token_account_size()).await;
+    let token_account_rent = *RENT_FOR_ATA.get().unwrap();
     let escrow_rent = T::get_cached_rent(test_state).await;
 
     test_state
@@ -677,8 +674,7 @@ pub async fn test_rescue_all_tokens_and_close_ata<T: EscrowVariant>(
         &escrow_ata,
         &recipient_ata,
     );
-    let token_account_rent =
-        get_min_rent_for_size(&mut test_state.client, get_token_account_size()).await;
+    let token_account_rent = *RENT_FOR_ATA.get().unwrap();
 
     set_time(
         &mut test_state.context,

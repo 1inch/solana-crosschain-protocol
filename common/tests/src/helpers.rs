@@ -16,7 +16,9 @@ use solana_program::{
     pubkey::Pubkey,
 };
 use solana_program_runtime::invoke_context::BuiltinFunctionWithContext;
-use solana_program_test::{BanksClient, BanksClientError, ProgramTest, ProgramTestContext};
+use solana_program_test::{
+    tokio::sync::OnceCell, BanksClient, BanksClientError, ProgramTest, ProgramTestContext,
+};
 use solana_sdk::{
     signature::Signer,
     signer::keypair::Keypair,
@@ -44,6 +46,8 @@ pub enum PeriodType {
 pub const DEFAULT_ESCROW_AMOUNT: u64 = 100;
 pub const DEFAULT_RESCUE_AMOUNT: u64 = 100;
 pub const DEFAULT_SAFETY_DEPOSIT: u64 = 25;
+
+pub static RENT_FOR_ATA: OnceCell<u64> = OnceCell::const_new();
 
 pub struct TestArgs {
     pub escrow_amount: u64,
@@ -139,7 +143,10 @@ where
         add_program_to_test(&mut program_test, "escrow_contract", T::get_program_spec);
         let mut context: ProgramTestContext = program_test.start_with_context().await;
 
-        let client: BanksClient = context.banks_client.clone();
+        let mut client: BanksClient = context.banks_client.clone();
+        let rent = get_min_rent_for_size(&mut client, SplTokenAccount::LEN).await;
+        let _ = RENT_FOR_ATA.set(rent);
+
         let timestamp: u32 = SystemTime::now()
             .duration_since(UNIX_EPOCH)
             .expect("Time went backwards")
