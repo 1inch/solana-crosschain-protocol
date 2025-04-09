@@ -16,7 +16,9 @@ use solana_program::{
 use solana_program_runtime::invoke_context::BuiltinFunctionWithContext;
 use solana_program_test::{processor, BanksClient, ProgramTest, ProgramTestContext};
 use solana_sdk::{
-    ed25519_instruction::new_ed25519_instruction, signature::Signer, transaction::Transaction,
+    ed25519_instruction::new_ed25519_instruction,
+    signature::{Keypair, Signer},
+    transaction::Transaction,
 };
 
 use std::marker::PhantomData;
@@ -105,9 +107,9 @@ fn get_trading_addresses(test_state: &TestStateBase<SrcProgram>) -> (Pubkey, Pub
     (trading_pda, trading_ata)
 }
 
-pub async fn create_escrow_via_trading_program(
+pub async fn prepare_trading_account(
     test_state: &mut TestStateBase<SrcProgram>,
-) -> (Pubkey, Pubkey, Pubkey, Pubkey, Transaction) {
+) -> (Pubkey, Pubkey, Pubkey, Pubkey) {
     let (trading_pda, _) = get_trading_addresses(test_state);
     let (escrow_pda, escrow_ata) = get_escrow_addresses(test_state, trading_pda);
 
@@ -123,6 +125,13 @@ pub async fn create_escrow_via_trading_program(
     )
     .await;
 
+    (escrow_pda, escrow_ata, trading_pda, trading_ata)
+}
+
+pub fn create_signinig_default_order_ix(
+    test_state: &mut TestStateBase<SrcProgram>,
+    signer: Keypair,
+) -> Instruction {
     let order = Order {
         order_hash: test_state.order_hash.to_bytes(),
         hashlock: test_state.hashlock.to_bytes(),
@@ -136,9 +145,18 @@ pub async fn create_escrow_via_trading_program(
     };
     let order_bytes = order.try_to_vec().unwrap();
 
-    let dalek_kp = DalekKeypair::from_bytes(&test_state.creator_wallet.keypair.to_bytes()).unwrap();
-    let instruction0 = new_ed25519_instruction(&dalek_kp, &order_bytes);
+    let dalek_kp = DalekKeypair::from_bytes(&signer.to_bytes()).unwrap();
+    new_ed25519_instruction(&dalek_kp, &order_bytes)
+}
 
+pub fn init_escrow_erc_tx(
+    test_state: &mut TestStateBase<SrcProgram>,
+    escrow_pda: Pubkey,
+    escrow_ata: Pubkey,
+    trading_pda: Pubkey,
+    trading_ata: Pubkey,
+    instruction0: Instruction,
+) -> Transaction {
     let instruction1: Instruction = Instruction {
         program_id: trading_program::id(),
         accounts: vec![
@@ -162,18 +180,39 @@ pub async fn create_escrow_via_trading_program(
         }),
     };
 
-    let transaction = Transaction::new_signed_with_payer(
+    Transaction::new_signed_with_payer(
         &[instruction0, instruction1],
         Some(&test_state.recipient_wallet.keypair.pubkey()),
         &[&test_state.recipient_wallet.keypair],
         test_state.context.last_blockhash,
+    )
+}
+
+pub async fn create_escrow_via_trading_program(
+    test_state: &mut TestStateBase<SrcProgram>,
+) -> (Pubkey, Pubkey, Pubkey, Pubkey) {
+    let (escrow_pda, escrow_ata, trading_pda, trading_ata) =
+        prepare_trading_account(test_state).await;
+
+    let instruction0 = create_signinig_default_order_ix(
+        test_state,
+        test_state.creator_wallet.keypair.insecure_clone(),
     );
 
-    (
+    let transaction = init_escrow_erc_tx(
+        test_state,
         escrow_pda,
         escrow_ata,
         trading_pda,
         trading_ata,
-        transaction,
-    )
+        instruction0,
+    );
+
+    test_state
+        .client
+        .process_transaction(transaction)
+        .await
+        .expect_success();
+
+    (escrow_pda, escrow_ata, trading_pda, trading_ata)
 }
