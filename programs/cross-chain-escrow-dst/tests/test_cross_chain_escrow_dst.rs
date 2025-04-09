@@ -178,7 +178,7 @@ mod test_escrow_public_withdraw {
             get_token_balance(&mut test_state.context, &escrow_ata).await,
             test_state.test_arguments.escrow_amount
         );
-        let rent_lamports = DstProgram::get_rent(test_state).await;
+        let rent_lamports = DstProgram::get_escrow_rent(test_state).await;
         let token_account_rent = test_state.get_ata_rent().await;
         assert_eq!(
             rent_lamports,

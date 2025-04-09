@@ -35,7 +35,7 @@ mod test_trading_program {
             0
         );
         // Check the lamport balance of escrow account is as expected.
-        let rent_lamports = SrcProgram::get_rent(test_state).await;
+        let rent_lamports = SrcProgram::get_escrow_rent(test_state).await;
 
         assert_eq!(
             rent_lamports,
