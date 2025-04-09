@@ -1,7 +1,7 @@
 use crate::helpers::*;
 use anchor_lang::prelude::AccountInfo;
 use solana_program_runtime::invoke_context::BuiltinFunctionWithContext;
-use solana_sdk::{signature::Signer, transaction::Transaction};
+use solana_sdk::{signature::Signer, signer::keypair::Keypair, transaction::Transaction};
 
 use crate::wrap_entry;
 use anchor_lang::InstructionData;
@@ -14,6 +14,7 @@ use anchor_spl::{
 
 use solana_program::{
     instruction::{AccountMeta, Instruction},
+    // program_pack::Pack,
     pubkey::Pubkey,
     system_program::ID as system_program_id,
     sysvar::rent::ID as rent_id,
@@ -123,6 +124,7 @@ impl EscrowVariant for DstProgram {
         test_state: &TestState,
         escrow: &Pubkey,
         escrow_ata: &Pubkey,
+        withdrawer: &Keypair,
     ) -> Transaction {
         let instruction_data =
             InstructionData::data(&cross_chain_escrow_dst::instruction::PublicWithdraw {
@@ -134,7 +136,7 @@ impl EscrowVariant for DstProgram {
             accounts: vec![
                 AccountMeta::new(test_state.creator_wallet.keypair.pubkey(), false),
                 AccountMeta::new_readonly(test_state.recipient_wallet.keypair.pubkey(), false),
-                AccountMeta::new_readonly(test_state.context.payer.pubkey(), false),
+                AccountMeta::new(withdrawer.pubkey(), true),
                 AccountMeta::new_readonly(test_state.token, false),
                 AccountMeta::new(*escrow, false),
                 AccountMeta::new(*escrow_ata, false),
@@ -147,8 +149,10 @@ impl EscrowVariant for DstProgram {
 
         Transaction::new_signed_with_payer(
             &[instruction],
-            Some(&test_state.payer_kp.pubkey()),
-            &[&test_state.payer_kp],
+            Some(&test_state.payer_kp.pubkey()), // so that withdrawer does not incurr transaction
+            // charges and mess up computation of withdrawer's
+            // balance expectation.
+            &[withdrawer, &test_state.payer_kp],
             test_state.context.last_blockhash,
         )
     }
