@@ -23,8 +23,7 @@ pub async fn test_escrow_creation<T: EscrowVariant>(test_state: &mut TestStateBa
     );
 
     // Check the lamport balance of escrow account is as expected.
-    let escrow_data_len = T::get_escrow_data_len();
-    let rent_lamports = get_min_rent_for_size(&mut test_state.client, escrow_data_len).await;
+    let rent_lamports = T::get_cached_rent(test_state).await;
     assert_eq!(
         rent_lamports,
         test_state.client.get_balance(escrow).await.unwrap()
@@ -164,7 +163,7 @@ pub async fn test_withdraw<T: EscrowVariant>(test_state: &mut TestStateBase<T>) 
 
     let token_account_rent =
         get_min_rent_for_size(&mut test_state.client, get_token_account_size()).await;
-    let escrow_rent = get_min_rent_for_size(&mut test_state.client, T::get_escrow_data_len()).await;
+    let escrow_rent = T::get_cached_rent(test_state).await;
 
     set_time(
         &mut test_state.context,
@@ -240,7 +239,7 @@ pub async fn test_withdraw_does_not_work_with_wrong_secret<T: EscrowVariant>(
 
     assert_eq!(
         test_state.client.get_balance(escrow).await.unwrap(),
-        get_min_rent_for_size(&mut test_state.client, T::get_escrow_data_len()).await
+        T::get_cached_rent(test_state).await
     );
 }
 
@@ -350,8 +349,7 @@ pub async fn test_public_withdraw_tokens<T: EscrowVariant>(
         get_token_balance(&mut test_state.context, &escrow_ata).await,
         test_state.test_arguments.escrow_amount
     );
-    let escrow_data_len = T::get_escrow_data_len();
-    let rent_lamports = get_min_rent_for_size(&mut test_state.client, escrow_data_len).await;
+    let rent_lamports = T::get_cached_rent(test_state).await;
     let token_account_rent =
         get_min_rent_for_size(&mut test_state.client, SplTokenAccount::LEN).await;
     assert_eq!(
@@ -518,7 +516,7 @@ pub async fn test_cancel<T: EscrowVariant>(test_state: &mut TestStateBase<T>) {
 
     let token_account_rent =
         get_min_rent_for_size(&mut test_state.client, get_token_account_size()).await;
-    let escrow_rent = get_min_rent_for_size(&mut test_state.client, T::get_escrow_data_len()).await;
+    let escrow_rent = T::get_cached_rent(test_state).await;
 
     test_state
         .expect_balance_change(

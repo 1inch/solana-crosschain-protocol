@@ -265,8 +265,7 @@ mod test_escrow_public_cancel {
                 + DEFAULT_PERIOD_DURATION * PeriodType::PublicCancellation as u32,
         );
 
-        let escrow_data_len = SrcProgram::get_escrow_data_len();
-        let rent_lamports = get_min_rent_for_size(&mut test_state.client, escrow_data_len).await;
+        let rent_lamports = SrcProgram::get_cached_rent(test_state).await;
 
         let token_account_rent =
             get_min_rent_for_size(&mut test_state.client, SplTokenAccount::LEN).await;
@@ -335,8 +334,7 @@ mod test_escrow_public_cancel {
                 + DEFAULT_PERIOD_DURATION * PeriodType::PublicCancellation as u32,
         );
 
-        let escrow_data_len = SrcProgram::get_escrow_data_len();
-        let rent_lamports = get_min_rent_for_size(&mut test_state.client, escrow_data_len).await;
+        let rent_lamports = SrcProgram::get_cached_rent(test_state).await;
 
         let token_account_rent =
             get_min_rent_for_size(&mut test_state.client, SplTokenAccount::LEN).await;

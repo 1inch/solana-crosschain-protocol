@@ -35,8 +35,8 @@ mod test_trading_program {
             0
         );
         // Check the lamport balance of escrow account is as expected.
-        let rent_lamports =
-            get_min_rent_for_size(&mut test_state.client, SrcProgram::get_escrow_data_len()).await;
+        let rent_lamports = SrcProgram::get_cached_rent(test_state).await;
+
         assert_eq!(
             rent_lamports,
             test_state.client.get_balance(escrow).await.unwrap()

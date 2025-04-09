@@ -179,8 +179,7 @@ mod test_escrow_public_withdraw {
             get_token_balance(&mut test_state.context, &escrow_ata).await,
             test_state.test_arguments.escrow_amount
         );
-        let escrow_data_len = DstProgram::get_escrow_data_len();
-        let rent_lamports = get_min_rent_for_size(&mut test_state.client, escrow_data_len).await;
+        let rent_lamports = DstProgram::get_cached_rent(test_state).await;
         let token_account_rent =
             get_min_rent_for_size(&mut test_state.client, SplTokenAccount::LEN).await;
         assert_eq!(

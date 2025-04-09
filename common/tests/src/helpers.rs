@@ -94,26 +94,29 @@ pub struct TestStateBase<T: ?Sized> {
 // has to be different between variants.
 pub trait EscrowVariant {
     fn get_program_spec() -> (Pubkey, Option<BuiltinFunctionWithContext>);
+    fn get_cached_rent(
+        test_state: &mut TestStateBase<Self>,
+    ) -> impl std::future::Future<Output = u64> + Send; // async fn get_cached_rent(test_state: &mut TestStateBase<Self>)
 
     // All the instruction creation procedures differ slightly
     // between the variants.
-    fn get_public_withdraw_tx(
+    fn get_create_tx(
         test_state: &TestStateBase<Self>,
         escrow: &Pubkey,
         escrow_ata: &Pubkey,
-        safety_deposit_recipient: &Keypair,
     ) -> Transaction;
     fn get_withdraw_tx(
         test_state: &TestStateBase<Self>,
         escrow: &Pubkey,
         escrow_ata: &Pubkey,
     ) -> Transaction;
-    fn get_cancel_tx(
+    fn get_public_withdraw_tx(
         test_state: &TestStateBase<Self>,
         escrow: &Pubkey,
         escrow_ata: &Pubkey,
+        safety_deposit_recipient: &Keypair,
     ) -> Transaction;
-    fn get_create_tx(
+    fn get_cancel_tx(
         test_state: &TestStateBase<Self>,
         escrow: &Pubkey,
         escrow_ata: &Pubkey,
@@ -125,8 +128,6 @@ pub trait EscrowVariant {
         escrow_ata: &Pubkey,
         recipient_ata: &Pubkey,
     ) -> Transaction;
-
-    fn get_escrow_data_len() -> usize;
 }
 
 impl<T> AsyncTestContext for TestStateBase<T>

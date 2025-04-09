@@ -5,7 +5,7 @@ use solana_sdk::{signature::Signer, signer::keypair::Keypair, transaction::Trans
 
 use crate::wrap_entry;
 use anchor_lang::InstructionData;
-use solana_program_test::processor;
+use solana_program_test::{processor, tokio::sync::OnceCell};
 
 use anchor_lang::Space;
 use anchor_spl::{
@@ -15,7 +15,6 @@ use anchor_spl::{
 use solana_program::{
     instruction::{AccountMeta, Instruction},
     pubkey::Pubkey,
-    // program_pack::Pack,
     system_program::ID as system_program_id,
     sysvar::rent::ID as rent_id,
 };
@@ -23,6 +22,8 @@ use solana_program::{
 pub struct SrcProgram;
 
 type TestState = TestStateBase<SrcProgram>;
+
+static RENT_FOR_ESCROW: OnceCell<u64> = OnceCell::const_new(); // lazy init
 
 impl EscrowVariant for SrcProgram {
     fn get_program_spec() -> (Pubkey, Option<BuiltinFunctionWithContext>) {
@@ -32,16 +33,18 @@ impl EscrowVariant for SrcProgram {
         )
     }
 
-    fn get_escrow_data_len() -> usize {
-        cross_chain_escrow_src::constants::DISCRIMINATOR
-            + cross_chain_escrow_src::EscrowSrc::INIT_SPACE
+    async fn get_cached_rent(test_state: &mut TestState) -> u64 {
+        RENT_FOR_ESCROW
+            .get_or_init(|| async {
+                let size = cross_chain_escrow_src::constants::DISCRIMINATOR
+                    + cross_chain_escrow_src::EscrowSrc::INIT_SPACE;
+                get_min_rent_for_size(&mut test_state.client, size).await
+            })
+            .await
+            .to_owned()
     }
 
-    fn get_create_tx(
-        test_state: &TestStateBase<SrcProgram>,
-        escrow: &Pubkey,
-        escrow_ata: &Pubkey,
-    ) -> Transaction {
+    fn get_create_tx(test_state: &TestState, escrow: &Pubkey, escrow_ata: &Pubkey) -> Transaction {
         let instruction_data =
             InstructionData::data(&cross_chain_escrow_src::instruction::Create {
                 amount: test_state.test_arguments.escrow_amount,
