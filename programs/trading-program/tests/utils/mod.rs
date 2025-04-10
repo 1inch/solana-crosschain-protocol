@@ -24,7 +24,7 @@ use solana_sdk::{
 use std::marker::PhantomData;
 use std::time::{SystemTime, UNIX_EPOCH};
 use test_context::AsyncTestContext;
-use trading_program::utils::Order;
+use trading_program::{constants::SEED_PREFIX, utils::Order};
 
 pub struct TestStateTrading {
     pub base: TestStateBase<SrcProgram>,
@@ -97,7 +97,7 @@ impl AsyncTestContext for TestStateTrading {
 fn get_trading_addresses(test_state: &TestStateBase<SrcProgram>) -> (Pubkey, Pubkey) {
     let (trading_pda, _) = Pubkey::find_program_address(
         &[
-            b"trading",
+            SEED_PREFIX,
             test_state.creator_wallet.keypair.pubkey().as_ref(),
         ],
         &trading_program::id(),

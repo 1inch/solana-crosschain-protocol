@@ -6,6 +6,7 @@ use anchor_spl::{
 };
 use borsh::BorshDeserialize;
 
+pub mod constants;
 pub mod utils;
 use cross_chain_escrow_src::{
     cpi::{accounts::Create, create},
@@ -53,7 +54,7 @@ pub mod trading_program {
                     system_program: ctx.accounts.system_program.to_account_info(),
                 },
                 &[&[
-                    "trading".as_bytes(),
+                    constants::SEED_PREFIX,
                     ctx.accounts.maker.key().as_ref(),
                     &[ctx.bumps.trading_account],
                 ]],
@@ -83,7 +84,7 @@ pub struct InitEscrowSrc<'info> {
     pub maker: UncheckedAccount<'info>,
 
     #[account(
-        seeds = ["trading".as_bytes(), maker.key().as_ref()],
+        seeds = [constants::SEED_PREFIX, maker.key().as_ref()],
         bump
     )]
     pub trading_account: UncheckedAccount<'info>,
