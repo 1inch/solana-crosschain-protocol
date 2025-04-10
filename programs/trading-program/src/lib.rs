@@ -90,7 +90,8 @@ pub mod trading_program {
                 system_program: ctx.accounts.system_program.to_account_info(),
             },
             &[&[
-                ctx.accounts.maker.to_account_info().key().as_ref(),
+                constants::SEED_PREFIX,
+                ctx.accounts.maker.key().as_ref(),
                 &[ctx.bumps.trading_account],
             ]],
         ))?;

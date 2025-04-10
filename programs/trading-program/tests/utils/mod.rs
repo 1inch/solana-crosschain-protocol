@@ -162,7 +162,7 @@ pub fn init_escrow_erc_tx(
         accounts: vec![
             AccountMeta::new(test_state.recipient_wallet.keypair.pubkey(), true), // taker
             AccountMeta::new_readonly(test_state.creator_wallet.keypair.pubkey(), false), // maker
-            AccountMeta::new(trading_pda, false),                                 // trading_account
+            AccountMeta::new(trading_pda, false), // trading_account
             AccountMeta::new(trading_ata, false), // trading_account_tokens
             AccountMeta::new(escrow_pda, false),  // escrow
             AccountMeta::new_readonly(test_state.token, false), // token
@@ -215,4 +215,36 @@ pub async fn create_escrow_via_trading_program(
         .expect_success();
 
     (escrow_pda, escrow_ata, trading_pda, trading_ata)
+}
+
+pub fn cancel_escrow_src_tx(
+    test_state: &mut TestStateBase<SrcProgram>,
+    escrow_pda: Pubkey,
+    escrow_ata: Pubkey,
+    trading_pda: Pubkey,
+    trading_ata: Pubkey,
+) -> Transaction {
+    let instruction: Instruction = Instruction {
+        program_id: trading_program::id(),
+        accounts: vec![
+            AccountMeta::new(test_state.recipient_wallet.keypair.pubkey(), true), // taker
+            AccountMeta::new_readonly(test_state.creator_wallet.keypair.pubkey(), false), // maker
+            AccountMeta::new(trading_pda, false), // trading_account
+            AccountMeta::new(trading_ata, false), // trading_account_tokens
+            AccountMeta::new(escrow_pda, false),  // escrow
+            AccountMeta::new_readonly(test_state.token, false), // token
+            AccountMeta::new(escrow_ata, false),  // escrow_tokens
+            AccountMeta::new_readonly(spl_program_id, false),
+            AccountMeta::new_readonly(system_program_id, false),
+            AccountMeta::new_readonly(cross_chain_escrow_src::id(), false),
+        ],
+        data: InstructionData::data(&trading_program::instruction::CancelEscrowSrc {}),
+    };
+
+    Transaction::new_signed_with_payer(
+        &[instruction],
+        Some(&test_state.recipient_wallet.keypair.pubkey()),
+        &[&test_state.recipient_wallet.keypair],
+        test_state.context.last_blockhash,
+    )
 }
