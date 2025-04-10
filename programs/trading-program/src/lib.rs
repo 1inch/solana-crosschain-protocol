@@ -8,7 +8,7 @@ use borsh::BorshDeserialize;
 
 pub mod utils;
 use cross_chain_escrow_src::{
-    cpi::{accounts::Create as CreateSrc, create as create_src},
+    cpi::{accounts::Create, create},
     program::CrossChainEscrowSrc,
 };
 use utils::{error::TradingProgramError, verify_order_signature};
@@ -34,10 +34,10 @@ pub mod trading_program {
         }
 
         // Initialize the escrow
-        create_src(
+        create(
             CpiContext::new_with_signer(
                 ctx.accounts.escrow_src_program.to_account_info(),
-                CreateSrc {
+                Create {
                     payer: ctx.accounts.taker.to_account_info(),
                     creator: ctx.accounts.trading_account.to_account_info(),
                     token: ctx.accounts.token.to_account_info(),
@@ -80,13 +80,13 @@ pub struct InitEscrowSrc<'info> {
     pub taker: Signer<'info>,
 
     /// CHECK: actual maker address is needed to only derive the trading account address
-    pub maker: AccountInfo<'info>,
+    pub maker: UncheckedAccount<'info>,
 
     #[account(
         seeds = ["trading".as_bytes(), maker.key().as_ref()],
         bump
     )]
-    pub trading_account: AccountInfo<'info>,
+    pub trading_account: UncheckedAccount<'info>,
 
     #[account(
         mut,
@@ -97,17 +97,17 @@ pub struct InitEscrowSrc<'info> {
 
     /// CHECK: Verification done by CPI to escrow program
     #[account(mut)]
-    pub escrow: AccountInfo<'info>,
+    pub escrow: UncheckedAccount<'info>,
 
     pub token: Account<'info, Mint>,
 
     /// CHECK: Verification done by CPI to escrow program
     #[account(mut)]
-    pub escrow_tokens: AccountInfo<'info>,
+    pub escrow_tokens: UncheckedAccount<'info>,
 
     /// CHECK: Address verification is done in constraint
     #[account(address = IX_ID)]
-    pub ix_sysvar: AccountInfo<'info>,
+    pub ix_sysvar: UncheckedAccount<'info>,
 
     pub associated_token_program: Program<'info, AssociatedToken>,
     pub token_program: Program<'info, Token>,
