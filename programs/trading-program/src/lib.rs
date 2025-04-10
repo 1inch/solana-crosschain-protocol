@@ -9,7 +9,10 @@ use borsh::BorshDeserialize;
 pub mod constants;
 pub mod utils;
 use cross_chain_escrow_src::{
-    cpi::{accounts::Create, create},
+    cpi::{
+        accounts::{Cancel, Create},
+        cancel, create,
+    },
     program::CrossChainEscrowSrc,
 };
 use utils::{error::TradingProgramError, verify_order_signature};
@@ -73,6 +76,27 @@ pub mod trading_program {
 
         Ok(())
     }
+
+    pub fn cancel_escrow_src(ctx: Context<CancelEscrowSrc>) -> Result<()> {
+        cancel(CpiContext::new_with_signer(
+            ctx.accounts.escrow_src_program.to_account_info(),
+            Cancel {
+                creator: ctx.accounts.trading_account.to_account_info(),
+                token: ctx.accounts.token.to_account_info(),
+                escrow: ctx.accounts.escrow.to_account_info(),
+                escrow_ata: ctx.accounts.escrow_tokens.to_account_info(),
+                creator_ata: ctx.accounts.trading_account_tokens.to_account_info(),
+                token_program: ctx.accounts.token_program.to_account_info(),
+                system_program: ctx.accounts.system_program.to_account_info(),
+            },
+            &[&[
+                ctx.accounts.maker.to_account_info().key().as_ref(),
+                &[ctx.bumps.trading_account],
+            ]],
+        ))?;
+
+        Ok(())
+    }
 }
 
 #[derive(Accounts)]
@@ -113,6 +137,41 @@ pub struct InitEscrowSrc<'info> {
     pub associated_token_program: Program<'info, AssociatedToken>,
     pub token_program: Program<'info, Token>,
     pub rent: Sysvar<'info, Rent>,
+    pub system_program: Program<'info, System>,
+    pub escrow_src_program: Program<'info, CrossChainEscrowSrc>,
+}
+
+#[derive(Accounts)]
+pub struct CancelEscrowSrc<'info> {
+    #[account(mut)]
+    pub taker: Signer<'info>,
+
+    /// CHECK: actual maker address is needed to only derive the trading account address
+    pub maker: UncheckedAccount<'info>,
+
+    #[account(
+        seeds = [constants::SEED_PREFIX, maker.key().as_ref()],
+        bump
+    )]
+    pub trading_account: UncheckedAccount<'info>,
+
+    #[account(
+        mut,
+        associated_token::mint = token,
+        associated_token::authority = trading_account,
+    )]
+    pub trading_account_tokens: Account<'info, TokenAccount>,
+    /// CHECK: Verification done by CPI to escrow program
+    #[account(mut)]
+    pub escrow: UncheckedAccount<'info>,
+
+    pub token: Account<'info, Mint>,
+
+    /// CHECK: Verification done by CPI to escrow program
+    #[account(mut)]
+    pub escrow_tokens: UncheckedAccount<'info>,
+
+    pub token_program: Program<'info, Token>,
     pub system_program: Program<'info, System>,
     pub escrow_src_program: Program<'info, CrossChainEscrowSrc>,
 }

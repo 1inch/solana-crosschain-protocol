@@ -326,7 +326,6 @@ pub struct Cancel<'info> {
         mut, // Needed because this account receives lamports (safety deposit and from closed accounts)
         constraint = creator.key() == escrow.creator @ EscrowError::InvalidAccount
     )]
-    // TODO: change signer after adding gasless creation
     creator: Signer<'info>,
     token: Box<Account<'info, Mint>>,
     #[account(
