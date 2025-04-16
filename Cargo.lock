@@ -6193,7 +6193,6 @@ dependencies = [
  "anchor-spl",
  "common",
  "common_tests",
- "cross-chain-escrow-dst",
  "cross-chain-escrow-src",
  "ed25519-dalek",
  "solana-program",
