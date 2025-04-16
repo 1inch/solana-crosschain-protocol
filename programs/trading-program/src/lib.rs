@@ -83,6 +83,7 @@ pub struct InitEscrowSrc<'info> {
     /// CHECK: actual maker address is needed to only derive the trading account address
     pub maker: UncheckedAccount<'info>,
 
+    /// CHECK: check is not needed here as we never initialize the account
     #[account(
         seeds = [constants::SEED_PREFIX, maker.key().as_ref()],
         bump
