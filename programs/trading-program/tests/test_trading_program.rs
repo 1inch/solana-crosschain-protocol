@@ -8,7 +8,7 @@ use test_context::test_context;
 use trading_program::utils::error::TradingProgramError;
 mod utils;
 use utils::{
-    create_escrow_via_trading_program, create_signinig_default_order_ix, init_escrow_erc_tx,
+    create_escrow_via_trading_program, create_signinig_default_order_ix, init_escrow_src_tx,
     prepare_trading_account, TestStateTrading,
 };
 
@@ -57,7 +57,7 @@ mod test_trading_program {
             test_state.recipient_wallet.keypair.insecure_clone(), // Wrong signer
         );
 
-        let transaction = init_escrow_erc_tx(
+        let transaction = init_escrow_src_tx(
             test_state,
             escrow_pda,
             escrow_ata,
@@ -92,7 +92,7 @@ mod test_trading_program {
         let (escrow_pda, escrow_ata, trading_pda, trading_ata) =
             prepare_trading_account(test_state).await;
 
-        let transaction = init_escrow_erc_tx(
+        let transaction = init_escrow_src_tx(
             test_state,
             escrow_pda,
             escrow_ata,
@@ -127,7 +127,7 @@ mod test_trading_program {
         let (escrow_pda, escrow_ata, trading_pda, trading_ata) =
             prepare_trading_account(test_state).await;
 
-        let transaction = init_escrow_erc_tx(
+        let transaction = init_escrow_src_tx(
             test_state,
             escrow_pda,
             escrow_ata,
@@ -162,7 +162,7 @@ mod test_trading_program {
         );
 
         test_state.creator_wallet = test_state.recipient_wallet.clone(); // Wrong derivation of the trading_account
-        let transaction = init_escrow_erc_tx(
+        let transaction = init_escrow_src_tx(
             test_state,
             escrow_pda,
             escrow_ata,
@@ -194,7 +194,7 @@ mod test_trading_program {
         );
 
         test_state.token = deploy_spl_token(&mut test_state.context, 9).await.pubkey(); // Wrong derivation of the trading_account_ata
-        let transaction = init_escrow_erc_tx(
+        let transaction = init_escrow_src_tx(
             test_state,
             escrow_pda,
             escrow_ata,

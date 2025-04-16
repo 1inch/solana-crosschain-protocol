@@ -149,7 +149,7 @@ pub fn create_signinig_default_order_ix(
     new_ed25519_instruction(&dalek_kp, &order_bytes)
 }
 
-pub fn init_escrow_erc_tx(
+pub fn init_escrow_src_tx(
     test_state: &mut TestStateBase<SrcProgram>,
     escrow_pda: Pubkey,
     escrow_ata: Pubkey,
@@ -199,7 +199,7 @@ pub async fn create_escrow_via_trading_program(
         test_state.creator_wallet.keypair.insecure_clone(),
     );
 
-    let transaction = init_escrow_erc_tx(
+    let transaction = init_escrow_src_tx(
         test_state,
         escrow_pda,
         escrow_ata,
