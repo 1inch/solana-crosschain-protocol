@@ -162,11 +162,11 @@ pub fn init_escrow_erc_tx(
         accounts: vec![
             AccountMeta::new(test_state.recipient_wallet.keypair.pubkey(), true), // taker
             AccountMeta::new_readonly(test_state.creator_wallet.keypair.pubkey(), false), // maker
-            AccountMeta::new(trading_pda, false),                                 // trading_account
-            AccountMeta::new(trading_ata, false), // trading_account_tokens
+            AccountMeta::new(trading_pda, false), // trading_account
+            AccountMeta::new(trading_ata, false), // trading_account_ata
             AccountMeta::new(escrow_pda, false),  // escrow
             AccountMeta::new_readonly(test_state.token, false), // token
-            AccountMeta::new(escrow_ata, false),  // escrow_tokens
+            AccountMeta::new(escrow_ata, false),  // escrow_ata
             AccountMeta::new_readonly(ix_sysvar_id, false),
             AccountMeta::new_readonly(spl_associated_token_id, false),
             AccountMeta::new_readonly(spl_program_id, false),

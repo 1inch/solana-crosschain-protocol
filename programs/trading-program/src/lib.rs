@@ -42,9 +42,9 @@ pub mod trading_program {
                     payer: ctx.accounts.taker.to_account_info(),
                     creator: ctx.accounts.trading_account.to_account_info(),
                     token: ctx.accounts.token.to_account_info(),
-                    creator_ata: ctx.accounts.trading_account_tokens.to_account_info(),
+                    creator_ata: ctx.accounts.trading_account_ata.to_account_info(),
                     escrow: ctx.accounts.escrow.to_account_info(),
-                    escrow_ata: ctx.accounts.escrow_tokens.to_account_info(),
+                    escrow_ata: ctx.accounts.escrow_ata.to_account_info(),
                     associated_token_program: ctx
                         .accounts
                         .associated_token_program
@@ -95,7 +95,7 @@ pub struct InitEscrowSrc<'info> {
         associated_token::mint = token,
         associated_token::authority = trading_account,
     )]
-    pub trading_account_tokens: Account<'info, TokenAccount>,
+    pub trading_account_ata: Account<'info, TokenAccount>,
 
     /// CHECK: Verification done by CPI to escrow program
     #[account(mut)]
@@ -105,7 +105,7 @@ pub struct InitEscrowSrc<'info> {
 
     /// CHECK: Verification done by CPI to escrow program
     #[account(mut)]
-    pub escrow_tokens: UncheckedAccount<'info>,
+    pub escrow_ata: UncheckedAccount<'info>,
 
     /// CHECK: Address verification is done in constraint
     #[account(address = IX_ID)]

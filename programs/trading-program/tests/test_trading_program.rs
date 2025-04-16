@@ -193,7 +193,7 @@ mod test_trading_program {
             test_state.creator_wallet.keypair.insecure_clone(),
         );
 
-        test_state.token = deploy_spl_token(&mut test_state.context, 9).await.pubkey(); // Wrong derivation of the trading_account_tokens
+        test_state.token = deploy_spl_token(&mut test_state.context, 9).await.pubkey(); // Wrong derivation of the trading_account_ata
         let transaction = init_escrow_erc_tx(
             test_state,
             escrow_pda,
