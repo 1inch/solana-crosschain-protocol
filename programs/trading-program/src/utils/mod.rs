@@ -24,6 +24,8 @@ pub struct Order {
     pub finality_duration: u32,
     pub withdrawal_duration: u32,
     pub public_withdrawal_duration: u32,
+    pub cancellation_duration: u32,
+    pub rescue_start: u32,
 }
 
 /// Verifies that the order is signed by the maker

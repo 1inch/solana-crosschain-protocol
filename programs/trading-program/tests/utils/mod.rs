@@ -142,6 +142,8 @@ pub fn create_signinig_default_order_ix(
         finality_duration: test_state.test_arguments.finality_duration,
         withdrawal_duration: test_state.test_arguments.withdrawal_duration,
         public_withdrawal_duration: test_state.test_arguments.public_withdrawal_duration,
+        cancellation_duration: test_state.test_arguments.cancellation_duration,
+        rescue_start: test_state.test_arguments.rescue_start,
     };
     let order_bytes = order.try_to_vec().unwrap();
 
@@ -162,7 +164,7 @@ pub fn init_escrow_src_tx(
         accounts: vec![
             AccountMeta::new(test_state.recipient_wallet.keypair.pubkey(), true), // taker
             AccountMeta::new_readonly(test_state.creator_wallet.keypair.pubkey(), false), // maker
-            AccountMeta::new(trading_pda, false), // trading_account
+            AccountMeta::new(trading_pda, false),                                 // trading_account
             AccountMeta::new(trading_ata, false), // trading_account_ata
             AccountMeta::new(escrow_pda, false),  // escrow
             AccountMeta::new_readonly(test_state.token, false), // token
@@ -174,10 +176,7 @@ pub fn init_escrow_src_tx(
             AccountMeta::new_readonly(system_program_id, false),
             AccountMeta::new_readonly(cross_chain_escrow_src::id(), false),
         ],
-        data: InstructionData::data(&trading_program::instruction::InitEscrowSrc {
-            src_cancellation_timestamp: test_state.test_arguments.src_cancellation_timestamp,
-            rescue_start: test_state.test_arguments.rescue_start,
-        }),
+        data: InstructionData::data(&trading_program::instruction::InitEscrowSrc {}),
     };
 
     Transaction::new_signed_with_payer(

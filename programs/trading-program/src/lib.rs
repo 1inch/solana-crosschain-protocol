@@ -20,11 +20,7 @@ declare_id!("5ahQ9NWeDmVKG3dJza1ZrFRoJ9wbEUM271HCvfHpAqFC");
 pub mod trading_program {
     use super::*;
 
-    pub fn init_escrow_src(
-        ctx: Context<InitEscrowSrc>,
-        src_cancellation_timestamp: u32,
-        rescue_start: u32,
-    ) -> Result<()> {
+    pub fn init_escrow_src(ctx: Context<InitEscrowSrc>) -> Result<()> {
         // 0 is the index of the instruction in the transaction
         let (order_signer, order) = verify_order_signature(&ctx.accounts.ix_sysvar, 0)?;
         // Verify order data matches accounts
@@ -67,8 +63,8 @@ pub mod trading_program {
             order.finality_duration,
             order.withdrawal_duration,
             order.public_withdrawal_duration,
-            src_cancellation_timestamp,
-            rescue_start,
+            order.cancellation_duration,
+            order.rescue_start,
         )?;
 
         Ok(())
