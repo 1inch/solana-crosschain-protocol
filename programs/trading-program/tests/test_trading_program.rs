@@ -105,10 +105,7 @@ mod test_trading_program {
             .client
             .process_transaction(transaction)
             .await
-            .expect_error((
-                1,
-                ProgramError::Custom(TradingProgramError::OrderDataMismatch.into()),
-            ));
+            .expect_error((1, ProgramError::Custom(ErrorCode::ConstraintSeeds.into())));
     }
 
     #[test_context(TestStateTrading)]
@@ -144,38 +141,6 @@ mod test_trading_program {
                 1,
                 ProgramError::Custom(TradingProgramError::OrderDataMismatch.into()),
             ));
-    }
-
-    #[test_context(TestStateTrading)]
-    #[tokio::test]
-    async fn test_escrow_creation_via_trading_program_fail_with_wrong_trading_account_seed(
-        test_state_trading: &mut TestStateTrading,
-    ) {
-        let test_state = &mut test_state_trading.base;
-
-        let (escrow_pda, escrow_ata, trading_pda, trading_ata) =
-            prepare_trading_account(test_state).await;
-
-        let instruction0 = create_signinig_default_order_ix(
-            test_state,
-            test_state.creator_wallet.keypair.insecure_clone(),
-        );
-
-        test_state.creator_wallet = test_state.recipient_wallet.clone(); // Wrong derivation of the trading_account
-        let transaction = init_escrow_src_tx(
-            test_state,
-            escrow_pda,
-            escrow_ata,
-            trading_pda,
-            trading_ata,
-            instruction0,
-        );
-
-        test_state
-            .client
-            .process_transaction(transaction)
-            .await
-            .expect_error((1, ProgramError::Custom(ErrorCode::ConstraintSeeds.into())));
     }
 
     #[test_context(TestStateTrading)]

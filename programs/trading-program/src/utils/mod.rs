@@ -29,10 +29,7 @@ pub struct Order {
 }
 
 /// Verifies that the order is signed by the maker
-pub fn verify_order_signature(
-    ix_sysvar: &AccountInfo,
-    instruction_index: u8,
-) -> Result<(Pubkey, Order)> {
+pub fn verify_order_signature(ix_sysvar: &AccountInfo, instruction_index: u8) -> Result<Order> {
     // Load instruction
     let ix: Instruction = load_instruction_at_checked(instruction_index.into(), ix_sysvar)?;
 
@@ -47,5 +44,12 @@ pub fn verify_order_signature(
         return Err(error::TradingProgramError::SigVerificationFailed.into());
     }
 
-    Ok((order_signer, order))
+    Ok(order)
+}
+
+pub fn assert_pda(account_info: &AccountInfo, seeds: &[&[u8]]) -> Result<u8> {
+    let (pda, bump) =
+        Pubkey::try_find_program_address(seeds, &crate::id()).ok_or(ErrorCode::ConstraintSeeds)?;
+    require!(*account_info.key == pda, ErrorCode::ConstraintSeeds);
+    Ok(bump)
 }

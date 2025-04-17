@@ -12,23 +12,28 @@ use cross_chain_escrow_src::{
     cpi::{accounts::Create, create},
     program::CrossChainEscrowSrc,
 };
-use utils::{error::TradingProgramError, verify_order_signature};
+use utils::{assert_pda, error::TradingProgramError, verify_order_signature};
 
 declare_id!("5ahQ9NWeDmVKG3dJza1ZrFRoJ9wbEUM271HCvfHpAqFC");
 
 #[program]
 pub mod trading_program {
+
     use super::*;
 
     pub fn init_escrow_src(ctx: Context<InitEscrowSrc>) -> Result<()> {
         // 0 is the index of the instruction in the transaction
-        let (order_signer, order) = verify_order_signature(&ctx.accounts.ix_sysvar, 0)?;
+        let order = verify_order_signature(&ctx.accounts.ix_sysvar, 0)?;
         // Verify order data matches accounts
-        if order_signer != ctx.accounts.maker.key()
-            || order.token != ctx.accounts.token.to_account_info().key()
-        {
+        if order.token != ctx.accounts.token.to_account_info().key() {
             return Err(TradingProgramError::OrderDataMismatch.into());
         }
+
+        // Trading account address is validated here because
+        let trading_account_bump = assert_pda(
+            &ctx.accounts.trading_account,
+            &[constants::SEED_PREFIX, order.maker.as_ref()],
+        )?;
 
         // Initialize the escrow
         create(
@@ -51,8 +56,8 @@ pub mod trading_program {
                 },
                 &[&[
                     constants::SEED_PREFIX,
-                    ctx.accounts.maker.key().as_ref(),
-                    &[ctx.bumps.trading_account],
+                    order.maker.as_ref(),
+                    &[trading_account_bump],
                 ]],
             ),
             order.order_hash,
@@ -76,14 +81,7 @@ pub struct InitEscrowSrc<'info> {
     #[account(mut)]
     pub taker: Signer<'info>,
 
-    /// CHECK: actual maker address is needed to only derive the trading account address
-    pub maker: UncheckedAccount<'info>,
-
     /// CHECK: check is not needed here as we never initialize the account
-    #[account(
-        seeds = [constants::SEED_PREFIX, maker.key().as_ref()],
-        bump
-    )]
     pub trading_account: UncheckedAccount<'info>,
 
     #[account(
