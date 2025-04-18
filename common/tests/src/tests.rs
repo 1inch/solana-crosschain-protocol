@@ -5,6 +5,33 @@ use common::{constants::RESCUE_DELAY, error::EscrowError};
 use solana_program::{keccak::hash, program_error::ProgramError, program_pack::Pack};
 use solana_sdk::{signature::Signer, signer::keypair::Keypair, system_instruction::SystemError};
 
+pub async fn test_escrow_creation_tx_cost<T: EscrowVariant>(test_state: &mut TestStateBase<T>) {
+    // To measure the escrow creation cost, we store the current
+    // balance of the payer.
+    //
+    // NOTE: To actually see the output from this test, use the `--show-output` flag as shown below
+    // `cargo test -- --show-output` or
+    // `cargo test test_escrow_creation_tx_cost -- --show-output` or
+    let payer_balance_before = test_state
+        .client
+        .get_balance(test_state.payer_kp.pubkey())
+        .await
+        .unwrap();
+
+    create_escrow(test_state).await;
+
+    let payer_balance_after = test_state
+        .client
+        .get_balance(test_state.payer_kp.pubkey())
+        .await
+        .unwrap();
+
+    println!(
+        "Payer cost for create: {} lamports",
+        payer_balance_before - payer_balance_after
+    );
+}
+
 pub async fn test_escrow_creation<T: EscrowVariant>(test_state: &mut TestStateBase<T>) {
     let (escrow, escrow_ata) = create_escrow(test_state).await;
 
