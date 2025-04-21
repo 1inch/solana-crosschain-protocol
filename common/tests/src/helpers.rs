@@ -58,7 +58,7 @@ pub struct TestArgs {
     pub rescue_amount: u64,
 }
 
-fn get_default_testargs(nowsecs: u32) -> TestArgs {
+pub fn get_default_testargs(nowsecs: u32) -> TestArgs {
     TestArgs {
         escrow_amount: DEFAULT_ESCROW_AMOUNT,
         safety_deposit: DEFAULT_SAFETY_DEPOSIT,
@@ -87,7 +87,7 @@ pub struct TestStateBase<T: ?Sized> {
     pub recipient_wallet: Wallet,
     pub test_arguments: TestArgs,
     pub init_timestamp: u32,
-    pd: PhantomData<T>,
+    pub pd: PhantomData<T>,
 }
 
 // A trait that is used to specify procedures during testing, that
@@ -97,23 +97,23 @@ pub trait EscrowVariant {
 
     // All the instruction creation procedures differ slightly
     // between the variants.
-    fn get_public_withdraw_tx(
+    fn get_create_tx(
         test_state: &TestStateBase<Self>,
         escrow: &Pubkey,
         escrow_ata: &Pubkey,
-        safety_deposit_recipient: &Keypair,
     ) -> Transaction;
     fn get_withdraw_tx(
         test_state: &TestStateBase<Self>,
         escrow: &Pubkey,
         escrow_ata: &Pubkey,
     ) -> Transaction;
-    fn get_cancel_tx(
+    fn get_public_withdraw_tx(
         test_state: &TestStateBase<Self>,
         escrow: &Pubkey,
         escrow_ata: &Pubkey,
+        safety_deposit_recipient: &Keypair,
     ) -> Transaction;
-    fn get_create_tx(
+    fn get_cancel_tx(
         test_state: &TestStateBase<Self>,
         escrow: &Pubkey,
         escrow_ata: &Pubkey,
@@ -134,9 +134,10 @@ where
     T: EscrowVariant,
 {
     async fn setup() -> TestStateBase<T> {
-        let (program_id, entry_point) = T::get_program_spec();
-        let mut context: ProgramTestContext =
-            start_context("escrow_contract", program_id, entry_point).await;
+        let mut program_test: ProgramTest = ProgramTest::default();
+        add_program_to_test(&mut program_test, "escrow_contract", T::get_program_spec);
+        let mut context: ProgramTestContext = program_test.start_with_context().await;
+
         let client: BanksClient = context.banks_client.clone();
         let timestamp: u32 = SystemTime::now()
             .duration_since(UNIX_EPOCH)
@@ -194,16 +195,17 @@ impl Clone for Wallet {
     }
 }
 
-pub fn create_escrow_data<T: EscrowVariant>(
+pub fn get_escrow_addresses<T: EscrowVariant>(
     test_state: &TestStateBase<T>,
-) -> (Pubkey, Pubkey, Transaction) {
+    creator: Pubkey,
+) -> (Pubkey, Pubkey) {
     let (program_id, _) = T::get_program_spec();
     let (escrow_pda, _) = Pubkey::find_program_address(
         &[
             b"escrow",
             test_state.order_hash.as_ref(),
             test_state.hashlock.as_ref(),
-            test_state.creator_wallet.keypair.pubkey().as_ref(),
+            creator.as_ref(),
             test_state.recipient_wallet.keypair.pubkey().as_ref(),
             test_state.token.as_ref(),
             test_state
@@ -225,7 +227,17 @@ pub fn create_escrow_data<T: EscrowVariant>(
         &program_id,
     );
     let escrow_ata = get_associated_token_address(&escrow_pda, &test_state.token);
+
+    (escrow_pda, escrow_ata)
+}
+
+pub fn create_escrow_data<T: EscrowVariant>(
+    test_state: &TestStateBase<T>,
+) -> (Pubkey, Pubkey, Transaction) {
+    let (escrow_pda, escrow_ata) =
+        get_escrow_addresses(test_state, test_state.creator_wallet.keypair.pubkey());
     let transaction: Transaction = T::get_create_tx(test_state, &escrow_pda, &escrow_ata);
+
     (escrow_pda, escrow_ata, transaction)
 }
 
@@ -263,13 +275,15 @@ pub async fn create_wallet(
     }
 }
 
-pub async fn start_context(
-    contract_name: &str,
-    program_id: Pubkey,
-    entry_point: Option<BuiltinFunctionWithContext>,
-) -> ProgramTestContext {
-    let program_test = ProgramTest::new(contract_name, program_id, entry_point);
-    program_test.start_with_context().await
+pub fn add_program_to_test<F>(
+    program_test: &mut ProgramTest,
+    program_name: &str,
+    get_program_spec: F,
+) where
+    F: Fn() -> (Pubkey, Option<BuiltinFunctionWithContext>),
+{
+    let (program_id, entry_point) = get_program_spec();
+    program_test.add_program(program_name, program_id, entry_point);
 }
 
 pub fn set_time(ctx: &mut ProgramTestContext, timestamp: u32) {
@@ -519,7 +533,9 @@ macro_rules! wrap_entry {
             |program_id: &Pubkey, accounts: &[AccountInfo], instruction_data: &[u8]| {
                 $entry(
                     program_id,
-                    unsafe { std::mem::transmute(accounts) },
+                    unsafe {
+                        std::mem::transmute::<&[AccountInfo<'_>], &[AccountInfo<'_>]>(accounts)
+                    },
                     instruction_data,
                 )
             }
