@@ -1,24 +1,27 @@
 [toolchain]
+anchor_version = "0.31.1"
+solana_version = "2.1.0"
+package_manager = "yarn"
 
 [features]
 resolution = true
 skip-lint = false
 
 [programs.localnet]
-cross_chain_escrow_dst = "B9SnVJbXNd6RFNxHqPkTvdr46YPT17xunemTQfDsCNzR"
-cross_chain_escrow_src = "6NwMYeUmigiMDjhYeYpbxC6Kc63NzZy1dfGd7fGcdkVS"
+cross_chain_escrow_dst = "Ec83zAeMKL3bXFytT1Xqm3g8uHNACQEDRJxKyLArsvtT"
+cross_chain_escrow_src = "AddCgYndcnxSR3DFaseagb4RKHXA6STSCKp2WVPck1nq"
 dutch_auction_taking_amount = "6Y87E6QNyrsVZbQSRapcYcXUi9fpFrMiC16C5nLmCCHV"
 mocks = "5Jvn87vo6XzejGMBhTss4kYDJC7D7JxkKuN3zG1fZnk6"
 non_custodial_escrow = "AKEVm47qyu5E2LgBDrXifJjS2WJ7i4D1f9REzYvJEsLg"
 trading-program = "5ahQ9NWeDmVKG3dJza1ZrFRoJ9wbEUM271HCvfHpAqFC"
-trading_program = "8BLa8hpRVLWCkqyD7X5JeSB1xRnct9QumUDghe3UjeTf"
+trading_program = "J499VNA32DXbSu4ycZ61xhpa3m78LYQjP8XpuumMgXSs"
 whitelist_validator = "3zPcYCrngDJQjzTd7vN1povXWtxwKR1BbofWoaHYxPhv"
 
 [registry]
 url = "https://api.apr.dev"
 
 [provider]
-cluster = "Localnet"
+cluster = "localnet"
 wallet = "~/.config/solana/id.json"
 
 [scripts]
