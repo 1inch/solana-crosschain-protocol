@@ -6,7 +6,7 @@ use common::error::EscrowError;
 use common::escrow::EscrowBase;
 use common::utils;
 
-declare_id!("AddCgYndcnxSR3DFaseagb4RKHXA6STSCKp2WVPck1nq");
+declare_id!("6NwMYeUmigiMDjhYeYpbxC6Kc63NzZy1dfGd7fGcdkVS");
 
 #[program]
 pub mod cross_chain_escrow_src {
