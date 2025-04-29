@@ -1,4 +1,7 @@
 [toolchain]
+anchor_version = "0.31.1"
+solana_version = "2.1.0"
+package_manager = "yarn"
 
 [features]
 resolution = true
@@ -18,7 +21,7 @@ whitelist_validator = "3zPcYCrngDJQjzTd7vN1povXWtxwKR1BbofWoaHYxPhv"
 url = "https://api.apr.dev"
 
 [provider]
-cluster = "Localnet"
+cluster = "localnet"
 wallet = "~/.config/solana/id.json"
 
 [scripts]
