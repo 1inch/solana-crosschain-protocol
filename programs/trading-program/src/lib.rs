@@ -47,7 +47,7 @@ pub mod trading_program {
                     token: ctx.accounts.token.to_account_info(),
                     creator_ata: ctx.accounts.trading_account_tokens.to_account_info(),
                     escrow: ctx.accounts.escrow.to_account_info(),
-                    escrow_ata: ctx.accounts.escrow_tokens.to_account_info(),
+                    escrow_ata: ctx.accounts.escrow_ata.to_account_info(),
                     associated_token_program: ctx
                         .accounts
                         .associated_token_program
@@ -84,7 +84,7 @@ pub mod trading_program {
                 creator: ctx.accounts.trading_account.to_account_info(),
                 token: ctx.accounts.token.to_account_info(),
                 escrow: ctx.accounts.escrow.to_account_info(),
-                escrow_ata: ctx.accounts.escrow_tokens.to_account_info(),
+                escrow_ata: ctx.accounts.escrow_ata.to_account_info(),
                 creator_ata: ctx.accounts.trading_account_tokens.to_account_info(),
                 token_program: ctx.accounts.token_program.to_account_info(),
                 system_program: ctx.accounts.system_program.to_account_info(),
@@ -129,7 +129,7 @@ pub struct InitEscrowSrc<'info> {
 
     /// CHECK: Verification done by CPI to escrow program
     #[account(mut)]
-    pub escrow_tokens: UncheckedAccount<'info>,
+    pub escrow_ata: UncheckedAccount<'info>,
 
     /// CHECK: Address verification is done in constraint
     #[account(address = IX_ID)]
@@ -170,7 +170,7 @@ pub struct CancelEscrowSrc<'info> {
 
     /// CHECK: Verification done by CPI to escrow program
     #[account(mut)]
-    pub escrow_tokens: UncheckedAccount<'info>,
+    pub escrow_ata: UncheckedAccount<'info>,
 
     pub token_program: Program<'info, Token>,
     pub system_program: Program<'info, System>,

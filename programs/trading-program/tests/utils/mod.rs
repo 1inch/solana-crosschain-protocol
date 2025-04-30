@@ -166,7 +166,7 @@ pub fn init_escrow_erc_tx(
             AccountMeta::new(trading_ata, false), // trading_account_tokens
             AccountMeta::new(escrow_pda, false),  // escrow
             AccountMeta::new_readonly(test_state.token, false), // token
-            AccountMeta::new(escrow_ata, false),  // escrow_tokens
+            AccountMeta::new(escrow_ata, false),  // escrow_ata
             AccountMeta::new_readonly(ix_sysvar_id, false),
             AccountMeta::new_readonly(spl_associated_token_id, false),
             AccountMeta::new_readonly(spl_program_id, false),
@@ -233,7 +233,7 @@ pub fn cancel_escrow_src_tx(
             AccountMeta::new(trading_ata, false), // trading_account_tokens
             AccountMeta::new(escrow_pda, false),  // escrow
             AccountMeta::new_readonly(test_state.token, false), // token
-            AccountMeta::new(escrow_ata, false),  // escrow_tokens
+            AccountMeta::new(escrow_ata, false),  // escrow_ata
             AccountMeta::new_readonly(spl_program_id, false),
             AccountMeta::new_readonly(system_program_id, false),
             AccountMeta::new_readonly(cross_chain_escrow_src::id(), false),
