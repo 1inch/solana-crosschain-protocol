@@ -45,7 +45,7 @@ pub mod trading_program {
                     payer: ctx.accounts.taker.to_account_info(),
                     creator: ctx.accounts.trading_account.to_account_info(),
                     token: ctx.accounts.token.to_account_info(),
-                    creator_ata: ctx.accounts.trading_account_tokens.to_account_info(),
+                    creator_ata: ctx.accounts.trading_account_ata.to_account_info(),
                     escrow: ctx.accounts.escrow.to_account_info(),
                     escrow_ata: ctx.accounts.escrow_ata.to_account_info(),
                     associated_token_program: ctx
@@ -85,7 +85,7 @@ pub mod trading_program {
                 token: ctx.accounts.token.to_account_info(),
                 escrow: ctx.accounts.escrow.to_account_info(),
                 escrow_ata: ctx.accounts.escrow_ata.to_account_info(),
-                creator_ata: ctx.accounts.trading_account_tokens.to_account_info(),
+                creator_ata: ctx.accounts.trading_account_ata.to_account_info(),
                 token_program: ctx.accounts.token_program.to_account_info(),
                 system_program: ctx.accounts.system_program.to_account_info(),
             },
@@ -119,7 +119,7 @@ pub struct InitEscrowSrc<'info> {
         associated_token::mint = token,
         associated_token::authority = trading_account,
     )]
-    pub trading_account_tokens: Account<'info, TokenAccount>,
+    pub trading_account_ata: Account<'info, TokenAccount>,
 
     /// CHECK: Verification done by CPI to escrow program
     #[account(mut)]
@@ -161,7 +161,7 @@ pub struct CancelEscrowSrc<'info> {
         associated_token::mint = token,
         associated_token::authority = trading_account,
     )]
-    pub trading_account_tokens: Account<'info, TokenAccount>,
+    pub trading_account_ata: Account<'info, TokenAccount>,
     /// CHECK: Verification done by CPI to escrow program
     #[account(mut)]
     pub escrow: UncheckedAccount<'info>,
