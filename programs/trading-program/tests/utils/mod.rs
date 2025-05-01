@@ -186,6 +186,42 @@ pub fn init_escrow_src_tx(
     )
 }
 
+pub fn get_withdraw_tx(
+    test_state: &mut TestStateBase<SrcProgram>,
+    escrow: &Pubkey,
+    escrow_ata: &Pubkey,
+    trading_pda: &Pubkey,
+) -> Transaction {
+    let instruction_data = InstructionData::data(&cross_chain_escrow_src::instruction::Withdraw {
+        secret: test_state.secret,
+    });
+
+    let instruction: Instruction = Instruction {
+        program_id: cross_chain_escrow_src::id(),
+        accounts: vec![
+            AccountMeta::new(*trading_pda, false), // Using trading account as the creator (gasless flow)
+            AccountMeta::new_readonly(test_state.recipient_wallet.keypair.pubkey(), true),
+            AccountMeta::new_readonly(test_state.token, false),
+            AccountMeta::new(*escrow, false),
+            AccountMeta::new(*escrow_ata, false),
+            AccountMeta::new(test_state.recipient_wallet.token_account, false),
+            AccountMeta::new_readonly(spl_program_id, false),
+            AccountMeta::new_readonly(system_program_id, false),
+        ],
+        data: instruction_data,
+    };
+
+    Transaction::new_signed_with_payer(
+        &[instruction],
+        Some(&test_state.payer_kp.pubkey()),
+        &[
+            &test_state.context.payer,
+            &test_state.recipient_wallet.keypair,
+        ],
+        test_state.context.last_blockhash,
+    )
+}
+
 pub async fn create_escrow_via_trading_program(
     test_state: &mut TestStateBase<SrcProgram>,
 ) -> (Pubkey, Pubkey, Pubkey, Pubkey) {

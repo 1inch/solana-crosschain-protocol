@@ -14,6 +14,7 @@ use utils::{
 
 mod test_trading_program {
     use common_tests::helpers::Expectation;
+    use crate::utils::get_withdraw_tx;
 
     use super::*;
 
@@ -176,5 +177,65 @@ mod test_trading_program {
                 1,
                 ProgramError::Custom(ErrorCode::ConstraintAssociated.into()),
             ));
+    }
+
+    #[test_context(TestStateTrading)]
+    #[tokio::test]
+    async fn test_escrow_withdrawal_via_trading_program_for_resolver(
+        test_state_trading: &mut TestStateTrading,
+    ) {
+        let test_state = &mut test_state_trading.base;
+
+        let (escrow, escrow_ata, trading_pda, trading_ata) =
+            create_escrow_via_trading_program(test_state).await;
+
+        // Check token balances for the escrow account and creator are as expected.
+        assert_eq!(
+            get_token_balance(&mut test_state.context, &escrow_ata).await,
+            DEFAULT_ESCROW_AMOUNT
+        );
+        assert_eq!(
+            get_token_balance(&mut test_state.context, &trading_ata).await,
+            0
+        );
+
+        // Check the lamport balance of escrow account is as expected.
+        let escrow_rent_lamports =
+            get_min_rent_for_size(&mut test_state.client, SrcProgram::get_escrow_data_len()).await;
+        assert_eq!(
+            escrow_rent_lamports,
+            test_state.client.get_balance(escrow).await.unwrap()
+        );
+
+        // Get the token account rent
+        let token_account_rent =
+            get_min_rent_for_size(&mut test_state.client, get_token_account_size()).await;
+
+        // Create the transaction to withdraw from the escrow (TODO?: Rewrite for an actual trading program withdraw instruction)
+        let transaction =
+            get_withdraw_tx(test_state, &escrow, &escrow_ata, &trading_pda);
+
+        set_time(
+            &mut test_state.context,
+            test_state.init_timestamp + DEFAULT_PERIOD_DURATION * PeriodType::Withdrawal as u32,
+        );
+
+        test_state
+            .expect_balance_change(
+                transaction,
+                &[
+                    // Fails due to recipient not getting his account rent back,
+                    // trading_pda (aka creator) receives it instead
+                    native_change(
+                        test_state.recipient_wallet.keypair.pubkey(),
+                        escrow_rent_lamports + token_account_rent,
+                    ),
+                    token_change(
+                        test_state.recipient_wallet.token_account,
+                        test_state.test_arguments.escrow_amount,
+                    ),
+                ],
+            )
+            .await;
     }
 }
