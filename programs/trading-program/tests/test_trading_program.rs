@@ -212,7 +212,7 @@ mod test_trading_program {
         let token_account_rent =
             get_min_rent_for_size(&mut test_state.client, get_token_account_size()).await;
 
-        // Create the transaction to withdraw from the escrow (TODO?: Rewrite for an actual trading program withdraw instruction)
+        // Create the transaction to withdraw from the escrow
         let transaction =
             get_withdraw_tx(test_state, &escrow, &escrow_ata, &trading_pda);
 
