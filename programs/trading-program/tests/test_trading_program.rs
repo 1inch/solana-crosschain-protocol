@@ -376,7 +376,7 @@ mod test_trading_program {
         )
         .await;
 
-        // Create the transaction to withdraw from the escrow (TODO?: Rewrite for an actual trading program withdraw instruction)
+        // Create the transaction to withdraw from the escrow
         let transaction =
             get_public_withdraw_tx(test_state, &escrow, &escrow_ata, &trading_pda, &withdrawer);
 
