@@ -289,7 +289,7 @@ mod test_trading_program {
             get_min_rent_for_size(&mut test_state.client, get_token_account_size()).await;
         let withdrawer = test_state.recipient_wallet.keypair.insecure_clone();
 
-        // Create the transaction to withdraw from the escrow (TODO?: Rewrite for an actual trading program withdraw instruction)
+        // Create the transaction to withdraw from the escrow
         let transaction =
             get_public_withdraw_tx(test_state, &escrow, &escrow_ata, &trading_pda, &withdrawer);
 
