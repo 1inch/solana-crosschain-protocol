@@ -68,6 +68,7 @@ pub mod cross_chain_escrow_dst {
             public_withdrawal_start,
             cancellation_start,
             rescue_start,
+            rent_refund_to: ctx.accounts.payer.key(),
         });
 
         Ok(())
@@ -127,6 +128,7 @@ pub mod cross_chain_escrow_dst {
             &ctx.accounts.token_program,
             &ctx.accounts.creator,
             &ctx.accounts.creator,
+            &ctx.accounts.rent_refund_to,
         )
     }
 
@@ -340,6 +342,8 @@ pub struct Cancel<'info> {
         associated_token::authority = creator,
     )]
     creator_ata: Box<Account<'info, TokenAccount>>,
+    #[account(mut, constraint = rent_refund_to.key() == escrow.rent_refund_to @ EscrowError::InvalidAccount)]
+    rent_refund_to: AccountInfo<'info>,
     #[account(address = TOKEN_PROGRAM_ID)]
     token_program: Program<'info, Token>,
     system_program: Program<'info, System>,
@@ -395,6 +399,7 @@ pub struct EscrowDst {
     token: Pubkey,
     amount: u64,
     safety_deposit: u64,
+    rent_refund_to: Pubkey,
     withdrawal_start: u32,
     public_withdrawal_start: u32,
     cancellation_start: u32,
@@ -428,6 +433,10 @@ impl EscrowBase for EscrowDst {
 
     fn safety_deposit(&self) -> u64 {
         self.safety_deposit
+    }
+
+    fn rent_refund_to(&self) -> &Pubkey {
+        &self.rent_refund_to
     }
 
     fn withdrawal_start(&self) -> u32 {

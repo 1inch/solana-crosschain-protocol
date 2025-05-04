@@ -274,7 +274,7 @@ mod test_escrow_cancel {
 
     #[test_context(TestState)]
     #[tokio::test]
-    async fn test_cancel(test_state: &mut TestState) {
+    async fn test_cancel_only(test_state: &mut TestState) {
         common_escrow_tests::test_cancel(test_state).await
     }
 

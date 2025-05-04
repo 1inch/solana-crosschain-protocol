@@ -509,6 +509,20 @@ pub async fn test_public_withdraw_fails_after_cancellation_start<T: EscrowVarian
 
 pub async fn test_cancel<T: EscrowVariant>(test_state: &mut TestStateBase<T>) {
     let (escrow, escrow_ata) = create_escrow(test_state).await;
+    test_state.recipient_wallet.keypair = test_state.payer_kp.insecure_clone();
+
+    // Make a new payer to pay for the cancel transaction so that our
+    // balance calculations are not messed up.
+    let new_payer = Keypair::new();
+    transfer_lamports(
+        &mut test_state.context,
+        WALLET_DEFAULT_LAMPORTS,
+        &test_state.payer_kp.insecure_clone(),
+        &new_payer.pubkey(),
+    )
+    .await;
+
+    test_state.payer_kp = new_payer;
     let transaction = T::get_cancel_tx(test_state, &escrow, &escrow_ata);
 
     set_time(
@@ -526,7 +540,11 @@ pub async fn test_cancel<T: EscrowVariant>(test_state: &mut TestStateBase<T>) {
             &[
                 native_change(
                     test_state.creator_wallet.keypair.pubkey(),
-                    escrow_rent + token_account_rent,
+                    token_account_rent + test_state.test_arguments.safety_deposit,
+                ),
+                native_change(
+                    test_state.recipient_wallet.keypair.pubkey(),
+                    escrow_rent - test_state.test_arguments.safety_deposit,
                 ),
                 token_change(
                     test_state.creator_wallet.token_account,

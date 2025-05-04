@@ -135,6 +135,7 @@ impl EscrowVariant for DstProgram {
                 AccountMeta::new(*escrow, false),
                 AccountMeta::new(*escrow_ata, false),
                 AccountMeta::new(test_state.creator_wallet.token_account, false),
+                AccountMeta::new(test_state.recipient_wallet.keypair.pubkey(), false),
                 AccountMeta::new_readonly(spl_program_id, false),
                 AccountMeta::new_readonly(system_program_id, false),
             ],
@@ -144,10 +145,7 @@ impl EscrowVariant for DstProgram {
         Transaction::new_signed_with_payer(
             &[instruction],
             Some(&test_state.payer_kp.pubkey()),
-            &[
-                &test_state.context.payer,
-                &test_state.creator_wallet.keypair,
-            ],
+            &[&test_state.payer_kp, &test_state.creator_wallet.keypair],
             test_state.context.last_blockhash,
         )
     }
@@ -188,10 +186,7 @@ impl EscrowVariant for DstProgram {
         Transaction::new_signed_with_payer(
             &[instruction],
             Some(&test_state.payer_kp.pubkey()),
-            &[
-                &test_state.context.payer,
-                &test_state.recipient_wallet.keypair,
-            ],
+            &[&test_state.payer_kp, &test_state.recipient_wallet.keypair],
             test_state.context.last_blockhash,
         )
     }

@@ -28,6 +28,8 @@ pub trait EscrowBase {
     fn cancellation_start(&self) -> u32;
 
     fn rescue_start(&self) -> u32;
+
+    fn rent_refund_to(&self) -> &Pubkey;
 }
 
 pub fn create<'info>(
@@ -148,6 +150,7 @@ pub fn cancel<'info, T>(
     token_program: &Program<'info, Token>,
     creator: &AccountInfo<'info>,
     safety_deposit_recipient: &AccountInfo<'info>,
+    rent_refund_recipient: &AccountInfo<'info>,
 ) -> Result<()>
 where
     T: EscrowBase + AccountSerialize + AccountDeserialize + Clone,
@@ -195,7 +198,7 @@ where
     ))?;
 
     // Close the escrow account
-    close_escrow_account(escrow, safety_deposit_recipient, creator)?;
+    close_escrow_account(escrow, safety_deposit_recipient, rent_refund_recipient)?;
 
     Ok(())
 }
@@ -203,20 +206,20 @@ where
 fn close_escrow_account<'info, T>(
     escrow: &Account<'info, T>,
     safety_deposit_recipient: &AccountInfo<'info>,
-    creator: &AccountInfo<'info>,
+    rent_refund_to: &AccountInfo<'info>,
 ) -> Result<()>
 where
     T: EscrowBase + AccountSerialize + AccountDeserialize + Clone,
 {
     // Transfer safety_deposit from escrow to safety_deposit_recipient
-    if creator.key() != safety_deposit_recipient.key() {
+    if rent_refund_to.key() != safety_deposit_recipient.key() {
         let safety_deposit = escrow.safety_deposit();
         escrow.sub_lamports(safety_deposit)?;
         safety_deposit_recipient.add_lamports(safety_deposit)?;
     }
 
     // Close escrow account and transfer remaining lamports to creator
-    escrow.close(creator.to_account_info())?;
+    escrow.close(rent_refund_to.to_account_info())?;
 
     Ok(())
 }
