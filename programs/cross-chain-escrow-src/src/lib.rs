@@ -66,6 +66,7 @@ pub mod cross_chain_escrow_src {
             cancellation_start,
             public_cancellation_start,
             rescue_start,
+            rent_receipient: ctx.accounts.payer.key(),
         });
 
         Ok(())
@@ -460,6 +461,7 @@ pub struct EscrowSrc {
     cancellation_start: u32,
     public_cancellation_start: u32,
     rescue_start: u32,
+    rent_receipient: Pubkey,
 }
 
 impl EscrowBase for EscrowSrc {
@@ -505,5 +507,9 @@ impl EscrowBase for EscrowSrc {
 
     fn rescue_start(&self) -> u32 {
         self.rescue_start
+    }
+
+    fn rent_recipient(&self) -> &Pubkey {
+        &self.rent_receipient
     }
 }

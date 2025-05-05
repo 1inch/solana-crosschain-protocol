@@ -28,6 +28,8 @@ pub trait EscrowBase {
     fn cancellation_start(&self) -> u32;
 
     fn rescue_start(&self) -> u32;
+
+    fn rent_recipient(&self) -> &Pubkey;
 }
 
 pub fn create<'info>(
