@@ -81,7 +81,7 @@ pub fn withdraw<'info, T>(
     escrow_ata: &Account<'info, TokenAccount>,
     recipient_ata: &Account<'info, TokenAccount>,
     token_program: &Program<'info, Token>,
-    creator: &AccountInfo<'info>,
+    rent_recipient: &AccountInfo<'info>,
     safety_deposit_recipient: &AccountInfo<'info>,
     secret: [u8; 32],
 ) -> Result<()>
@@ -130,14 +130,14 @@ where
         token_program.to_account_info(),
         anchor_spl::token::CloseAccount {
             account: escrow_ata.to_account_info(),
-            destination: creator.to_account_info(),
+            destination: rent_recipient.to_account_info(),
             authority: escrow.to_account_info(),
         },
         &[&seeds],
     ))?;
 
     // Close the escrow account
-    close_escrow_account(escrow, safety_deposit_recipient, creator)?;
+    close_escrow_account(escrow, safety_deposit_recipient, rent_recipient)?;
 
     Ok(())
 }
@@ -205,20 +205,20 @@ where
 fn close_escrow_account<'info, T>(
     escrow: &Account<'info, T>,
     safety_deposit_recipient: &AccountInfo<'info>,
-    creator: &AccountInfo<'info>,
+    rent_recipient: &AccountInfo<'info>,
 ) -> Result<()>
 where
     T: EscrowBase + AccountSerialize + AccountDeserialize + Clone,
 {
     // Transfer safety_deposit from escrow to safety_deposit_recipient
-    if creator.key() != safety_deposit_recipient.key() {
+    if rent_recipient.key() != safety_deposit_recipient.key() {
         let safety_deposit = escrow.safety_deposit();
         escrow.sub_lamports(safety_deposit)?;
         safety_deposit_recipient.add_lamports(safety_deposit)?;
     }
 
-    // Close escrow account and transfer remaining lamports to creator
-    escrow.close(creator.to_account_info())?;
+    // Close escrow account and transfer remaining lamports to rent_recipient
+    escrow.close(rent_recipient.to_account_info())?;
 
     Ok(())
 }
