@@ -80,14 +80,20 @@ pub mod cross_chain_escrow_src {
             return err!(EscrowError::InvalidTime);
         }
 
+        let mut rent_recipient = &ctx.accounts.recipient.to_account_info();
+
+        if ctx.accounts.escrow.rent_receipient == ctx.accounts.creator.key() {
+            rent_recipient = &ctx.accounts.creator;
+        }
+
         common::escrow::withdraw(
             &ctx.accounts.escrow,
             ctx.bumps.escrow,
             &ctx.accounts.escrow_ata,
             &ctx.accounts.recipient_ata,
             &ctx.accounts.token_program,
-            &ctx.accounts.creator,
-            &ctx.accounts.creator,
+            rent_recipient,
+            rent_recipient,
             secret,
         )
     }
@@ -100,13 +106,19 @@ pub mod cross_chain_escrow_src {
             return err!(EscrowError::InvalidTime);
         }
 
+        let mut rent_recipient = &ctx.accounts.recipient;
+
+        if ctx.accounts.escrow.rent_receipient == ctx.accounts.creator.key() {
+            rent_recipient = &ctx.accounts.creator;
+        }
+
         common::escrow::withdraw(
             &ctx.accounts.escrow,
             ctx.bumps.escrow,
             &ctx.accounts.escrow_ata,
             &ctx.accounts.recipient_ata,
             &ctx.accounts.token_program,
-            &ctx.accounts.creator,
+            rent_recipient,
             &ctx.accounts.payer,
             secret,
         )
