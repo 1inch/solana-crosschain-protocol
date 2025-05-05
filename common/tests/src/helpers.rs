@@ -34,7 +34,7 @@ use test_context::AsyncTestContext;
 use crate::dst_program::DstProgram;
 use crate::src_program::SrcProgram;
 
-pub const WALLET_DEFAULT_LAMPORTS: u64 = 10000000;
+pub const WALLET_DEFAULT_LAMPORTS: u64 = 1000000000;
 pub const WALLET_DEFAULT_TOKENS: u64 = 1000;
 
 pub const DEFAULT_PERIOD_DURATION: u32 = 100;
