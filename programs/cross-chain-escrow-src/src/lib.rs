@@ -66,7 +66,7 @@ pub mod cross_chain_escrow_src {
             cancellation_start,
             public_cancellation_start,
             rescue_start,
-            rent_receipient: ctx.accounts.payer.key(),
+            rent_recipient: ctx.accounts.payer.key(),
         });
 
         Ok(())
@@ -82,7 +82,7 @@ pub mod cross_chain_escrow_src {
 
         let mut rent_recipient = &ctx.accounts.recipient.to_account_info();
 
-        if ctx.accounts.escrow.rent_receipient == ctx.accounts.creator.key() {
+        if ctx.accounts.escrow.rent_recipient == ctx.accounts.creator.key() {
             rent_recipient = &ctx.accounts.creator;
         }
 
@@ -108,7 +108,7 @@ pub mod cross_chain_escrow_src {
 
         let mut rent_recipient = &ctx.accounts.recipient;
 
-        if ctx.accounts.escrow.rent_receipient == ctx.accounts.creator.key() {
+        if ctx.accounts.escrow.rent_recipient == ctx.accounts.creator.key() {
             rent_recipient = &ctx.accounts.creator;
         }
 
@@ -478,7 +478,7 @@ pub struct EscrowSrc {
     cancellation_start: u32,
     public_cancellation_start: u32,
     rescue_start: u32,
-    rent_receipient: Pubkey,
+    rent_recipient: Pubkey,
 }
 
 impl EscrowBase for EscrowSrc {
@@ -527,6 +527,6 @@ impl EscrowBase for EscrowSrc {
     }
 
     fn rent_recipient(&self) -> &Pubkey {
-        &self.rent_receipient
+        &self.rent_recipient
     }
 }
