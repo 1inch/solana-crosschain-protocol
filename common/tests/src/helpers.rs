@@ -554,7 +554,7 @@ pub fn build_withdraw_tx_src(
         program_id: cross_chain_escrow_src::id(),
         accounts: vec![
             AccountMeta::new(creator_pk, false),
-            AccountMeta::new_readonly(test_state.recipient_wallet.keypair.pubkey(), true),
+            AccountMeta::new(test_state.recipient_wallet.keypair.pubkey(), true),
             AccountMeta::new_readonly(test_state.token, false),
             AccountMeta::new(*escrow, false),
             AccountMeta::new(*escrow_ata, false),
@@ -598,7 +598,7 @@ pub fn build_public_withdraw_tx_src(
         program_id: cross_chain_escrow_src::id(),
         accounts: vec![
             AccountMeta::new(creator_pk, false),
-            AccountMeta::new_readonly(test_state.recipient_wallet.keypair.pubkey(), false),
+            AccountMeta::new(test_state.recipient_wallet.keypair.pubkey(), false),
             AccountMeta::new(withdrawer.pubkey(), true),
             AccountMeta::new_readonly(test_state.token, false),
             AccountMeta::new(*escrow, false),
@@ -640,7 +640,7 @@ pub fn build_withdraw_tx_dst(
         program_id: cross_chain_escrow_dst::id(),
         accounts: vec![
             AccountMeta::new(creator_pk, true),
-            AccountMeta::new_readonly(test_state.recipient_wallet.keypair.pubkey(), false),
+            AccountMeta::new(test_state.recipient_wallet.keypair.pubkey(), false),
             AccountMeta::new_readonly(test_state.token, false),
             AccountMeta::new(*escrow, false),
             AccountMeta::new(*escrow_ata, false),
@@ -684,7 +684,7 @@ pub fn build_public_withdraw_tx_dst(
         program_id: cross_chain_escrow_dst::id(),
         accounts: vec![
             AccountMeta::new(creator_pk, false),
-            AccountMeta::new_readonly(test_state.recipient_wallet.keypair.pubkey(), false),
+            AccountMeta::new(test_state.recipient_wallet.keypair.pubkey(), false),
             AccountMeta::new(withdrawer.pubkey(), true),
             AccountMeta::new_readonly(test_state.token, false),
             AccountMeta::new(*escrow, false),
