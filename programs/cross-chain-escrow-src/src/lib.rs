@@ -80,11 +80,11 @@ pub mod cross_chain_escrow_src {
             return err!(EscrowError::InvalidTime);
         }
 
-        let mut rent_recipient = &ctx.accounts.recipient.to_account_info();
-
-        if ctx.accounts.escrow.rent_recipient == ctx.accounts.creator.key() {
-            rent_recipient = &ctx.accounts.creator;
-        }
+        let rent_recipient = if ctx.accounts.escrow.rent_recipient == ctx.accounts.creator.key() {
+            &ctx.accounts.creator
+        } else {
+            &ctx.accounts.recipient
+        };
 
         common::escrow::withdraw(
             &ctx.accounts.escrow,
