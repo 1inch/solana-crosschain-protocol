@@ -3,7 +3,6 @@ use anchor_lang::error::ErrorCode;
 use anchor_spl::token::spl_token::{error::TokenError, state::Account as SplTokenAccount};
 use common::{constants::RESCUE_DELAY, error::EscrowError};
 use solana_program::{keccak::hash, program_error::ProgramError, program_pack::Pack};
-use solana_program_test::BanksTransactionResultWithMetadata;
 use solana_sdk::{
     signature::Signer, signer::keypair::Keypair, system_instruction::SystemError,
     transaction::Transaction,
@@ -21,29 +20,21 @@ pub async fn test_escrow_creation_tx_cost<T: EscrowVariant>(test_state: &mut Tes
     );
 }
 
-async fn measure_tx_compute_units<T>(
-    test_state: &mut TestStateBase<T>,
-    mut tx: Transaction,
-) -> u64 {
-    // retry at most 5 times.
-    for _ in 0..5 {
-        let r = test_state
-            .client
-            .process_transaction_with_metadata(tx.clone())
-            .await;
-        match r {
-            Result::Ok(BanksTransactionResultWithMetadata {
-                metadata: Some(m), ..
-            }) => {
-                return m.compute_units_consumed;
-            }
-            _ => {
-                let new_hash = test_state.context.get_new_latest_blockhash().await.unwrap();
-                tx.message.recent_blockhash = new_hash;
-            }
-        }
-    }
-    panic!("Failed to fetch transaction metadata!")
+async fn measure_tx_compute_units<T>(test_state: &mut TestStateBase<T>, tx: Transaction) -> u64 {
+    // Simulate the transaction instead of processing
+    let result = test_state
+        .client
+        .simulate_transaction(tx.clone())
+        .await
+        .expect("simulation RPC failed");
+
+    // Extract the simulation details
+    let sim_details = result
+        .simulation_details
+        .expect("simulation details not found");
+
+    // Return the compute units consumed directly from the simulation
+    sim_details.units_consumed
 }
 
 pub async fn test_escrow_creation<T: EscrowVariant>(test_state: &mut TestStateBase<T>) {
