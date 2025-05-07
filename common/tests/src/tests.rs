@@ -198,6 +198,53 @@ pub async fn test_withdraw<T: EscrowVariant>(test_state: &mut TestStateBase<T>) 
         .is_none());
 }
 
+pub async fn test_withdraw_with_different_initial_payer<T: EscrowVariant>(
+    test_state: &mut TestStateBase<T>,
+) {
+    let creation_payer = test_state.recipient_wallet.keypair.insecure_clone();
+
+    let (escrow, escrow_ata) = create_escrow_with_payer(test_state, &creation_payer).await;
+    let transaction = T::get_withdraw_tx(test_state, &escrow, &escrow_ata);
+
+    let token_account_rent =
+        get_min_rent_for_size(&mut test_state.client, get_token_account_size()).await;
+    let escrow_rent = get_min_rent_for_size(&mut test_state.client, T::get_escrow_data_len()).await;
+
+    set_time(
+        &mut test_state.context,
+        test_state.init_timestamp + DEFAULT_PERIOD_DURATION * PeriodType::Withdrawal as u32,
+    );
+
+    test_state
+        .expect_balance_change(
+            transaction,
+            &[
+                native_change(creation_payer.pubkey(), escrow_rent + token_account_rent),
+                token_change(
+                    test_state.recipient_wallet.token_account,
+                    test_state.test_arguments.escrow_amount,
+                ),
+            ],
+        )
+        .await;
+
+    // Assert escrow was closed
+    assert!(test_state
+        .client
+        .get_account(escrow)
+        .await
+        .unwrap()
+        .is_none());
+
+    // Assert escrow_ata was closed
+    assert!(test_state
+        .client
+        .get_account(escrow_ata)
+        .await
+        .unwrap()
+        .is_none());
+}
+
 pub async fn test_withdraw_does_not_work_with_wrong_secret<T: EscrowVariant>(
     test_state: &mut TestStateBase<T>,
 ) {

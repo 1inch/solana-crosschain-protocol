@@ -107,6 +107,7 @@ pub trait EscrowVariant {
         test_state: &TestStateBase<Self>,
         escrow: &Pubkey,
         escrow_ata: &Pubkey,
+        payer: &Keypair,
     ) -> Transaction;
     fn get_withdraw_tx(
         test_state: &TestStateBase<Self>,
@@ -253,9 +254,16 @@ pub fn get_escrow_addresses<T: EscrowVariant>(
 pub fn create_escrow_data<T: EscrowVariant>(
     test_state: &TestStateBase<T>,
 ) -> (Pubkey, Pubkey, Transaction) {
+    create_escrow_data_with_payer(test_state, &test_state.creator_wallet.keypair)
+}
+
+fn create_escrow_data_with_payer<T: EscrowVariant>(
+    test_state: &TestStateBase<T>,
+    payer_kp: &Keypair,
+) -> (Pubkey, Pubkey, Transaction) {
     let (escrow_pda, escrow_ata) =
         get_escrow_addresses(test_state, test_state.creator_wallet.keypair.pubkey());
-    let transaction: Transaction = T::get_create_tx(test_state, &escrow_pda, &escrow_ata);
+    let transaction: Transaction = T::get_create_tx(test_state, &escrow_pda, &escrow_ata, payer_kp);
 
     (escrow_pda, escrow_ata, transaction)
 }
@@ -263,7 +271,18 @@ pub fn create_escrow_data<T: EscrowVariant>(
 pub async fn create_escrow<T: EscrowVariant>(
     test_state: &mut TestStateBase<T>,
 ) -> (Pubkey, Pubkey) {
-    let (escrow, escrow_ata, tx) = create_escrow_data(test_state);
+    create_escrow_with_payer(
+        test_state,
+        &test_state.creator_wallet.keypair.insecure_clone(),
+    )
+    .await
+}
+
+pub async fn create_escrow_with_payer<T: EscrowVariant>(
+    test_state: &mut TestStateBase<T>,
+    payer_kp: &Keypair,
+) -> (Pubkey, Pubkey) {
+    let (escrow, escrow_ata, tx) = create_escrow_data_with_payer(test_state, payer_kp);
     test_state
         .client
         .process_transaction(tx)
