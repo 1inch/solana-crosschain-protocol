@@ -229,6 +229,12 @@ mod test_escrow_cancel {
 
     #[test_context(TestState)]
     #[tokio::test]
+    async fn test_cancel_with_different_initial_payer(test_state: &mut TestState) {
+        common_escrow_tests::test_cancel_with_different_initial_payer(test_state).await
+    }
+
+    #[test_context(TestState)]
+    #[tokio::test]
     async fn test_cannot_cancel_by_non_creator(test_state: &mut TestState) {
         common_escrow_tests::test_cannot_cancel_by_non_creator(test_state).await
     }
@@ -559,6 +565,7 @@ mod local_helpers {
                 AccountMeta::new(*escrow, false),
                 AccountMeta::new(*escrow_ata, false),
                 AccountMeta::new(test_state.creator_wallet.token_account, false),
+                AccountMeta::new(test_state.creator_wallet.keypair.pubkey(), false),
                 AccountMeta::new_readonly(spl_program_id, false),
                 AccountMeta::new_readonly(system_program_id, false),
             ],

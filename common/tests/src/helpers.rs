@@ -137,6 +137,7 @@ pub trait EscrowVariant {
         test_state: &TestStateBase<Self>,
         escrow: &Pubkey,
         escrow_ata: &Pubkey,
+        opt_rent_recipient: Option<Pubkey>,
     ) -> Transaction;
     fn get_rescue_funds_tx(
         test_state: &TestStateBase<Self>,
