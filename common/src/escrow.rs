@@ -148,7 +148,7 @@ pub fn cancel<'info, T>(
     escrow_ata: &Account<'info, TokenAccount>,
     creator_ata: &Account<'info, TokenAccount>,
     token_program: &Program<'info, Token>,
-    creator: &AccountInfo<'info>,
+    rent_recipient: &AccountInfo<'info>,
     safety_deposit_recipient: &AccountInfo<'info>,
 ) -> Result<()>
 where
@@ -190,14 +190,14 @@ where
         token_program.to_account_info(),
         anchor_spl::token::CloseAccount {
             account: escrow_ata.to_account_info(),
-            destination: creator.to_account_info(),
+            destination: rent_recipient.to_account_info(),
             authority: escrow.to_account_info(),
         },
         &[&seeds],
     ))?;
 
     // Close the escrow account
-    close_escrow_account(escrow, safety_deposit_recipient, creator)?;
+    close_escrow_account(escrow, safety_deposit_recipient, rent_recipient)?;
 
     Ok(())
 }

@@ -120,6 +120,7 @@ impl EscrowVariant for SrcProgram {
         test_state: &TestStateBase<SrcProgram>,
         escrow: &Pubkey,
         escrow_ata: &Pubkey,
+        opt_rent_recipient: Option<Pubkey>,
     ) -> Transaction {
         let instruction_data =
             InstructionData::data(&cross_chain_escrow_src::instruction::Cancel {});
@@ -132,6 +133,10 @@ impl EscrowVariant for SrcProgram {
                 AccountMeta::new(*escrow, false),
                 AccountMeta::new(*escrow_ata, false),
                 AccountMeta::new(test_state.creator_wallet.token_account, false),
+                AccountMeta::new(
+                    opt_rent_recipient.unwrap_or(test_state.creator_wallet.keypair.pubkey()),
+                    false,
+                ),
                 AccountMeta::new_readonly(spl_program_id, false),
                 AccountMeta::new_readonly(system_program_id, false),
             ],

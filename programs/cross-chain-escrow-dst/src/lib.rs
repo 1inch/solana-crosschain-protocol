@@ -120,13 +120,19 @@ pub mod cross_chain_escrow_dst {
             return err!(EscrowError::InvalidTime);
         }
 
+        let rent_recipient = if ctx.accounts.escrow.rent_recipient == ctx.accounts.creator.key() {
+            &ctx.accounts.creator
+        } else {
+            &ctx.accounts.rent_recipient
+        };
+
         common::escrow::cancel(
             &ctx.accounts.escrow,
             ctx.bumps.escrow,
             &ctx.accounts.escrow_ata,
             &ctx.accounts.creator_ata,
             &ctx.accounts.token_program,
-            &ctx.accounts.creator,
+            rent_recipient,
             &ctx.accounts.creator,
         )
     }
@@ -347,6 +353,8 @@ pub struct Cancel<'info> {
         associated_token::authority = creator,
     )]
     creator_ata: Box<Account<'info, TokenAccount>>,
+    #[account(mut, constraint = rent_recipient.key() == escrow.rent_recipient @ EscrowError::InvalidAccount)]
+    rent_recipient: AccountInfo<'info>,
     #[account(address = TOKEN_PROGRAM_ID)]
     token_program: Program<'info, Token>,
     system_program: Program<'info, System>,
