@@ -40,6 +40,7 @@ impl EscrowVariant for DstProgram {
         test_state: &TestStateBase<DstProgram>,
         escrow: &Pubkey,
         escrow_ata: &Pubkey,
+        payer_kp: &Keypair,
     ) -> Transaction {
         let instruction_data =
             InstructionData::data(&cross_chain_escrow_dst::instruction::Create {
@@ -58,7 +59,7 @@ impl EscrowVariant for DstProgram {
         let instruction: Instruction = Instruction {
             program_id: cross_chain_escrow_dst::id(),
             accounts: vec![
-                AccountMeta::new(test_state.creator_wallet.keypair.pubkey(), true),
+                AccountMeta::new(payer_kp.pubkey(), true),
                 AccountMeta::new_readonly(test_state.creator_wallet.keypair.pubkey(), true),
                 AccountMeta::new_readonly(test_state.token, false),
                 AccountMeta::new(test_state.creator_wallet.token_account, false),
@@ -74,8 +75,8 @@ impl EscrowVariant for DstProgram {
 
         Transaction::new_signed_with_payer(
             &[instruction],
-            Some(&test_state.creator_wallet.keypair.pubkey()),
-            &[&test_state.creator_wallet.keypair],
+            Some(&payer_kp.pubkey()),
+            &[payer_kp, &test_state.creator_wallet.keypair],
             test_state.context.last_blockhash,
         )
     }
