@@ -86,6 +86,9 @@ pub mod cross_chain_escrow_src {
             &ctx.accounts.recipient
         };
 
+        // In a standard withdrawal, the rent recipient receives the entire rent amount, including the safety deposit,
+        // because they initially covered the entire rent during escrow creation.
+
         common::escrow::withdraw(
             &ctx.accounts.escrow,
             ctx.bumps.escrow,
@@ -111,6 +114,9 @@ pub mod cross_chain_escrow_src {
         } else {
             &ctx.accounts.recipient
         };
+
+        // In a public withdrawal, the rent recipient receives the rent minus the safety deposit
+        // while the safety deposit is awarded to the payer who exectued the public withdrawal
 
         common::escrow::withdraw(
             &ctx.accounts.escrow,
