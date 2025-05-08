@@ -237,11 +237,6 @@ pub struct Create<'info> {
 
 #[derive(Accounts)]
 pub struct Withdraw<'info> {
-    /// CHECK: This account can be used as a destination for rent, and its key is verified against the escrow.creator field
-    #[account(
-        constraint = creator.key() == escrow.creator @ EscrowError::InvalidAccount
-    )]
-    creator: AccountInfo<'info>,
     #[account(
         constraint = recipient.key() == escrow.recipient @ EscrowError::InvalidAccount)]
     recipient: Signer<'info>,
@@ -285,11 +280,6 @@ pub struct Withdraw<'info> {
 
 #[derive(Accounts)]
 pub struct PublicWithdraw<'info> {
-    /// CHECK: This account's key is verified against the escrow.creator field
-    #[account(
-        constraint = creator.key() == escrow.creator @ EscrowError::InvalidAccount
-    )]
-    creator: AccountInfo<'info>,
     /// CHECK: This account is used to check its pubkey to match the one stored in the escrow account
     #[account(
         constraint = recipient.key() == escrow.recipient @ EscrowError::InvalidAccount)]
