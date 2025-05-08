@@ -239,12 +239,10 @@ pub struct Create<'info> {
 pub struct Withdraw<'info> {
     /// CHECK: This account can be used as a destination for rent, and its key is verified against the escrow.creator field
     #[account(
-        mut, // Needed because this account receives lamports (safety deposit and from closed accounts) in non-gasless cases
         constraint = creator.key() == escrow.creator @ EscrowError::InvalidAccount
     )]
     creator: AccountInfo<'info>,
     #[account(
-        mut, // Needed because this account in gasless cases receives lamports (safety deposit and from closed accounts)
         constraint = recipient.key() == escrow.recipient @ EscrowError::InvalidAccount)]
     recipient: Signer<'info>,
     #[account(
@@ -287,16 +285,13 @@ pub struct Withdraw<'info> {
 
 #[derive(Accounts)]
 pub struct PublicWithdraw<'info> {
-    /// CHECK: This account can be used as a destination for rent, and its key is verified against the escrow.creator field
+    /// CHECK: This account's key is verified against the escrow.creator field
     #[account(
-        mut, // Needed because this account receives lamports (safety deposit and from closed accounts) in non-gasless cases
         constraint = creator.key() == escrow.creator @ EscrowError::InvalidAccount
     )]
     creator: AccountInfo<'info>,
     /// CHECK: This account is used to check its pubkey to match the one stored in the escrow account
-    /// and to receive the rent from the escrow account if gasless
     #[account(
-        mut, // Needed because this account in some cases receives lamports (safety deposit and from closed accounts)
         constraint = recipient.key() == escrow.recipient @ EscrowError::InvalidAccount)]
     recipient: AccountInfo<'info>,
     #[account(
