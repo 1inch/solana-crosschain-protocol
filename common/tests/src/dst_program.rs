@@ -88,11 +88,12 @@ impl EscrowVariant for DstProgram {
         build_withdraw_tx_dst(test_state, escrow, escrow_ata, None)
     }
 
-    fn get_withdraw_tx_opt_creator(
+    fn get_withdraw_tx_opt_pks(
         test_state: &TestStateBase<Self>,
         escrow: &Pubkey,
         escrow_ata: &Pubkey,
         opt_creator: Option<&Pubkey>,
+        _opt_rent_recipient: Option<&Pubkey>, // Not used in DstProgram implementation
     ) -> Transaction {
         build_withdraw_tx_dst(test_state, escrow, escrow_ata, opt_creator)
     }
@@ -106,12 +107,13 @@ impl EscrowVariant for DstProgram {
         build_public_withdraw_tx_dst(test_state, escrow, escrow_ata, withdrawer, None)
     }
 
-    fn get_public_withdraw_tx_opt_creator(
+    fn get_public_withdraw_tx_opt_pks(
         test_state: &TestStateBase<Self>,
         escrow: &Pubkey,
         escrow_ata: &Pubkey,
         withdrawer: &Keypair,
         opt_creator: Option<&Pubkey>,
+        _opt_rent_recipient: Option<&Pubkey>, // Not used in DstProgram implementation
     ) -> Transaction {
         build_public_withdraw_tx_dst(test_state, escrow, escrow_ata, withdrawer, opt_creator)
     }

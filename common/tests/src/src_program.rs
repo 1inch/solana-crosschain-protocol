@@ -84,16 +84,23 @@ impl EscrowVariant for SrcProgram {
         escrow: &Pubkey,
         escrow_ata: &Pubkey,
     ) -> Transaction {
-        build_withdraw_tx_src(test_state, escrow, escrow_ata, None)
+        build_withdraw_tx_src(test_state, escrow, escrow_ata, None, None)
     }
 
-    fn get_withdraw_tx_opt_creator(
+    fn get_withdraw_tx_opt_pks(
         test_state: &TestStateBase<Self>,
         escrow: &Pubkey,
         escrow_ata: &Pubkey,
         opt_creator: Option<&Pubkey>,
+        opt_rent_recipient: Option<&Pubkey>,
     ) -> Transaction {
-        build_withdraw_tx_src(test_state, escrow, escrow_ata, opt_creator)
+        build_withdraw_tx_src(
+            test_state,
+            escrow,
+            escrow_ata,
+            opt_creator,
+            opt_rent_recipient,
+        )
     }
 
     fn get_public_withdraw_tx(
@@ -102,17 +109,25 @@ impl EscrowVariant for SrcProgram {
         escrow_ata: &Pubkey,
         withdrawer: &Keypair,
     ) -> Transaction {
-        build_public_withdraw_tx_src(test_state, escrow, escrow_ata, withdrawer, None)
+        build_public_withdraw_tx_src(test_state, escrow, escrow_ata, withdrawer, None, None)
     }
 
-    fn get_public_withdraw_tx_opt_creator(
+    fn get_public_withdraw_tx_opt_pks(
         test_state: &TestStateBase<Self>,
         escrow: &Pubkey,
         escrow_ata: &Pubkey,
         withdrawer: &Keypair,
         opt_creator: Option<&Pubkey>,
+        opt_rent_recipient: Option<&Pubkey>,
     ) -> Transaction {
-        build_public_withdraw_tx_src(test_state, escrow, escrow_ata, withdrawer, opt_creator)
+        build_public_withdraw_tx_src(
+            test_state,
+            escrow,
+            escrow_ata,
+            withdrawer,
+            opt_creator,
+            opt_rent_recipient,
+        )
     }
 
     fn get_cancel_tx(
