@@ -106,7 +106,7 @@ pub mod cross_chain_escrow_dst {
         }
 
         // In a public withdrawal, the creator receives the rent minus the safety deposit
-        // while the safety deposit is awarded to the payer who exectued the public withdrawal
+        // while the safety deposit is awarded to the payer who executed the public withdrawal
 
         common::escrow::withdraw(
             &ctx.accounts.escrow,
