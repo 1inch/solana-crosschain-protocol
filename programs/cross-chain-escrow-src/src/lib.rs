@@ -104,7 +104,7 @@ pub mod cross_chain_escrow_src {
         }
 
         // In a public withdrawal, the rent recipient receives the rent minus the safety deposit
-        // while the safety deposit is awarded to the payer who exectued the public withdrawal
+        // while the safety deposit is awarded to the payer who executed the public withdrawal
 
         common::escrow::withdraw(
             &ctx.accounts.escrow,
