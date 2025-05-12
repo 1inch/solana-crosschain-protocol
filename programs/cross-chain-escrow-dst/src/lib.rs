@@ -68,7 +68,6 @@ pub mod cross_chain_escrow_dst {
             public_withdrawal_start,
             cancellation_start,
             rescue_start,
-            rent_recipient: ctx.accounts.payer.key(),
         });
 
         Ok(())
@@ -106,7 +105,7 @@ pub mod cross_chain_escrow_dst {
         }
 
         // In a public withdrawal, the creator receives the rent minus the safety deposit
-        // while the safety deposit is awarded to the payer who exectued the public withdrawal
+        // while the safety deposit is awarded to the payer who executed the public withdrawal
 
         common::escrow::withdraw(
             &ctx.accounts.escrow,
@@ -229,15 +228,12 @@ pub struct Create<'info> {
 #[derive(Accounts)]
 pub struct Withdraw<'info> {
     #[account(
-        mut, // Needed because this account receives lamports (safety deposit and from closed accounts) in non-gasless cases
+        mut, // Needed because this account receives lamports (safety deposit and from closed accounts)
         constraint = creator.key() == escrow.creator @ EscrowError::InvalidAccount
     )]
     creator: Signer<'info>,
     /// CHECK: This account is used to check its pubkey to match the one stored in the escrow account
-    /// and to receive the rent from the escrow account if gasless
-    #[account(
-        mut, // Needed because this account in some cases receives lamports (safety deposit and from closed accounts)
-        constraint = recipient.key() == escrow.recipient @ EscrowError::InvalidAccount)]
+    #[account(constraint = recipient.key() == escrow.recipient @ EscrowError::InvalidAccount)]
     recipient: AccountInfo<'info>,
     token: Box<Account<'info, Mint>>,
     #[account(
@@ -275,17 +271,14 @@ pub struct Withdraw<'info> {
 
 #[derive(Accounts)]
 pub struct PublicWithdraw<'info> {
-    /// CHECK: This account can be used as a destination for rent, and its key is verified against the escrow.creator field
+    /// CHECK: This account is used as a destination for rent, and its key is verified against the escrow.creator field
     #[account(
-        mut, // Needed because this account receives lamports (safety deposit and from closed accounts) in non-gasless cases
+        mut, // Needed because this account receives lamports (safety deposit and from closed accounts)
         constraint = creator.key() == escrow.creator @ EscrowError::InvalidAccount
     )]
     creator: AccountInfo<'info>,
     /// CHECK: This account is used to check its pubkey to match the one stored in the escrow account
-    /// and to receive the rent from the escrow account if gasless
-    #[account(
-        mut, // Needed because this account in some cases receives lamports (safety deposit and from closed accounts)
-        constraint = recipient.key() == escrow.recipient @ EscrowError::InvalidAccount)]
+    #[account(constraint = recipient.key() == escrow.recipient @ EscrowError::InvalidAccount)]
     recipient: AccountInfo<'info>,
     #[account(mut)]
     payer: Signer<'info>,
@@ -420,7 +413,6 @@ pub struct EscrowDst {
     public_withdrawal_start: u32,
     cancellation_start: u32,
     rescue_start: u32,
-    rent_recipient: Pubkey,
 }
 
 impl EscrowBase for EscrowDst {
@@ -469,6 +461,6 @@ impl EscrowBase for EscrowDst {
     }
 
     fn rent_recipient(&self) -> &Pubkey {
-        &self.rent_recipient
+        &self.creator
     }
 }

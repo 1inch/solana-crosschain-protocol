@@ -80,12 +80,6 @@ pub mod cross_chain_escrow_src {
             return err!(EscrowError::InvalidTime);
         }
 
-        let rent_recipient = if ctx.accounts.escrow.rent_recipient == ctx.accounts.creator.key() {
-            &ctx.accounts.creator
-        } else {
-            &ctx.accounts.recipient
-        };
-
         // In a standard withdrawal, the rent recipient receives the entire rent amount, including the safety deposit,
         // because they initially covered the entire rent during escrow creation.
 
@@ -95,8 +89,8 @@ pub mod cross_chain_escrow_src {
             &ctx.accounts.escrow_ata,
             &ctx.accounts.recipient_ata,
             &ctx.accounts.token_program,
-            rent_recipient,
-            rent_recipient,
+            &ctx.accounts.rent_recipient,
+            &ctx.accounts.rent_recipient,
             secret,
         )
     }
@@ -109,14 +103,8 @@ pub mod cross_chain_escrow_src {
             return err!(EscrowError::InvalidTime);
         }
 
-        let rent_recipient = if ctx.accounts.escrow.rent_recipient == ctx.accounts.creator.key() {
-            &ctx.accounts.creator
-        } else {
-            &ctx.accounts.recipient
-        };
-
         // In a public withdrawal, the rent recipient receives the rent minus the safety deposit
-        // while the safety deposit is awarded to the payer who exectued the public withdrawal
+        // while the safety deposit is awarded to the payer who executed the public withdrawal
 
         common::escrow::withdraw(
             &ctx.accounts.escrow,
@@ -124,7 +112,7 @@ pub mod cross_chain_escrow_src {
             &ctx.accounts.escrow_ata,
             &ctx.accounts.recipient_ata,
             &ctx.accounts.token_program,
-            rent_recipient,
+            &ctx.accounts.rent_recipient,
             &ctx.accounts.payer,
             secret,
         )
@@ -261,16 +249,12 @@ pub struct Create<'info> {
 
 #[derive(Accounts)]
 pub struct Withdraw<'info> {
-    /// CHECK: This account can be used as a destination for rent, and its key is verified against the escrow.creator field
-    #[account(
-        mut, // Needed because this account receives lamports (safety deposit and from closed accounts) in non-gasless cases
-        constraint = creator.key() == escrow.creator @ EscrowError::InvalidAccount
-    )]
-    creator: AccountInfo<'info>,
-    #[account(
-        mut, // Needed because this account in gasless cases receives lamports (safety deposit and from closed accounts)
-        constraint = recipient.key() == escrow.recipient @ EscrowError::InvalidAccount)]
+    #[account(constraint = recipient.key() == escrow.recipient @ EscrowError::InvalidAccount)]
     recipient: Signer<'info>,
+    #[account(
+        mut, // Needed because this account receives lamports (safety deposit and rent from closed accounts)
+        constraint = rent_recipient.key() == escrow.rent_recipient @ EscrowError::InvalidAccount)]
+    rent_recipient: AccountInfo<'info>,
     token: Box<Account<'info, Mint>>,
     #[account(
         mut,
@@ -307,18 +291,13 @@ pub struct Withdraw<'info> {
 
 #[derive(Accounts)]
 pub struct PublicWithdraw<'info> {
-    /// CHECK: This account can be used as a destination for rent, and its key is verified against the escrow.creator field
-    #[account(
-        mut, // Needed because this account receives lamports (safety deposit and from closed accounts) in non-gasless cases
-        constraint = creator.key() == escrow.creator @ EscrowError::InvalidAccount
-    )]
-    creator: AccountInfo<'info>,
     /// CHECK: This account is used to check its pubkey to match the one stored in the escrow account
-    /// and to receive the rent from the escrow account if gasless
-    #[account(
-        mut, // Needed because this account in some cases receives lamports (safety deposit and from closed accounts)
-        constraint = recipient.key() == escrow.recipient @ EscrowError::InvalidAccount)]
+    #[account(constraint = recipient.key() == escrow.recipient @ EscrowError::InvalidAccount)]
     recipient: AccountInfo<'info>,
+    #[account(
+        mut, // Needed because this account receives lamports (safety deposit and from closed accounts)
+        constraint = rent_recipient.key() == escrow.rent_recipient @ EscrowError::InvalidAccount)]
+    rent_recipient: AccountInfo<'info>,
     #[account(mut)]
     payer: Signer<'info>,
     token: Box<Account<'info, Mint>>,
