@@ -110,14 +110,6 @@ mod test_escrow_withdraw {
 
     #[test_context(TestState)]
     #[tokio::test]
-    pub async fn test_withdraw_with_different_initial_payer(
-        test_state: &mut TestStateBase<SrcProgram>,
-    ) {
-        common_escrow_tests::test_withdraw_with_different_initial_payer(test_state).await
-    }
-
-    #[test_context(TestState)]
-    #[tokio::test]
     pub async fn test_withdraw_does_not_work_with_wrong_secret(
         test_state: &mut TestStateBase<SrcProgram>,
     ) {
@@ -225,12 +217,6 @@ mod test_escrow_cancel {
     #[tokio::test]
     async fn test_cancel(test_state: &mut TestState) {
         common_escrow_tests::test_cancel(test_state).await
-    }
-
-    #[test_context(TestState)]
-    #[tokio::test]
-    async fn test_cancel_with_different_initial_payer(test_state: &mut TestState) {
-        common_escrow_tests::test_cancel_with_different_initial_payer(test_state).await
     }
 
     #[test_context(TestState)]

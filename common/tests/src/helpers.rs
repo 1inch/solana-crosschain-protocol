@@ -137,7 +137,6 @@ pub trait EscrowVariant {
         test_state: &TestStateBase<Self>,
         escrow: &Pubkey,
         escrow_ata: &Pubkey,
-        opt_rent_recipient: Option<Pubkey>,
     ) -> Transaction;
     fn get_rescue_funds_tx(
         test_state: &TestStateBase<Self>,
@@ -501,15 +500,15 @@ impl<T> TestStateBase<T> {
                 BalanceChange::Token(k, token_expected_diff) => {
                     assert_eq!(
                         real_diff, *token_expected_diff,
-                        "Token balance changed unexpectedley for {}, left = {}, right = {}",
-                        k, real_diff, token_expected_diff
+                        "Token balance changed unexpectedley for {}, real = {}, expected = {}, diff = {}",
+                        k, real_diff, token_expected_diff, token_expected_diff - real_diff
                     )
                 }
                 BalanceChange::Native(k, native_expected_diff) => {
                     assert_eq!(
                         real_diff, *native_expected_diff,
-                        "SOL balance changed unexpectedley for {}, left = {}, right = {}",
-                        k, real_diff, native_expected_diff
+                        "SOL balance changed unexpectedley for {}, real = {}, expected = {}, diff= {}",
+                        k, real_diff, native_expected_diff, native_expected_diff - real_diff
                     )
                 }
             }
