@@ -230,53 +230,6 @@ pub async fn test_withdraw<T: EscrowVariant>(test_state: &mut TestStateBase<T>) 
         .is_none());
 }
 
-pub async fn test_withdraw_with_different_initial_payer<T: EscrowVariant>(
-    test_state: &mut TestStateBase<T>,
-) {
-    let creation_payer = test_state.recipient_wallet.keypair.insecure_clone();
-
-    let (escrow, escrow_ata) = create_escrow_with_payer(test_state, &creation_payer).await;
-    let transaction = T::get_withdraw_tx(test_state, &escrow, &escrow_ata);
-
-    let token_account_rent =
-        get_min_rent_for_size(&mut test_state.client, get_token_account_size()).await;
-    let escrow_rent = get_min_rent_for_size(&mut test_state.client, T::get_escrow_data_len()).await;
-
-    set_time(
-        &mut test_state.context,
-        test_state.init_timestamp + DEFAULT_PERIOD_DURATION * PeriodType::Withdrawal as u32,
-    );
-
-    test_state
-        .expect_balance_change(
-            transaction,
-            &[
-                native_change(creation_payer.pubkey(), escrow_rent + token_account_rent),
-                token_change(
-                    test_state.recipient_wallet.token_account,
-                    test_state.test_arguments.escrow_amount,
-                ),
-            ],
-        )
-        .await;
-
-    // Assert escrow was closed
-    assert!(test_state
-        .client
-        .get_account(escrow)
-        .await
-        .unwrap()
-        .is_none());
-
-    // Assert escrow_ata was closed
-    assert!(test_state
-        .client
-        .get_account(escrow_ata)
-        .await
-        .unwrap()
-        .is_none());
-}
-
 pub async fn test_withdraw_does_not_work_with_wrong_secret<T: EscrowVariant>(
     test_state: &mut TestStateBase<T>,
 ) {
@@ -582,7 +535,7 @@ pub async fn test_public_withdraw_fails_after_cancellation_start<T: EscrowVarian
 
 pub async fn test_cancel<T: EscrowVariant>(test_state: &mut TestStateBase<T>) {
     let (escrow, escrow_ata) = create_escrow(test_state).await;
-    let transaction = T::get_cancel_tx(test_state, &escrow, &escrow_ata, None);
+    let transaction = T::get_cancel_tx(test_state, &escrow, &escrow_ata);
 
     set_time(
         &mut test_state.context,
@@ -616,61 +569,13 @@ pub async fn test_cancel<T: EscrowVariant>(test_state: &mut TestStateBase<T>) {
     assert!(acc_lookup_result.is_none());
 }
 
-pub async fn test_cancel_with_different_initial_payer<T: EscrowVariant>(
-    test_state: &mut TestStateBase<T>,
-) {
-    let creation_payer = test_state.recipient_wallet.keypair.insecure_clone();
-    let (escrow, escrow_ata) = create_escrow_with_payer(test_state, &creation_payer).await;
-    let transaction = T::get_cancel_tx(
-        test_state,
-        &escrow,
-        &escrow_ata,
-        Some(creation_payer.pubkey()),
-    );
-
-    set_time(
-        &mut test_state.context,
-        test_state.init_timestamp + DEFAULT_PERIOD_DURATION * PeriodType::Cancellation as u32,
-    );
-
-    let token_account_rent =
-        get_min_rent_for_size(&mut test_state.client, get_token_account_size()).await;
-    let escrow_rent = get_min_rent_for_size(&mut test_state.client, T::get_escrow_data_len()).await;
-
-    test_state
-        .expect_balance_change(
-            transaction,
-            &[
-                native_change(
-                    creation_payer.pubkey(),
-                    escrow_rent + token_account_rent - test_state.test_arguments.safety_deposit,
-                ),
-                native_change(
-                    test_state.creator_wallet.keypair.pubkey(),
-                    test_state.test_arguments.safety_deposit,
-                ),
-                token_change(
-                    test_state.creator_wallet.token_account,
-                    test_state.test_arguments.escrow_amount,
-                ),
-            ],
-        )
-        .await;
-
-    let acc_lookup_result = test_state.client.get_account(escrow_ata).await.unwrap();
-    assert!(acc_lookup_result.is_none());
-
-    let acc_lookup_result = test_state.client.get_account(escrow).await.unwrap();
-    assert!(acc_lookup_result.is_none());
-}
-
 pub async fn test_cannot_cancel_by_non_creator<T: EscrowVariant>(
     test_state: &mut TestStateBase<T>,
 ) {
     let (escrow, escrow_ata) = create_escrow(test_state).await;
 
     test_state.creator_wallet = test_state.recipient_wallet.clone();
-    let transaction = T::get_cancel_tx(test_state, &escrow, &escrow_ata, None);
+    let transaction = T::get_cancel_tx(test_state, &escrow, &escrow_ata);
 
     test_state
         .client
@@ -685,7 +590,7 @@ pub async fn test_cannot_cancel_with_wrong_creator_ata<T: EscrowVariant>(
     let (escrow, escrow_ata) = create_escrow(test_state).await;
 
     test_state.creator_wallet.token_account = test_state.recipient_wallet.token_account;
-    let transaction = T::get_cancel_tx(test_state, &escrow, &escrow_ata, None);
+    let transaction = T::get_cancel_tx(test_state, &escrow, &escrow_ata);
 
     test_state
         .client
@@ -705,7 +610,7 @@ pub async fn test_cannot_cancel_with_wrong_escrow_ata<T: EscrowVariant>(
     test_state.test_arguments.escrow_amount += 1;
     let (_, escrow_ata_2) = create_escrow(test_state).await;
 
-    let transaction = T::get_cancel_tx(test_state, &escrow, &escrow_ata_2, None);
+    let transaction = T::get_cancel_tx(test_state, &escrow, &escrow_ata_2);
 
     test_state
         .client
@@ -721,7 +626,7 @@ pub async fn test_cannot_cancel_before_cancellation_start<T: EscrowVariant>(
     test_state: &mut TestStateBase<T>,
 ) {
     let (escrow, escrow_ata) = create_escrow(test_state).await;
-    let transaction = T::get_cancel_tx(test_state, &escrow, &escrow_ata, None);
+    let transaction = T::get_cancel_tx(test_state, &escrow, &escrow_ata);
 
     set_time(
         &mut test_state.context,

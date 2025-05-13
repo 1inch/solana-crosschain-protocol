@@ -8,8 +8,8 @@ use test_context::test_context;
 use trading_program::utils::error::TradingProgramError;
 mod utils;
 use utils::{
-    create_escrow_via_trading_program, create_signinig_default_order_ix, init_escrow_src_tx,
-    prepare_trading_account, TestStateTrading,
+    create_escrow_via_trading_program, create_signinig_default_order_ix, get_gasless_cancel_tx,
+    get_gasless_public_cancel_tx, init_escrow_src_tx, prepare_trading_account, TestStateTrading,
 };
 
 mod test_trading_program {
@@ -419,6 +419,274 @@ mod test_trading_program {
                         test_state.recipient_wallet.token_account,
                         test_state.test_arguments.escrow_amount,
                     ),
+                ],
+            )
+            .await;
+
+        // Assert escrow was closed
+        assert!(test_state
+            .client
+            .get_account(escrow)
+            .await
+            .unwrap()
+            .is_none());
+
+        // Assert escrow_ata was closed
+        assert!(test_state
+            .client
+            .get_account(escrow_ata)
+            .await
+            .unwrap()
+            .is_none());
+    }
+
+    #[test_context(TestStateTrading)]
+    #[tokio::test]
+    async fn test_escrow_cancel_via_trading_program_for_resolver(
+        test_state_trading: &mut TestStateTrading,
+    ) {
+        let test_state = &mut test_state_trading.base;
+
+        let (escrow, escrow_ata, trading_pda, trading_ata) =
+            create_escrow_via_trading_program(test_state).await;
+
+        // Check token balances for the escrow account and creator are as expected.
+        assert_eq!(
+            get_token_balance(&mut test_state.context, &escrow_ata).await,
+            DEFAULT_ESCROW_AMOUNT
+        );
+        assert_eq!(
+            get_token_balance(&mut test_state.context, &trading_ata).await,
+            0
+        );
+
+        // Check the lamport balance of escrow account is as expected.
+        let escrow_rent_lamports =
+            get_min_rent_for_size(&mut test_state.client, SrcProgram::get_escrow_data_len()).await;
+        assert_eq!(
+            escrow_rent_lamports,
+            test_state.client.get_balance(escrow).await.unwrap()
+        );
+
+        // Get the token account rent
+        let token_account_rent =
+            get_min_rent_for_size(&mut test_state.client, get_token_account_size()).await;
+
+        transfer_lamports(
+            &mut test_state.context,
+            WALLET_DEFAULT_LAMPORTS,
+            &test_state.payer_kp,
+            &trading_pda,
+        )
+        .await;
+
+        // Create the transaction to withdraw from the escrow
+        let transaction =
+            get_gasless_cancel_tx(test_state, &escrow, &escrow_ata, &trading_pda, &trading_ata);
+
+        set_time(
+            &mut test_state.context,
+            test_state.init_timestamp + DEFAULT_PERIOD_DURATION * PeriodType::Cancellation as u32,
+        );
+
+        test_state
+            .expect_balance_change(
+                transaction,
+                &[
+                    // Fails due to recipient not getting his account rent back,
+                    // trading_pda (aka creator defined) receives it instead
+                    native_change(
+                        test_state.recipient_wallet.keypair.pubkey(),
+                        escrow_rent_lamports + token_account_rent,
+                    ),
+                    token_change(trading_ata, test_state.test_arguments.escrow_amount),
+                ],
+            )
+            .await;
+
+        // Assert escrow was closed
+        assert!(test_state
+            .client
+            .get_account(escrow)
+            .await
+            .unwrap()
+            .is_none());
+
+        // Assert escrow_ata was closed
+        assert!(test_state
+            .client
+            .get_account(escrow_ata)
+            .await
+            .unwrap()
+            .is_none());
+    }
+
+    #[test_context(TestStateTrading)]
+    #[tokio::test]
+    async fn test_escrow_public_cancel_via_trading_program_for_resolver(
+        test_state_trading: &mut TestStateTrading,
+    ) {
+        let test_state = &mut test_state_trading.base;
+
+        let (escrow, escrow_ata, trading_pda, trading_ata) =
+            create_escrow_via_trading_program(test_state).await;
+
+        // Check token balances for the escrow account and creator are as expected.
+        assert_eq!(
+            get_token_balance(&mut test_state.context, &escrow_ata).await,
+            DEFAULT_ESCROW_AMOUNT
+        );
+        assert_eq!(
+            get_token_balance(&mut test_state.context, &trading_ata).await,
+            0
+        );
+
+        // Check the lamport balance of escrow account is as expected.
+        let escrow_rent_lamports =
+            get_min_rent_for_size(&mut test_state.client, SrcProgram::get_escrow_data_len()).await;
+        assert_eq!(
+            escrow_rent_lamports,
+            test_state.client.get_balance(escrow).await.unwrap()
+        );
+
+        // Get the token account rent
+        let token_account_rent =
+            get_min_rent_for_size(&mut test_state.client, get_token_account_size()).await;
+
+        transfer_lamports(
+            &mut test_state.context,
+            WALLET_DEFAULT_LAMPORTS,
+            &test_state.payer_kp,
+            &trading_pda,
+        )
+        .await;
+
+        // Create the transaction to withdraw from the escrow
+        let transaction = get_gasless_public_cancel_tx(
+            test_state,
+            &escrow,
+            &escrow_ata,
+            &trading_pda,
+            &trading_ata,
+            &test_state.recipient_wallet.keypair,
+        );
+
+        set_time(
+            &mut test_state.context,
+            test_state.init_timestamp
+                + DEFAULT_PERIOD_DURATION * PeriodType::PublicCancellation as u32,
+        );
+
+        test_state
+            .expect_balance_change(
+                transaction,
+                &[
+                    // Fails due to recipient not getting his account rent back,
+                    // trading_pda (aka creator defined) receives it instead
+                    native_change(
+                        test_state.recipient_wallet.keypair.pubkey(),
+                        escrow_rent_lamports + token_account_rent,
+                    ),
+                    token_change(trading_ata, test_state.test_arguments.escrow_amount),
+                ],
+            )
+            .await;
+
+        // Assert escrow was closed
+        assert!(test_state
+            .client
+            .get_account(escrow)
+            .await
+            .unwrap()
+            .is_none());
+
+        // Assert escrow_ata was closed
+        assert!(test_state
+            .client
+            .get_account(escrow_ata)
+            .await
+            .unwrap()
+            .is_none());
+    }
+
+    #[test_context(TestStateTrading)]
+    #[tokio::test]
+    async fn test_escrow_public_cancel_via_trading_program_for_non_resolvers(
+        test_state_trading: &mut TestStateTrading,
+    ) {
+        let test_state = &mut test_state_trading.base;
+
+        let (escrow, escrow_ata, trading_pda, trading_ata) =
+            create_escrow_via_trading_program(test_state).await;
+
+        // Check token balances for the escrow account and creator are as expected.
+        assert_eq!(
+            get_token_balance(&mut test_state.context, &escrow_ata).await,
+            DEFAULT_ESCROW_AMOUNT
+        );
+        assert_eq!(
+            get_token_balance(&mut test_state.context, &trading_ata).await,
+            0
+        );
+
+        // Check the lamport balance of escrow account is as expected.
+        let escrow_rent_lamports =
+            get_min_rent_for_size(&mut test_state.client, SrcProgram::get_escrow_data_len()).await;
+        assert_eq!(
+            escrow_rent_lamports,
+            test_state.client.get_balance(escrow).await.unwrap()
+        );
+
+        // Get the token account rent
+        let token_account_rent =
+            get_min_rent_for_size(&mut test_state.client, get_token_account_size()).await;
+
+        transfer_lamports(
+            &mut test_state.context,
+            WALLET_DEFAULT_LAMPORTS,
+            &test_state.payer_kp,
+            &trading_pda,
+        )
+        .await;
+
+        let canceller = Keypair::new();
+        transfer_lamports(
+            &mut test_state.context,
+            WALLET_DEFAULT_LAMPORTS,
+            &test_state.payer_kp,
+            &canceller.pubkey(),
+        )
+        .await;
+
+        // Create the transaction to withdraw from the escrow
+        let transaction = get_gasless_public_cancel_tx(
+            test_state,
+            &escrow,
+            &escrow_ata,
+            &trading_pda,
+            &trading_ata,
+            &canceller,
+        );
+
+        set_time(
+            &mut test_state.context,
+            test_state.init_timestamp
+                + DEFAULT_PERIOD_DURATION * PeriodType::PublicCancellation as u32,
+        );
+
+        test_state
+            .expect_balance_change(
+                transaction,
+                &[
+                    // Fails due to recipient not getting his account rent back,
+                    // trading_pda (aka creator defined) receives it instead
+                    native_change(
+                        test_state.recipient_wallet.keypair.pubkey(),
+                        escrow_rent_lamports + token_account_rent
+                            - test_state.test_arguments.safety_deposit,
+                    ),
+                    native_change(canceller.pubkey(), test_state.test_arguments.safety_deposit),
+                    token_change(trading_ata, test_state.test_arguments.escrow_amount),
                 ],
             )
             .await;

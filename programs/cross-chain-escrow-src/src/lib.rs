@@ -124,20 +124,16 @@ pub mod cross_chain_escrow_src {
             return err!(EscrowError::InvalidTime);
         }
 
-        let rent_recipient = if ctx.accounts.escrow.rent_recipient == ctx.accounts.creator.key() {
-            &ctx.accounts.creator
-        } else {
-            &ctx.accounts.rent_recipient
-        };
-
+        // In a standard cancel, the rent recipient receives the entire rent amount, including the safety deposit,
+        // because they initially covered the entire rent during escrow creation.
         common::escrow::cancel(
             &ctx.accounts.escrow,
             ctx.bumps.escrow,
             &ctx.accounts.escrow_ata,
             &ctx.accounts.creator_ata,
             &ctx.accounts.token_program,
-            rent_recipient,
-            &ctx.accounts.creator,
+            &ctx.accounts.rent_recipient,
+            &ctx.accounts.rent_recipient,
         )
     }
 
@@ -340,8 +336,7 @@ pub struct Cancel<'info> {
         mut, // Needed because this account receives lamports (safety deposit and from closed accounts)
         constraint = creator.key() == escrow.creator @ EscrowError::InvalidAccount
     )]
-    // TODO: change signer after adding gasless creation
-    creator: Signer<'info>,
+    creator: AccountInfo<'info>,
     token: Box<Account<'info, Mint>>,
     #[account(
         mut,

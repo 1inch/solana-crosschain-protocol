@@ -280,12 +280,6 @@ mod test_escrow_cancel {
 
     #[test_context(TestState)]
     #[tokio::test]
-    async fn test_cancel_with_different_initial_payer(test_state: &mut TestState) {
-        common_escrow_tests::test_cancel_with_different_initial_payer(test_state).await
-    }
-
-    #[test_context(TestState)]
-    #[tokio::test]
     async fn test_cannot_cancel_by_non_creator(test_state: &mut TestState) {
         common_escrow_tests::test_cannot_cancel_by_non_creator(test_state).await
     }
