@@ -58,7 +58,7 @@ impl EscrowVariant for SrcProgram {
         let instruction: Instruction = Instruction {
             program_id: cross_chain_escrow_src::id(),
             accounts: vec![
-                AccountMeta::new(test_state.payer_kp.pubkey(), true),
+                AccountMeta::new(test_state.creator_wallet.keypair.pubkey(), true),
                 AccountMeta::new_readonly(test_state.creator_wallet.keypair.pubkey(), true),
                 AccountMeta::new_readonly(test_state.token, false),
                 AccountMeta::new(test_state.creator_wallet.token_account, false),
@@ -73,11 +73,8 @@ impl EscrowVariant for SrcProgram {
         };
         Transaction::new_signed_with_payer(
             &[instruction],
-            Some(&test_state.payer_kp.pubkey()),
-            &[
-                &test_state.context.payer,
-                &test_state.creator_wallet.keypair,
-            ],
+            Some(&test_state.creator_wallet.keypair.pubkey()),
+            &[&test_state.creator_wallet.keypair],
             test_state.context.last_blockhash,
         )
     }
@@ -90,13 +87,13 @@ impl EscrowVariant for SrcProgram {
         build_withdraw_tx_src(test_state, escrow, escrow_ata, None)
     }
 
-    fn get_withdraw_tx_opt_creator(
+    fn get_withdraw_tx_opt_rent_recipient(
         test_state: &TestStateBase<Self>,
         escrow: &Pubkey,
         escrow_ata: &Pubkey,
-        opt_creator: Option<&Pubkey>,
+        opt_rent_recipient: Option<&Pubkey>,
     ) -> Transaction {
-        build_withdraw_tx_src(test_state, escrow, escrow_ata, opt_creator)
+        build_withdraw_tx_src(test_state, escrow, escrow_ata, opt_rent_recipient)
     }
 
     fn get_public_withdraw_tx(
@@ -108,14 +105,20 @@ impl EscrowVariant for SrcProgram {
         build_public_withdraw_tx_src(test_state, escrow, escrow_ata, withdrawer, None)
     }
 
-    fn get_public_withdraw_tx_opt_creator(
+    fn get_public_withdraw_tx_opt_rent_recipient(
         test_state: &TestStateBase<Self>,
         escrow: &Pubkey,
         escrow_ata: &Pubkey,
         withdrawer: &Keypair,
-        opt_creator: Option<&Pubkey>,
+        opt_rent_recipient: Option<&Pubkey>,
     ) -> Transaction {
-        build_public_withdraw_tx_src(test_state, escrow, escrow_ata, withdrawer, opt_creator)
+        build_public_withdraw_tx_src(
+            test_state,
+            escrow,
+            escrow_ata,
+            withdrawer,
+            opt_rent_recipient,
+        )
     }
 
     fn get_cancel_tx(

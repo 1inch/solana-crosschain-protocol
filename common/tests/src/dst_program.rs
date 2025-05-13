@@ -58,7 +58,7 @@ impl EscrowVariant for DstProgram {
         let instruction: Instruction = Instruction {
             program_id: cross_chain_escrow_dst::id(),
             accounts: vec![
-                AccountMeta::new(test_state.payer_kp.pubkey(), true),
+                AccountMeta::new(test_state.creator_wallet.keypair.pubkey(), true),
                 AccountMeta::new_readonly(test_state.creator_wallet.keypair.pubkey(), true),
                 AccountMeta::new_readonly(test_state.token, false),
                 AccountMeta::new(test_state.creator_wallet.token_account, false),
@@ -74,11 +74,8 @@ impl EscrowVariant for DstProgram {
 
         Transaction::new_signed_with_payer(
             &[instruction],
-            Some(&test_state.payer_kp.pubkey()),
-            &[
-                &test_state.context.payer,
-                &test_state.creator_wallet.keypair,
-            ],
+            Some(&test_state.creator_wallet.keypair.pubkey()),
+            &[&test_state.creator_wallet.keypair],
             test_state.context.last_blockhash,
         )
     }
@@ -88,16 +85,18 @@ impl EscrowVariant for DstProgram {
         escrow: &Pubkey,
         escrow_ata: &Pubkey,
     ) -> Transaction {
-        build_withdraw_tx_dst(test_state, escrow, escrow_ata, None)
+        build_withdraw_tx_dst(test_state, escrow, escrow_ata)
     }
 
-    fn get_withdraw_tx_opt_creator(
-        test_state: &TestStateBase<Self>,
-        escrow: &Pubkey,
-        escrow_ata: &Pubkey,
-        opt_creator: Option<&Pubkey>,
+    // This method is not applicable for dst program
+    // Providing a default implementation
+    fn get_withdraw_tx_opt_rent_recipient(
+        _test_state: &TestStateBase<Self>,
+        _escrow: &Pubkey,
+        _escrow_ata: &Pubkey,
+        _opt_rent_recipient: Option<&Pubkey>,
     ) -> Transaction {
-        build_withdraw_tx_dst(test_state, escrow, escrow_ata, opt_creator)
+        Transaction::default()
     }
 
     fn get_public_withdraw_tx(
@@ -106,17 +105,19 @@ impl EscrowVariant for DstProgram {
         escrow_ata: &Pubkey,
         withdrawer: &Keypair,
     ) -> Transaction {
-        build_public_withdraw_tx_dst(test_state, escrow, escrow_ata, withdrawer, None)
+        build_public_withdraw_tx_dst(test_state, escrow, escrow_ata, withdrawer)
     }
 
-    fn get_public_withdraw_tx_opt_creator(
-        test_state: &TestStateBase<Self>,
-        escrow: &Pubkey,
-        escrow_ata: &Pubkey,
-        withdrawer: &Keypair,
-        opt_creator: Option<&Pubkey>,
+    // This method is not applicable for dst program
+    // Providing a default implementation
+    fn get_public_withdraw_tx_opt_rent_recipient(
+        _test_state: &TestStateBase<Self>,
+        _escrow: &Pubkey,
+        _escrow_ata: &Pubkey,
+        _withdrawer: &Keypair,
+        _opt_rent_recipient: Option<&Pubkey>,
     ) -> Transaction {
-        build_public_withdraw_tx_dst(test_state, escrow, escrow_ata, withdrawer, opt_creator)
+        Transaction::default()
     }
 
     fn get_cancel_tx(
