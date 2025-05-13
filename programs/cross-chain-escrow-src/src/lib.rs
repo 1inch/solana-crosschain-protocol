@@ -143,19 +143,13 @@ pub mod cross_chain_escrow_src {
             return err!(EscrowError::InvalidTime);
         }
 
-        let rent_recipient = if ctx.accounts.escrow.rent_recipient == ctx.accounts.creator.key() {
-            &ctx.accounts.creator
-        } else {
-            &ctx.accounts.rent_recipient
-        };
-
         common::escrow::cancel(
             &ctx.accounts.escrow,
             ctx.bumps.escrow,
             &ctx.accounts.escrow_ata,
             &ctx.accounts.creator_ata,
             &ctx.accounts.token_program,
-            rent_recipient,
+            &ctx.accounts.rent_recipient,
             &ctx.accounts.payer,
         )
     }

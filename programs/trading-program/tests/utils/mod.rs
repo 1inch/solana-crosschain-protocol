@@ -278,7 +278,7 @@ pub fn get_gasless_public_cancel_tx(
         Some(&test_state.payer_kp.pubkey()), // Here we use payer from context to actually pay for
         // the tx so as not mess up the balance computation of the
         // `payer` account.
-        &[&payer, &test_state.payer_kp],
+        &[payer, &test_state.payer_kp],
         test_state.context.last_blockhash,
     )
 }
