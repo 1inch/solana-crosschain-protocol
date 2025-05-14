@@ -11,7 +11,7 @@ use solana_sdk::{
 pub async fn test_escrow_creation_tx_cost<T: EscrowVariant>(test_state: &mut TestStateBase<T>) {
     // NOTE: To actually see the output from this test, use the `--show-output` flag as shown below
     // `cargo test -- --show-output` or
-    // `cargo test test_escrow_creation_cost -- --show-output` or
+    // `cargo test test_escrow_creation_cost -- --show-output`
     let (_, _, tx) = create_escrow_data(test_state);
 
     println!(
@@ -26,12 +26,12 @@ async fn measure_tx_compute_units<T>(test_state: &mut TestStateBase<T>, tx: Tran
         .client
         .simulate_transaction(tx.clone())
         .await
-        .expect("simulation RPC failed");
+        .expect("Simulation RPC failed");
 
     // Extract the simulation details
     let sim_details = result
         .simulation_details
-        .expect("simulation details not found");
+        .expect("Simulation details not found");
 
     // Return the compute units consumed directly from the simulation
     sim_details.units_consumed
