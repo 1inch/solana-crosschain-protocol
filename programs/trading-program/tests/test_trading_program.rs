@@ -8,8 +8,8 @@ use test_context::test_context;
 use trading_program::utils::error::TradingProgramError;
 mod utils;
 use utils::{
-    create_escrow_via_trading_program, create_signinig_default_order_ix,
-    get_gasless_public_cancel_tx, init_escrow_src_tx, prepare_trading_account, TestStateTrading,
+    create_escrow_via_trading_program, create_signinig_default_order_ix, init_escrow_src_tx,
+    prepare_trading_account, TestStateTrading,
 };
 
 mod test_trading_program {
@@ -559,13 +559,13 @@ mod test_trading_program {
         .await;
 
         // Create the transaction to withdraw from the escrow
-        let transaction = get_gasless_public_cancel_tx(
+        let transaction = build_public_cancel_tx(
             test_state,
             &escrow,
             &escrow_ata,
-            &trading_pda,
-            &trading_ata,
             &test_state.recipient_wallet.keypair,
+            Some((trading_pda, trading_ata)),
+            Some(test_state.recipient_wallet.keypair.pubkey()),
         );
 
         set_time(
@@ -654,13 +654,13 @@ mod test_trading_program {
         .await;
 
         // Create the transaction to withdraw from the escrow
-        let transaction = get_gasless_public_cancel_tx(
+        let transaction = build_public_cancel_tx(
             test_state,
             &escrow,
             &escrow_ata,
-            &trading_pda,
-            &trading_ata,
             &canceller,
+            Some((trading_pda, trading_ata)),
+            Some(test_state.recipient_wallet.keypair.pubkey()),
         );
 
         set_time(
