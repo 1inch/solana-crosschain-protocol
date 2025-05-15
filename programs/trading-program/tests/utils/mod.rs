@@ -215,37 +215,6 @@ pub async fn create_escrow_via_trading_program(
     (escrow_pda, escrow_ata, trading_pda, trading_ata)
 }
 
-pub fn get_gasless_cancel_tx(
-    test_state: &TestStateBase<SrcProgram>,
-    escrow: &Pubkey,
-    escrow_ata: &Pubkey,
-    trading_account: &Pubkey,
-    trading_account_ata: &Pubkey,
-) -> Transaction {
-    let instruction_data = InstructionData::data(&cross_chain_escrow_src::instruction::Cancel {});
-
-    let instruction: Instruction = Instruction {
-        program_id: cross_chain_escrow_src::id(),
-        accounts: vec![
-            AccountMeta::new(*trading_account, false),
-            AccountMeta::new_readonly(test_state.token, false),
-            AccountMeta::new(*escrow, false),
-            AccountMeta::new(*escrow_ata, false),
-            AccountMeta::new(*trading_account_ata, false),
-            AccountMeta::new(test_state.recipient_wallet.keypair.pubkey(), false),
-            AccountMeta::new_readonly(spl_program_id, false),
-            AccountMeta::new_readonly(system_program_id, false),
-        ],
-        data: instruction_data,
-    };
-
-    Transaction::new_signed_with_payer(
-        &[instruction],
-        Some(&test_state.payer_kp.pubkey()),
-        &[&test_state.payer_kp],
-        test_state.context.last_blockhash,
-    )
-}
 pub fn get_gasless_public_cancel_tx(
     test_state: &TestStateBase<SrcProgram>,
     escrow: &Pubkey,
