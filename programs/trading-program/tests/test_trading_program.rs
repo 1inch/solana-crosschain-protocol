@@ -228,8 +228,6 @@ mod test_trading_program {
             .expect_balance_change(
                 transaction,
                 &[
-                    // Fails due to recipient not getting his account rent back,
-                    // trading_pda (aka creator defined) receives it instead
                     native_change(
                         test_state.recipient_wallet.keypair.pubkey(),
                         escrow_rent_lamports + token_account_rent,
@@ -312,8 +310,6 @@ mod test_trading_program {
             .expect_balance_change(
                 transaction,
                 &[
-                    // Fails due to recipient not getting his account rent back + safety deposit,
-                    // trading_pda (aka creator defined) receives it instead
                     native_change(
                         withdrawer.pubkey(),
                         escrow_rent_lamports + token_account_rent,
@@ -408,8 +404,6 @@ mod test_trading_program {
                         withdrawer.pubkey(),
                         test_state.test_arguments.safety_deposit,
                     ),
-                    // Fails due to recipient not getting his account rent back - safety deposit,
-                    // trading_pda (aka creator defined) receives it instead
                     native_change(
                         test_state.recipient_wallet.keypair.pubkey(),
                         escrow_rent_lamports + token_account_rent
@@ -498,8 +492,6 @@ mod test_trading_program {
             .expect_balance_change(
                 transaction,
                 &[
-                    // Fails due to recipient not getting his account rent back,
-                    // trading_pda (aka creator defined) receives it instead
                     native_change(
                         test_state.recipient_wallet.keypair.pubkey(),
                         escrow_rent_lamports + token_account_rent,
@@ -586,8 +578,6 @@ mod test_trading_program {
             .expect_balance_change(
                 transaction,
                 &[
-                    // Fails due to recipient not getting his account rent back,
-                    // trading_pda (aka creator defined) receives it instead
                     native_change(
                         test_state.recipient_wallet.keypair.pubkey(),
                         escrow_rent_lamports + token_account_rent,
@@ -683,8 +673,6 @@ mod test_trading_program {
             .expect_balance_change(
                 transaction,
                 &[
-                    // Fails due to recipient not getting his account rent back,
-                    // trading_pda (aka creator defined) receives it instead
                     native_change(
                         test_state.recipient_wallet.keypair.pubkey(),
                         escrow_rent_lamports + token_account_rent
