@@ -6,7 +6,7 @@ use common_tests::src_program::SrcProgram;
 use common_tests::tests as common_escrow_tests;
 use solana_program::{program_error::ProgramError, program_pack::Pack};
 use solana_program_test::tokio;
-use solana_sdk::{signature::Signer, signer::keypair::Keypair, transaction::Transaction};
+use solana_sdk::{signature::Signer, signer::keypair::Keypair};
 
 use test_context::test_context;
 
@@ -246,17 +246,19 @@ mod test_escrow_cancel {
 
 mod test_escrow_public_cancel {
     use super::*;
-    use local_helpers::*;
 
     #[test_context(TestState)]
     #[tokio::test]
     async fn test_public_cancel_by_creator(test_state: &mut TestState) {
         let (escrow, escrow_ata) = create_escrow(test_state).await;
-        let transaction = create_public_cancel_tx(
+
+        let transaction = build_public_cancel_tx(
             test_state,
             &escrow,
             &escrow_ata,
             &test_state.creator_wallet.keypair,
+            None,
+            None,
         );
 
         set_time(
@@ -327,7 +329,9 @@ mod test_escrow_public_cancel {
             &canceller.pubkey(),
         )
         .await;
-        let transaction = create_public_cancel_tx(test_state, &escrow, &escrow_ata, &canceller);
+
+        let transaction =
+            build_public_cancel_tx(test_state, &escrow, &escrow_ata, &canceller, None, None);
 
         set_time(
             &mut test_state.context,
@@ -400,7 +404,9 @@ mod test_escrow_public_cancel {
             &canceller.pubkey(),
         )
         .await;
-        let transaction = create_public_cancel_tx(test_state, &escrow, &escrow_ata, &canceller);
+
+        let transaction =
+            build_public_cancel_tx(test_state, &escrow, &escrow_ata, &canceller, None, None);
 
         set_time(
             &mut test_state.context,
@@ -434,7 +440,9 @@ mod test_escrow_public_cancel {
             &canceller.pubkey(),
         )
         .await;
-        let transaction = create_public_cancel_tx(test_state, &escrow, &escrow_ata_2, &canceller);
+
+        let transaction =
+            build_public_cancel_tx(test_state, &escrow, &escrow_ata_2, &canceller, None, None);
 
         set_time(
             &mut test_state.context,
@@ -458,8 +466,15 @@ mod test_escrow_public_cancel {
         test_state: &mut TestState,
     ) {
         let (escrow, escrow_ata) = create_escrow(test_state).await;
-        let transaction =
-            create_public_cancel_tx(test_state, &escrow, &escrow_ata, &test_state.payer_kp);
+
+        let transaction = build_public_cancel_tx(
+            test_state,
+            &escrow,
+            &escrow_ata,
+            &test_state.payer_kp,
+            None,
+            None,
+        );
 
         set_time(
             &mut test_state.context,
@@ -510,49 +525,5 @@ mod test_escrow_rescue_funds {
     #[tokio::test]
     async fn test_cannot_rescue_funds_with_wrong_escrow_ata(test_state: &mut TestState) {
         common_escrow_tests::test_cannot_rescue_funds_with_wrong_escrow_ata(test_state).await
-    }
-}
-
-mod local_helpers {
-    use super::*;
-
-    use anchor_lang::InstructionData;
-    use anchor_spl::token::spl_token::ID as spl_program_id;
-    use solana_program::instruction::{AccountMeta, Instruction};
-    use solana_program::pubkey::Pubkey;
-    use solana_program::system_program::ID as system_program_id;
-    use solana_sdk::signature::Signer;
-
-    pub fn create_public_cancel_tx(
-        test_state: &TestState,
-        escrow: &Pubkey,
-        escrow_ata: &Pubkey,
-        canceller: &Keypair,
-    ) -> Transaction {
-        let instruction_data =
-            InstructionData::data(&cross_chain_escrow_src::instruction::PublicCancel {});
-
-        let instruction: Instruction = Instruction {
-            program_id: cross_chain_escrow_src::id(),
-            accounts: vec![
-                AccountMeta::new(test_state.creator_wallet.keypair.pubkey(), false),
-                AccountMeta::new_readonly(test_state.token, false),
-                AccountMeta::new(canceller.pubkey(), true),
-                AccountMeta::new(*escrow, false),
-                AccountMeta::new(*escrow_ata, false),
-                AccountMeta::new(test_state.creator_wallet.token_account, false),
-                AccountMeta::new(test_state.creator_wallet.keypair.pubkey(), false),
-                AccountMeta::new_readonly(spl_program_id, false),
-                AccountMeta::new_readonly(system_program_id, false),
-            ],
-            data: instruction_data,
-        };
-
-        Transaction::new_signed_with_payer(
-            &[instruction],
-            Some(&test_state.payer_kp.pubkey()),
-            &[&test_state.payer_kp, canceller],
-            test_state.context.last_blockhash,
-        )
     }
 }
