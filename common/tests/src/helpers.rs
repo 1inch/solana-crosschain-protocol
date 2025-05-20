@@ -113,24 +113,11 @@ pub trait EscrowVariant {
         escrow: &Pubkey,
         escrow_ata: &Pubkey,
     ) -> Transaction;
-    fn get_withdraw_tx_opt_rent_recipient(
-        test_state: &TestStateBase<Self>,
-        escrow: &Pubkey,
-        escrow_ata: &Pubkey,
-        opt_rent_recipient: Option<&Pubkey>,
-    ) -> Transaction;
     fn get_public_withdraw_tx(
         test_state: &TestStateBase<Self>,
         escrow: &Pubkey,
         escrow_ata: &Pubkey,
         safety_deposit_recipient: &Keypair,
-    ) -> Transaction;
-    fn get_public_withdraw_tx_opt_rent_recipient(
-        test_state: &TestStateBase<Self>,
-        escrow: &Pubkey,
-        escrow_ata: &Pubkey,
-        safety_deposit_recipient: &Keypair,
-        opt_rent_recipient: Option<&Pubkey>,
     ) -> Transaction;
     fn get_cancel_tx(
         test_state: &TestStateBase<Self>,
