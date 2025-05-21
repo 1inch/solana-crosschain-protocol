@@ -326,6 +326,7 @@ pub struct PublicWithdraw<'info> {
 
 #[derive(Accounts)]
 pub struct Cancel<'info> {
+    /// Currently only used for the token-authority check.
     #[account(
         mut, // Needed because this account receives lamports (safety deposit and from closed accounts)
         constraint = creator.key() == escrow.creator @ EscrowError::InvalidAccount
@@ -369,7 +370,7 @@ pub struct Cancel<'info> {
 
 #[derive(Accounts)]
 pub struct PublicCancel<'info> {
-    /// CHECK: this account is used only to receive lampotrs and to check its pubkey to match the one stored in the escrow account
+    /// CHECK: this account is used only to receive lamports and to check its pubkey to match the one stored in the escrow account
     #[account(
         mut, // Needed because this account receives lamports (safety deposit and from closed accounts)
         constraint = creator.key() == escrow.creator @ EscrowError::InvalidAccount
