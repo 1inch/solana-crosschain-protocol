@@ -44,7 +44,7 @@ pub fn create<'info>(
 ) -> Result<()> {
     require!(
         rescue_start >= now + RESCUE_DELAY,
-        EscrowError::InvalidRescueDelay
+        EscrowError::InvalidRescueStart
     );
 
     // TODO: Verify that safety_deposit is enough to cover public_withdraw and public_cancel methods
