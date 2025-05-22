@@ -1074,6 +1074,8 @@ dependencies = [
  "anchor-spl",
  "async-trait",
  "common",
+ "cross-chain-escrow-dst",
+ "cross-chain-escrow-src",
  "solana-program",
  "solana-program-pack",
  "solana-program-runtime",
@@ -6182,6 +6184,24 @@ dependencies = [
  "sharded-slab",
  "thread_local",
  "tracing-core",
+]
+
+[[package]]
+name = "trading-program"
+version = "0.1.0"
+dependencies = [
+ "anchor-lang",
+ "anchor-spl",
+ "common",
+ "common_tests",
+ "cross-chain-escrow-src",
+ "ed25519-dalek",
+ "solana-program",
+ "solana-program-pack",
+ "solana-program-runtime",
+ "solana-program-test",
+ "solana-sdk",
+ "test-context",
 ]
 
 [[package]]

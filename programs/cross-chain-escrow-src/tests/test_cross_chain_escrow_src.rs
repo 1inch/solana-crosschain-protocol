@@ -1,27 +1,12 @@
-use anchor_lang::prelude::AccountInfo;
+(??)use anchor_lang::prelude::{AccountInfo, ErrorCode};
+(??)use anchor_spl::token::spl_token::state::Account as SplTokenAccount;
 use common::error::EscrowError;
 use common_tests::helpers::*;
+use common_tests::src_program::SrcProgram;
 use common_tests::tests as common_escrow_tests;
-use common_tests::{run_for_tokens, wrap_entry};
-use solana_sdk::signer::keypair::Keypair;
 
-use anchor_lang::{InstructionData, Space};
-use anchor_spl::associated_token::ID as spl_associated_token_id;
-use solana_program::{
-    instruction::{AccountMeta, Instruction},
-    program_error::ProgramError,
-    pubkey::Pubkey,
-    system_program::ID as system_program_id,
-    sysvar::rent::ID as rent_id,
-};
-use solana_program_runtime::invoke_context::BuiltinFunctionWithContext;
-use solana_program_test::{processor, tokio};
-use solana_sdk::{signature::Signer, transaction::Transaction};
 use test_context::test_context;
 
-struct SrcProgram;
-
-mod traits {
     use super::*;
 
     type TestState<S> = TestStateBase<SrcProgram, S>;
