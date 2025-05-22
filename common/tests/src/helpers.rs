@@ -350,42 +350,35 @@ impl TokenVariant for Token2020 {
 pub trait EscrowVariant<S: TokenVariant> {
     fn get_program_spec() -> (Pubkey, Option<BuiltinFunctionWithContext>);
 
-    // Required because withdraw transaction needs to be
-    // signed differently in src and dst variants.
-    fn withdraw_ix_to_signed_tx(
-        ix: Instruction,
-        test_state: &TestStateBase<Self, S>,
-    ) -> Transaction;
-
     // All the instruction creation procedures differ slightly
     // between the variants.
-    fn get_public_withdraw_ix(
+    fn get_public_withdraw_tx(
         test_state: &TestStateBase<Self, S>,
         escrow: &Pubkey,
         escrow_ata: &Pubkey,
-    ) -> Instruction;
-    fn get_withdraw_ix(
+    ) -> Transaction;
+    fn get_withdraw_tx(
         test_state: &TestStateBase<Self, S>,
         escrow: &Pubkey,
         escrow_ata: &Pubkey,
-    ) -> Instruction;
-    fn get_cancel_ix(
+    ) -> Transaction;
+    fn get_cancel_tx(
         test_state: &TestStateBase<Self, S>,
         escrow: &Pubkey,
         escrow_ata: &Pubkey,
-    ) -> Instruction;
-    fn get_create_ix(
+    ) -> Transaction;
+    fn get_create_tx(
         test_state: &TestStateBase<Self, S>,
         escrow: &Pubkey,
         escrow_ata: &Pubkey,
-    ) -> Instruction;
-    fn get_rescue_funds_ix(
+    ) -> Transaction;
+    fn get_rescue_funds_tx(
         test_state: &TestStateBase<Self, S>,
         escrow: &Pubkey,
         token_to_rescue: &Pubkey,
         escrow_ata: &Pubkey,
         recipient_ata: &Pubkey,
-    ) -> Instruction;
+    ) -> Transaction;
 
     fn get_escrow_data_len() -> usize;
 }
@@ -463,7 +456,7 @@ impl Clone for Wallet {
 
 pub fn create_escrow_data<T: EscrowVariant<S>, S: TokenVariant>(
     test_state: &TestStateBase<T, S>,
-) -> (Pubkey, Pubkey, Instruction) {
+) -> (Pubkey, Pubkey, Transaction) {
     let (program_id, _) = T::get_program_spec();
     let (escrow_pda, _) = Pubkey::find_program_address(
         &[
@@ -529,8 +522,12 @@ pub async fn create_escrow_tx<T: EscrowVariant<S>, S: TokenVariant>(
 pub async fn create_escrow<T: EscrowVariant<S>, S: TokenVariant>(
     test_state: &mut TestStateBase<T, S>,
 ) -> (Pubkey, Pubkey) {
-    let (escrow, escrow_ata, tx) = create_escrow_tx(test_state).await;
-    tx.expect_success();
+    let (escrow, escrow_ata, tx) = create_escrow_data(test_state);
+    test_state
+        .client
+        .process_transaction(tx)
+        .await
+        .expect_success();
     (escrow, escrow_ata)
 }
 
