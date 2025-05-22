@@ -1,5 +1,4 @@
-use anchor_lang::prelude::{AccountInfo, ErrorCode};
-use anchor_spl::token::spl_token::state::Account as SplTokenAccount;
+use anchor_lang::prelude::AccountInfo;
 use common::error::EscrowError;
 use common_tests::helpers::*;
 use common_tests::tests as common_escrow_tests;
@@ -11,7 +10,6 @@ use anchor_spl::associated_token::ID as spl_associated_token_id;
 use solana_program::{
     instruction::{AccountMeta, Instruction},
     program_error::ProgramError,
-    program_pack::Pack,
     pubkey::Pubkey,
     system_program::ID as system_program_id,
     sysvar::rent::ID as rent_id,
@@ -517,7 +515,8 @@ run_for_tokens!(
                 test_state: &mut TestState,
             ) {
                 let (escrow, escrow_ata) = create_escrow(test_state).await;
-                let transaction = create_public_cancel_tx(test_state, &escrow, &escrow_ata);
+                let transaction =
+                    create_public_cancel_tx(test_state, &escrow, &escrow_ata, &test_state.payer_kp);
 
                 set_time(
                     &mut test_state.context,
@@ -531,6 +530,7 @@ run_for_tokens!(
                     .expect_error((0, ProgramError::Custom(EscrowError::InvalidTime.into())))
             }
         }
+
         mod test_escrow_rescue_funds {
             use super::*;
 
