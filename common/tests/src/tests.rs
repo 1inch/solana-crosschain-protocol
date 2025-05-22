@@ -188,8 +188,6 @@ pub async fn test_withdraw<T: EscrowVariant<S>, S: TokenVariant>(
     let (escrow, escrow_ata) = create_escrow(test_state).await;
     let transaction = T::get_withdraw_tx(test_state, &escrow, &escrow_ata);
 
-    let token_account_rent =
-        get_min_rent_for_size(&mut test_state.client, get_token_account_size()).await;
     let escrow_rent = get_min_rent_for_size(&mut test_state.client, T::get_escrow_data_len()).await;
 
     set_time(
@@ -428,7 +426,6 @@ pub async fn test_cancel<T: EscrowVariant<S>, S: TokenVariant>(
     );
     let token_account_rent = test_state.client.get_balance(escrow_ata).await.unwrap();
 
-
     get_min_rent_for_size(&mut test_state.client, S::get_token_account_size()).await;
     let escrow_rent = get_min_rent_for_size(&mut test_state.client, T::get_escrow_data_len()).await;
 
@@ -604,7 +601,7 @@ pub async fn test_rescue_all_tokens_and_close_ata<T: EscrowVariant<S>, S: TokenV
         &recipient_ata,
     );
     let token_account_rent =
-        get_min_rent_for_size(&mut test_state.client, get_token_account_size()).await;
+        get_min_rent_for_size(&mut test_state.client, S::get_token_account_size()).await;
 
     set_time(
         &mut test_state.context,

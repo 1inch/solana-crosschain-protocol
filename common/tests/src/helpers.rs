@@ -605,8 +605,8 @@ pub fn token_change(k: Pubkey, d: u64) -> BalanceChange {
     BalanceChange::Token(k, d as i128)
 }
 
-async fn get_balances<T>(
-    test_state: &mut TestStateBase<T>,
+async fn get_balances<T, S>(
+    test_state: &mut TestStateBase<T, S>,
     balance_query: &[BalanceChange],
 ) -> Vec<u64> {
     let mut result: Vec<u64> = vec![];
@@ -623,7 +623,7 @@ async fn get_balances<T>(
     result
 }
 
-impl<T> TestStateBase<T> {
+impl<T, S> TestStateBase<T, S> {
     pub async fn expect_balance_change(&mut self, tx: Transaction, diff: &[BalanceChange]) {
         let balances_before = get_balances(self, diff).await;
 
