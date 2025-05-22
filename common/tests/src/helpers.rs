@@ -591,6 +591,73 @@ pub async fn get_token_balance(ctx: &mut ProgramTestContext, account: &Pubkey) -
     state.base.amount
 }
 
+#[derive(Clone)]
+pub enum BalanceChange {
+    Token(Pubkey, i128),
+    Native(Pubkey, i128),
+}
+
+pub fn native_change(k: Pubkey, d: u64) -> BalanceChange {
+    BalanceChange::Native(k, d as i128)
+}
+
+pub fn token_change(k: Pubkey, d: u64) -> BalanceChange {
+    BalanceChange::Token(k, d as i128)
+}
+
+async fn get_balances<T>(
+    test_state: &mut TestStateBase<T>,
+    balance_query: &[BalanceChange],
+) -> Vec<u64> {
+    let mut result: Vec<u64> = vec![];
+    for b in balance_query {
+        match b {
+            BalanceChange::Token(k, _) => {
+                result.push(get_token_balance(&mut test_state.context, k).await)
+            }
+            BalanceChange::Native(k, _) => {
+                result.push(test_state.client.get_balance(*k).await.unwrap())
+            }
+        }
+    }
+    result
+}
+
+impl<T> TestStateBase<T> {
+    pub async fn expect_balance_change(&mut self, tx: Transaction, diff: &[BalanceChange]) {
+        let balances_before = get_balances(self, diff).await;
+
+        // execute transaction
+        self.client.process_transaction(tx).await.expect_success();
+
+        // compare balances
+        let balances_after = get_balances(self, diff).await;
+        for ((before, after), exp) in balances_before
+            .iter()
+            .zip(balances_after.iter())
+            .zip(diff.iter())
+        {
+            let real_diff: i128 = *after as i128 - *before as i128;
+            match exp {
+                BalanceChange::Token(k, token_expected_diff) => {
+                    assert_eq!(
+                        real_diff, *token_expected_diff,
+                        "Token balance changed unexpectedley for {}, left = {}, right = {}",
+                        k, real_diff, token_expected_diff
+                    )
+                }
+                BalanceChange::Native(k, native_expected_diff) => {
+                    assert_eq!(
+                        real_diff, *native_expected_diff,
+                        "SOL balance changed unexpectedley for {}, left = {}, right = {}",
+                        k, real_diff, native_expected_diff
+                    )
+                }
+            }
+        }
+    }
+}
+
 pub trait Expectation {
     type ExpectationType;
     fn expect_success(self);
