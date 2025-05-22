@@ -390,7 +390,7 @@ pub trait EscrowVariant<S: TokenVariant> {
         escrow_ata: &Pubkey,
     ) -> Instruction;
     fn get_rescue_funds_ix(
-        test_state: &TestStateBase<Self>,
+        test_state: &TestStateBase<Self, S>,
         escrow: &Pubkey,
         token_to_rescue: &Pubkey,
         escrow_ata: &Pubkey,
@@ -424,6 +424,8 @@ where
         let creator_wallet = create_wallet::<S>(
             &mut context,
             &token,
+            &payer_kp,
+            &payer_kp,
             WALLET_DEFAULT_LAMPORTS,
             WALLET_DEFAULT_TOKENS,
         )
@@ -431,6 +433,8 @@ where
         let recipient_wallet = create_wallet::<S>(
             &mut context,
             &token,
+            &payer_kp,
+            &payer_kp,
             WALLET_DEFAULT_LAMPORTS,
             WALLET_DEFAULT_TOKENS,
         )
@@ -543,18 +547,23 @@ pub async fn create_escrow<T: EscrowVariant<S>, S: TokenVariant>(
 pub async fn create_wallet<S: TokenVariant>(
     ctx: &mut ProgramTestContext,
     token: &Pubkey,
+    mint_authority: &Keypair,
+    payer: &Keypair,
     fund_lamports: u64,
     mint_tokens: u64,
 ) -> Wallet {
     let dummy_kp = Keypair::new();
-(??)    let ata = initialize_spl_associated_account(ctx, token, &dummy_kp.pubkey()).await;
-(??)    mint_spl_tokens(
+    let ata = S::initialize_spl_associated_account(ctx, token, &dummy_kp.pubkey()).await;
+    S::mint_spl_tokens(
         ctx,
-        fund_lamports,
-        &ctx.payer.insecure_clone(),
-        &dummy_kp.pubkey(),
+        token,
+        &ata,
+        &mint_authority.pubkey(),
+        mint_authority,
+        mint_tokens,
     )
     .await;
+    transfer_lamports(ctx, fund_lamports, payer, &dummy_kp.pubkey()).await;
     Wallet {
         keypair: dummy_kp,
         token_account: ata,

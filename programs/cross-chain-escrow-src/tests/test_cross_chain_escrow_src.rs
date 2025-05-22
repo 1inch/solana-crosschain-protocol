@@ -133,6 +133,43 @@ mod traits {
             };
             instruction
         }
+
+        fn get_rescue_funds_ix(
+            test_state: &TestState<S>,
+            escrow: &Pubkey,
+            token_to_rescue: &Pubkey,
+            escrow_ata: &Pubkey,
+            recipient_ata: &Pubkey,
+        ) -> Instruction {
+            let instruction_data =
+                InstructionData::data(&cross_chain_escrow_src::instruction::RescueFunds {
+                    hashlock: test_state.hashlock.to_bytes(),
+                    order_hash: test_state.order_hash.to_bytes(),
+                    escrow_creator: test_state.creator_wallet.keypair.pubkey(),
+                    escrow_mint: test_state.token,
+                    escrow_amount: test_state.test_arguments.escrow_amount,
+                    safety_deposit: test_state.test_arguments.safety_deposit,
+                    rescue_start: test_state.test_arguments.rescue_start,
+                    rescue_amount: test_state.test_arguments.rescue_amount,
+                });
+
+            let instruction: Instruction = Instruction {
+                program_id: cross_chain_escrow_src::id(),
+                accounts: vec![
+                    AccountMeta::new(test_state.recipient_wallet.keypair.pubkey(), true),
+                    AccountMeta::new_readonly(*token_to_rescue, false),
+                    AccountMeta::new(*escrow, false),
+                    AccountMeta::new(*escrow_ata, false),
+                    AccountMeta::new(*recipient_ata, false),
+                    AccountMeta::new_readonly(S::get_token_program_id(), false),
+                    AccountMeta::new_readonly(system_program_id, false),
+                ],
+                data: instruction_data,
+            };
+
+            instruction
+        }
+
         fn get_withdraw_ix(
             test_state: &TestState<S>,
             escrow: &Pubkey,
@@ -254,9 +291,9 @@ run_for_tokens!(
                 test_state: &mut TestState,
             ) {
                 common_escrow_tests::test_escrow_creation_fail_if_public_withdrawal_duration_overflows(
-                test_state,
-            )
-            .await
+                    test_state,
+                )
+                    .await
             }
 
             #[test_context(TestState)]
@@ -270,17 +307,17 @@ run_for_tokens!(
             }
         }
 
- mod test_escrow_withdraw {
-            use super::*;    
+        mod test_escrow_withdraw {
+            use super::*;
             #[test_context(TestState)]
             #[tokio::test]
             async fn test_escrow_creation_fail_if_public_withdrawal_duration_overflows(
-              test_state: &mut TestState,
+                test_state: &mut TestState,
             ) {
-                 common_escrow_tests::test_escrow_creation_fail_if_public_withdrawal_duration_overflows(
-               test_state,
-              )
-             .await
+                common_escrow_tests::test_escrow_creation_fail_if_public_withdrawal_duration_overflows(
+                    test_state,
+                )
+                    .await
             }
 
             #[test_context(TestState)]
@@ -430,46 +467,48 @@ run_for_tokens!(
                     .await;
             }
         }
-    }
-}
+        mod test_escrow_rescue_funds {
+            use super::*;
 
-mod test_escrow_rescue_funds {
-    use super::*;
+            #[test_context(TestState)]
+            #[tokio::test]
+            async fn test_rescue_all_tokens_and_close_ata(test_state: &mut TestState) {
+                common_escrow_tests::test_rescue_all_tokens_and_close_ata(test_state).await
+            }
 
-    #[test_context(TestState)]
-    #[tokio::test]
-    async fn test_rescue_all_tokens_and_close_ata(test_state: &mut TestState) {
-        common_escrow_tests::test_rescue_all_tokens_and_close_ata(test_state).await
-    }
+            #[test_context(TestState)]
+            #[tokio::test]
+            async fn test_rescue_part_of_tokens_and_not_close_ata(test_state: &mut TestState) {
+                common_escrow_tests::test_rescue_part_of_tokens_and_not_close_ata(test_state).await
+            }
 
-    #[test_context(TestState)]
-    #[tokio::test]
-    async fn test_rescue_part_of_tokens_and_not_close_ata(test_state: &mut TestState) {
-        common_escrow_tests::test_rescue_part_of_tokens_and_not_close_ata(test_state).await
-    }
+            #[test_context(TestState)]
+            #[tokio::test]
+            async fn test_cannot_rescue_funds_before_rescue_delay_pass(test_state: &mut TestState) {
+                common_escrow_tests::test_cannot_rescue_funds_before_rescue_delay_pass(test_state)
+                    .await
+            }
 
-    #[test_context(TestState)]
-    #[tokio::test]
-    async fn test_cannot_rescue_funds_before_rescue_delay_pass(test_state: &mut TestState) {
-        common_escrow_tests::test_cannot_rescue_funds_before_rescue_delay_pass(test_state).await
-    }
+            #[test_context(TestState)]
+            #[tokio::test]
+            async fn test_cannot_rescue_funds_by_non_recipient(test_state: &mut TestState) {
+                common_escrow_tests::test_cannot_rescue_funds_by_non_recipient(test_state).await
+            }
 
-    #[test_context(TestState)]
-    #[tokio::test]
-    async fn test_cannot_rescue_funds_by_non_recipient(test_state: &mut TestState) {
-        common_escrow_tests::test_cannot_rescue_funds_by_non_recipient(test_state).await
-    }
+            #[test_context(TestState)]
+            #[tokio::test]
+            async fn test_cannot_rescue_funds_with_wrong_recipient_ata(test_state: &mut TestState) {
+                common_escrow_tests::test_cannot_rescue_funds_with_wrong_recipient_ata(test_state)
+                    .await
+            }
 
-    #[test_context(TestState)]
-    #[tokio::test]
-    async fn test_cannot_rescue_funds_with_wrong_recipient_ata(test_state: &mut TestState) {
-        common_escrow_tests::test_cannot_rescue_funds_with_wrong_recipient_ata(test_state).await
-    }
-
-    #[test_context(TestState)]
-    #[tokio::test]
-    async fn test_cannot_rescue_funds_with_wrong_escrow_ata(test_state: &mut TestState) {
-        common_escrow_tests::test_cannot_rescue_funds_with_wrong_escrow_ata(test_state).await
+            #[test_context(TestState)]
+            #[tokio::test]
+            async fn test_cannot_rescue_funds_with_wrong_escrow_ata(test_state: &mut TestState) {
+                common_escrow_tests::test_cannot_rescue_funds_with_wrong_escrow_ata(test_state)
+                    .await
+            }
+        }
     }
 );
 
