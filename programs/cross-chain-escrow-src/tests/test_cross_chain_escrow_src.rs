@@ -1,4 +1,5 @@
 use anchor_lang::prelude::AccountInfo;
+use common::error::EscrowError;
 use common_tests::helpers::*;
 use common_tests::tests as common_escrow_tests;
 use common_tests::{run_for_tokens, wrap_entry};
@@ -450,21 +451,16 @@ run_for_tokens!(
                 let (escrow, escrow_ata) = create_escrow(test_state).await;
                 let public_cancel_ix = create_public_cancel_ix(test_state, &escrow, &escrow_ata);
 
-                let transaction = Transaction::new_signed_with_payer(
-                    &[public_cancel_ix],
-                    Some(&test_state.payer_kp.pubkey()),
-                    &[&test_state.payer_kp],
-                    test_state.context.last_blockhash,
-                );
-
-                set_time(
-                    &mut test_state.context,
-                    test_state.init_timestamp
-                        + DEFAULT_PERIOD_DURATION * PeriodType::Cancellation as u32,
-                );
-                test_state
-                    .expect_err_in_tx_meta(transaction, ERROR_INVALID_TIME)
-                    .await;
+        set_time(
+            &mut test_state.context,
+            test_state.init_timestamp + DEFAULT_PERIOD_DURATION * PeriodType::Cancellation as u32,
+        );
+        test_state
+            .client
+            .process_transaction(transaction)
+            .await
+            .expect_error((0, ProgramError::Custom(EscrowError::InvalidTime.into())))
+ 
             }
         }
         mod test_escrow_rescue_funds {

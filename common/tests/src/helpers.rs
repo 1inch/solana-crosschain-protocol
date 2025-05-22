@@ -22,10 +22,7 @@ use solana_program::{
     pubkey::Pubkey,
 };
 use solana_program_runtime::invoke_context::BuiltinFunctionWithContext;
-use solana_program_test::{
-    BanksClient, BanksClientError, BanksTransactionResultWithMetadata, ProgramTest,
-    ProgramTestContext,
-};
+use solana_program_test::{BanksClient, BanksClientError, ProgramTest, ProgramTestContext};
 use solana_sdk::{
     signature::Signer,
     signer::keypair::Keypair,
@@ -36,13 +33,6 @@ use solana_sdk::{
 use std::marker::PhantomData;
 use std::time::{SystemTime, UNIX_EPOCH};
 use test_context::AsyncTestContext;
-
-pub const ERROR_INSUFFICIENT_FUNDS: &str = "Error: insufficient funds";
-pub const ERROR_ALREADY_USED: &str = "already in use";
-pub const ERROR_CONSTRAINT_TOKENOWNER: &str = "Error Code: ConstraintTokenOwner";
-pub const ERROR_CONSTRAINT_ASSOCIATED: &str = "Error Code: ConstraintAssociated";
-pub const ERROR_CONSTRAINT_SEEDS: &str = "Error Code: ConstraintSeeds";
-pub const ERROR_INVALID_TIME: &str = "Error Code: InvalidTime";
 
 pub const WALLET_DEFAULT_LAMPORTS: u64 = 10000000;
 pub const WALLET_DEFAULT_TOKENS: u64 = 1000;
@@ -612,30 +602,6 @@ pub async fn get_token_balance(ctx: &mut ProgramTestContext, account: &Pubkey) -
     let state =
         StateWithExtensionsMut::<SplToken2022Account>::unpack(&mut account_data.data).unwrap();
     state.base.amount
-}
-
-impl<T, S> TestStateBase<T, S> {
-    pub async fn expect_err_in_tx_meta(&mut self, mut tx: Transaction, expectation: &str) {
-        // retry at most 5 times.
-        for _ in 0..5 {
-            let r = self
-                .client
-                .process_transaction_with_metadata(tx.clone())
-                .await;
-            match r {
-                Result::Ok(BanksTransactionResultWithMetadata {
-                    metadata: Some(m), ..
-                }) => {
-                    return assert!(m.log_messages.iter().any(|x| x.contains(expectation)));
-                }
-                _ => {
-                    let new_hash = self.context.get_new_latest_blockhash().await.unwrap();
-                    tx.message.recent_blockhash = new_hash;
-                }
-            }
-        }
-        panic!("Failed to fetch transaction metadata!")
-    }
 }
 
 pub trait Expectation {
