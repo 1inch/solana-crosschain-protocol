@@ -32,10 +32,12 @@ mod traits {
                 wrap_entry!(cross_chain_escrow_src::entry),
             )
         }
+
         fn get_public_withdraw_tx(
             test_state: &TestState<S>,
             escrow: &Pubkey,
             escrow_ata: &Pubkey,
+            withdrawer: &Keypair,
         ) -> Transaction {
             let instruction_data =
                 InstructionData::data(&cross_chain_escrow_src::instruction::PublicWithdraw {
@@ -47,7 +49,7 @@ mod traits {
                 accounts: vec![
                     AccountMeta::new(test_state.creator_wallet.keypair.pubkey(), false),
                     AccountMeta::new_readonly(test_state.recipient_wallet.keypair.pubkey(), false),
-                    AccountMeta::new_readonly(test_state.context.payer.pubkey(), false),
+                    AccountMeta::new(withdrawer.pubkey(), true),
                     AccountMeta::new_readonly(test_state.token, false),
                     AccountMeta::new(*escrow, false),
                     AccountMeta::new(*escrow_ata, false),
@@ -60,8 +62,10 @@ mod traits {
 
             Transaction::new_signed_with_payer(
                 &[instruction],
-                Some(&test_state.payer_kp.pubkey()),
-                &[&test_state.context.payer],
+                Some(&test_state.payer_kp.pubkey()), // so that withdrawer does not incurr transaction
+                // charges and mess up computation of withdrawer's
+                // balance expectation.
+                &[withdrawer, &test_state.payer_kp],
                 test_state.context.last_blockhash,
             )
         }
@@ -255,21 +259,11 @@ run_for_tokens!(
                 common_escrow_tests::test_escrow_creation_fail_with_zero_amount(test_state).await
             }
 
-    #[test_context(TestState)]
-    #[tokio::test]
-    async fn test_escrow_creation_fail_with_insufficient_funds(test_state: &mut TestState) {
-        common_escrow_tests::test_escrow_creation_fail_with_insufficient_funds(test_state).await
-    }
-
             #[test_context(TestState)]
             #[tokio::test]
-            async fn test_escrow_creation_fail_with_insufficient_safety_deposit(
-                test_state: &mut TestState,
-            ) {
-                common_escrow_tests::test_escrow_creation_fail_with_insufficient_safety_deposit(
-                    test_state,
-                )
-                .await
+            async fn test_escrow_creation_fail_with_insufficient_funds(test_state: &mut TestState) {
+                common_escrow_tests::test_escrow_creation_fail_with_insufficient_funds(test_state)
+                    .await
             }
 
             #[test_context(TestState)]
@@ -410,47 +404,51 @@ run_for_tokens!(
         mod test_escrow_public_withdraw {
             use super::*;
 
-    #[test_context(TestState)]
-    #[tokio::test]
-    async fn test_public_withdraw_tokens_by_recipient(test_state: &mut TestState) {
-        common_escrow_tests::test_public_withdraw_tokens(
-            test_state,
-            test_state.recipient_wallet.keypair.insecure_clone(),
-        )
-        .await
-    }
+            #[test_context(TestState)]
+            #[tokio::test]
+            async fn test_public_withdraw_tokens_by_recipient(test_state: &mut TestState) {
+                common_escrow_tests::test_public_withdraw_tokens(
+                    test_state,
+                    test_state.recipient_wallet.keypair.insecure_clone(),
+                )
+                .await
+            }
 
-    #[test_context(TestState)]
-    #[tokio::test]
-    async fn test_public_withdraw_tokens_by_any_account(test_state: &mut TestState) {
-        let withdrawer = Keypair::new();
-        transfer_lamports(
-            &mut test_state.context,
-            WALLET_DEFAULT_LAMPORTS,
-            &test_state.payer_kp,
-            &withdrawer.pubkey(),
-        )
-        .await;
-        common_escrow_tests::test_public_withdraw_tokens(test_state, withdrawer).await
-    }
+            #[test_context(TestState)]
+            #[tokio::test]
+            async fn test_public_withdraw_tokens_by_any_account(test_state: &mut TestState) {
+                let withdrawer = Keypair::new();
+                transfer_lamports(
+                    &mut test_state.context,
+                    WALLET_DEFAULT_LAMPORTS,
+                    &test_state.payer_kp,
+                    &withdrawer.pubkey(),
+                )
+                .await;
+                common_escrow_tests::test_public_withdraw_tokens(test_state, withdrawer).await
+            }
 
-    #[test_context(TestState)]
-    #[tokio::test]
-    async fn test_public_withdraw_fails_with_wrong_secret(test_state: &mut TestState) {
-        common_escrow_tests::test_public_withdraw_fails_with_wrong_secret(test_state).await
-    }
+            #[test_context(TestState)]
+            #[tokio::test]
+            async fn test_public_withdraw_fails_with_wrong_secret(test_state: &mut TestState) {
+                common_escrow_tests::test_public_withdraw_fails_with_wrong_secret(test_state).await
+            }
 
-    #[test_context(TestState)]
-    #[tokio::test]
-    async fn test_public_withdraw_fails_with_wrong_recipient_ata(test_state: &mut TestState) {
-        common_escrow_tests::test_public_withdraw_fails_with_wrong_recipient_ata(test_state).await
-    }
+            #[test_context(TestState)]
+            #[tokio::test]
+            async fn test_public_withdraw_fails_with_wrong_recipient_ata(
+                test_state: &mut TestState,
+            ) {
+                common_escrow_tests::test_public_withdraw_fails_with_wrong_recipient_ata(test_state)
+                    .await
+            }
 
-    #[test_context(TestState)]
-    #[tokio::test]
-    async fn test_public_withdraw_fails_with_wrong_escrow_ata(test_state: &mut TestState) {
-        common_escrow_tests::test_public_withdraw_fails_with_wrong_escrow_ata(test_state).await
-    }
+            #[test_context(TestState)]
+            #[tokio::test]
+            async fn test_public_withdraw_fails_with_wrong_escrow_ata(test_state: &mut TestState) {
+                common_escrow_tests::test_public_withdraw_fails_with_wrong_escrow_ata(test_state)
+                    .await
+            }
 
             #[test_context(TestState)]
             #[tokio::test]

@@ -1,8 +1,8 @@
 use crate::helpers::*;
 use anchor_lang::error::ErrorCode;
-use anchor_spl::token::spl_token::{error::TokenError, state::Account as SplTokenAccount};
+use anchor_spl::token::spl_token::error::TokenError;
 use common::{constants::RESCUE_DELAY, error::EscrowError};
-use solana_program::{keccak::hash, program_error::ProgramError, program_pack::Pack};
+use solana_program::{keccak::hash, program_error::ProgramError};
 use solana_sdk::{signature::Signer, signer::keypair::Keypair, system_instruction::SystemError};
 
 pub async fn test_escrow_creation<T: EscrowVariant<S>, S: TokenVariant>(
@@ -372,8 +372,8 @@ pub async fn test_withdraw_does_not_work_after_cancellation_start<
         .expect_error((0, ProgramError::Custom(EscrowError::InvalidTime.into())))
 }
 
-pub async fn test_public_withdraw_tokens<T: EscrowVariant>(
-    test_state: &mut TestStateBase<T>,
+pub async fn test_public_withdraw_tokens<T: EscrowVariant<S>, S: TokenVariant>(
+    test_state: &mut TestStateBase<T, S>,
     withdrawer: Keypair,
 ) {
     let (escrow, escrow_ata) = create_escrow(test_state).await;
@@ -393,7 +393,7 @@ pub async fn test_public_withdraw_tokens<T: EscrowVariant>(
     let escrow_data_len = T::get_escrow_data_len();
     let rent_lamports = get_min_rent_for_size(&mut test_state.client, escrow_data_len).await;
     let token_account_rent =
-        get_min_rent_for_size(&mut test_state.client, SplTokenAccount::LEN).await;
+        get_min_rent_for_size(&mut test_state.client, S::get_token_account_size()).await;
     assert_eq!(
         rent_lamports,
         test_state.client.get_balance(escrow).await.unwrap()
@@ -436,8 +436,8 @@ pub async fn test_public_withdraw_tokens<T: EscrowVariant>(
         .is_none());
 }
 
-pub async fn test_public_withdraw_fails_with_wrong_secret<T: EscrowVariant>(
-    test_state: &mut TestStateBase<T>,
+pub async fn test_public_withdraw_fails_with_wrong_secret<T: EscrowVariant<S>, S: TokenVariant>(
+    test_state: &mut TestStateBase<T, S>,
 ) {
     let withdrawer = test_state.payer_kp.insecure_clone();
     let (escrow, escrow_ata) = create_escrow(test_state).await;
@@ -457,8 +457,11 @@ pub async fn test_public_withdraw_fails_with_wrong_secret<T: EscrowVariant>(
         .expect_error((0, ProgramError::Custom(EscrowError::InvalidSecret.into())))
 }
 
-pub async fn test_public_withdraw_fails_with_wrong_recipient_ata<T: EscrowVariant>(
-    test_state: &mut TestStateBase<T>,
+pub async fn test_public_withdraw_fails_with_wrong_recipient_ata<
+    T: EscrowVariant<S>,
+    S: TokenVariant,
+>(
+    test_state: &mut TestStateBase<T, S>,
 ) {
     let withdrawer = test_state.recipient_wallet.keypair.insecure_clone();
 
@@ -482,8 +485,11 @@ pub async fn test_public_withdraw_fails_with_wrong_recipient_ata<T: EscrowVarian
         ))
 }
 
-pub async fn test_public_withdraw_fails_with_wrong_escrow_ata<T: EscrowVariant>(
-    test_state: &mut TestStateBase<T>,
+pub async fn test_public_withdraw_fails_with_wrong_escrow_ata<
+    T: EscrowVariant<S>,
+    S: TokenVariant,
+>(
+    test_state: &mut TestStateBase<T, S>,
 ) {
     let withdrawer = test_state.recipient_wallet.keypair.insecure_clone();
 
