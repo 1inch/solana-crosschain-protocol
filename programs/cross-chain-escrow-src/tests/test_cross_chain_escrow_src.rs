@@ -3,6 +3,7 @@ use common::error::EscrowError;
 use common_tests::helpers::*;
 use common_tests::tests as common_escrow_tests;
 use common_tests::{run_for_tokens, wrap_entry};
+use solana_sdk::signer::keypair::Keypair;
 
 use anchor_lang::{InstructionData, Space};
 use anchor_spl::associated_token::ID as spl_associated_token_id;
@@ -254,14 +255,11 @@ run_for_tokens!(
                 common_escrow_tests::test_escrow_creation_fail_with_zero_amount(test_state).await
             }
 
-            #[test_context(TestState)]
-            #[tokio::test]
-            async fn test_escrow_creation_fail_with_zero_safety_deposit(
-                test_state: &mut TestState,
-            ) {
-                common_escrow_tests::test_escrow_creation_fail_with_zero_safety_deposit(test_state)
-                    .await
-            }
+    #[test_context(TestState)]
+    #[tokio::test]
+    async fn test_escrow_creation_fail_with_insufficient_funds(test_state: &mut TestState) {
+        common_escrow_tests::test_escrow_creation_fail_with_insufficient_funds(test_state).await
+    }
 
             #[test_context(TestState)]
             #[tokio::test]
@@ -411,6 +409,48 @@ run_for_tokens!(
 
         mod test_escrow_public_withdraw {
             use super::*;
+
+    #[test_context(TestState)]
+    #[tokio::test]
+    async fn test_public_withdraw_tokens_by_recipient(test_state: &mut TestState) {
+        common_escrow_tests::test_public_withdraw_tokens(
+            test_state,
+            test_state.recipient_wallet.keypair.insecure_clone(),
+        )
+        .await
+    }
+
+    #[test_context(TestState)]
+    #[tokio::test]
+    async fn test_public_withdraw_tokens_by_any_account(test_state: &mut TestState) {
+        let withdrawer = Keypair::new();
+        transfer_lamports(
+            &mut test_state.context,
+            WALLET_DEFAULT_LAMPORTS,
+            &test_state.payer_kp,
+            &withdrawer.pubkey(),
+        )
+        .await;
+        common_escrow_tests::test_public_withdraw_tokens(test_state, withdrawer).await
+    }
+
+    #[test_context(TestState)]
+    #[tokio::test]
+    async fn test_public_withdraw_fails_with_wrong_secret(test_state: &mut TestState) {
+        common_escrow_tests::test_public_withdraw_fails_with_wrong_secret(test_state).await
+    }
+
+    #[test_context(TestState)]
+    #[tokio::test]
+    async fn test_public_withdraw_fails_with_wrong_recipient_ata(test_state: &mut TestState) {
+        common_escrow_tests::test_public_withdraw_fails_with_wrong_recipient_ata(test_state).await
+    }
+
+    #[test_context(TestState)]
+    #[tokio::test]
+    async fn test_public_withdraw_fails_with_wrong_escrow_ata(test_state: &mut TestState) {
+        common_escrow_tests::test_public_withdraw_fails_with_wrong_escrow_ata(test_state).await
+    }
 
             #[test_context(TestState)]
             #[tokio::test]
