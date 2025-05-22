@@ -158,6 +158,7 @@ pub mod cross_chain_escrow_dst {
             &ctx.accounts.escrow_ata,
             &ctx.accounts.recipient,
             &ctx.accounts.recipient_ata,
+            &ctx.accounts.token,
             &ctx.accounts.token_program,
             rescue_amount,
         )

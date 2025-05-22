@@ -243,6 +243,7 @@ pub fn rescue_funds<'info>(
     escrow_ata: &InterfaceAccount<'info, TokenAccount>,
     recipient: &AccountInfo<'info>,
     recipient_ata: &InterfaceAccount<'info, TokenAccount>,
+    token: &InterfaceAccount<'info, Mint>,
     token_program: &Interface<'info, TokenInterface>,
     rescue_amount: u64,
 ) -> Result<()> {
@@ -269,24 +270,26 @@ pub fn rescue_funds<'info>(
     ];
 
     // Transfer tokens from escrow to recipient
-    anchor_spl::token::transfer(
+    anchor_spl::token_2022::transfer_checked(
         CpiContext::new_with_signer(
             token_program.to_account_info(),
-            anchor_spl::token::Transfer {
+            anchor_spl::token_2022::TransferChecked {
                 from: escrow_ata.to_account_info(),
                 to: recipient_ata.to_account_info(),
                 authority: escrow.to_account_info(),
+                mint: token.to_account_info(),
             },
             &[&seeds],
         ),
         rescue_amount,
+        token.decimals,
     )?;
 
     if rescue_amount == escrow_ata.amount {
         // Close the escrow_ata account
-        anchor_spl::token::close_account(CpiContext::new_with_signer(
+        anchor_spl::token_2022::close_account(CpiContext::new_with_signer(
             token_program.to_account_info(),
-            anchor_spl::token::CloseAccount {
+            anchor_spl::token_2022::CloseAccount {
                 account: escrow_ata.to_account_info(),
                 destination: recipient.to_account_info(),
                 authority: escrow.to_account_info(),

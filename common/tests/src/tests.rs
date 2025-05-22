@@ -783,37 +783,37 @@ pub async fn test_rescue_all_tokens_and_close_ata<T: EscrowVariant<S>, S: TokenV
         .await
         .expect_success();
 
-    //let recipient_token_balance_after =
-    //    get_token_balance(&mut test_state.context, &recipient_ata).await;
+    let recipient_token_balance_after =
+        get_token_balance(&mut test_state.context, &recipient_ata).await;
 
-    //let recipient_balance_after = test_state
-    //    .client
-    //    .get_balance(test_state.recipient_wallet.keypair.pubkey())
-    //    .await
-    //    .unwrap();
+    let recipient_balance_after = test_state
+        .client
+        .get_balance(test_state.recipient_wallet.keypair.pubkey())
+        .await
+        .unwrap();
 
-    //// Assert recipient token balance is as expected.
-    //assert_eq!(
-    //    recipient_token_balance_before + test_state.test_arguments.rescue_amount,
-    //    recipient_token_balance_after,
-    //);
+    // Assert recipient token balance is as expected.
+    assert_eq!(
+        recipient_token_balance_before + test_state.test_arguments.rescue_amount,
+        recipient_token_balance_after,
+    );
 
-    //// Assert escrow_ata was closed
-    //assert!(test_state
-    //    .client
-    //    .get_account(escrow_ata)
-    //    .await
-    //    .unwrap()
-    //    .is_none());
+    // Assert escrow_ata was closed
+    assert!(test_state
+        .client
+        .get_account(escrow_ata)
+        .await
+        .unwrap()
+        .is_none());
 
-    //let token_account_rent =
-    //    get_min_rent_for_size(&mut test_state.client, S::get_token_account_size()).await;
+    let token_account_rent =
+        get_min_rent_for_size(&mut test_state.client, S::get_token_account_size()).await;
 
-    //// Assert that rent for escrow_ata has been sent to recipient.
-    //assert_eq!(
-    //    recipient_balance_before + token_account_rent,
-    //    recipient_balance_after
-    //);
+    // Assert that rent for escrow_ata has been sent to recipient.
+    assert_eq!(
+        recipient_balance_before + token_account_rent,
+        recipient_balance_after
+    );
 }
 
 pub async fn test_rescue_part_of_tokens_and_not_close_ata<T: EscrowVariant<S>, S: TokenVariant>(
