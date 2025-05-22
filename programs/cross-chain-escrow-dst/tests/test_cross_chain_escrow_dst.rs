@@ -300,7 +300,6 @@ run_for_tokens!(
                 .await
             }
 
-
             #[test_context(TestState)]
             #[tokio::test]
             async fn test_escrow_creation_fail_when_cancellation_start_gt_src_cancellation_timestamp(
@@ -308,17 +307,7 @@ run_for_tokens!(
             ) {
                 let c: Clock = test_state.client.get_sysvar().await.unwrap();
                 test_state.test_arguments.src_cancellation_timestamp = c.unix_timestamp as u32 + 1;
-                let (_, _, create_ix) = create_escrow_data(test_state);
-
-                let transaction = Transaction::new_signed_with_payer(
-                    &[create_ix],
-                    Some(&test_state.payer_kp.pubkey()),
-                    &[
-                        &test_state.context.payer,
-                        &test_state.creator_wallet.keypair,
-                    ],
-                    test_state.context.last_blockhash,
-                );
+                let (_, _, transaction) = create_escrow_data(test_state);
 
                 test_state
                     .client
@@ -372,7 +361,6 @@ run_for_tokens!(
                 common_escrow_tests::test_withdraw_does_not_work_with_wrong_escrow_ata(test_state)
                     .await
             }
-
 
             #[test_context(TestState)]
             #[tokio::test]

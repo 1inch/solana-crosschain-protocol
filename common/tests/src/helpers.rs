@@ -491,26 +491,16 @@ pub fn create_escrow_data<T: EscrowVariant<S>, S: TokenVariant>(
         &S::get_token_program_id(),
     );
 
-    let instruction: Instruction = T::get_create_ix(test_state, &escrow_pda, &escrow_ata);
+    let tx: Transaction = T::get_create_tx(test_state, &escrow_pda, &escrow_ata);
 
-    (escrow_pda, escrow_ata, instruction)
+    (escrow_pda, escrow_ata, tx)
 }
 
 pub async fn create_escrow_tx<T: EscrowVariant<S>, S: TokenVariant>(
     test_state: &mut TestStateBase<T, S>,
 ) -> (Pubkey, Pubkey, Result<(), BanksClientError>) {
     let mut client = test_state.context.banks_client.clone();
-    let (escrow, escrow_ata, create_ix) = create_escrow_data(test_state);
-
-    let transaction = Transaction::new_signed_with_payer(
-        &[create_ix],
-        Some(&test_state.payer_kp.pubkey()),
-        &[
-            &test_state.context.payer,
-            &test_state.creator_wallet.keypair,
-        ],
-        test_state.context.last_blockhash,
-    );
+    let (escrow, escrow_ata, transaction) = create_escrow_data(test_state);
 
     (
         escrow,
