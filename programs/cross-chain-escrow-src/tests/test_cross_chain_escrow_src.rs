@@ -1,4 +1,5 @@
-use anchor_lang::prelude::AccountInfo;
+use anchor_lang::prelude::{AccountInfo, ErrorCode};
+use anchor_spl::token::spl_token::state::Account as SplTokenAccount;
 use common::error::EscrowError;
 use common_tests::helpers::*;
 use common_tests::tests as common_escrow_tests;
@@ -10,6 +11,7 @@ use anchor_spl::associated_token::ID as spl_associated_token_id;
 use solana_program::{
     instruction::{AccountMeta, Instruction},
     program_error::ProgramError,
+    program_pack::Pack,
     pubkey::Pubkey,
     system_program::ID as system_program_id,
     sysvar::rent::ID as rent_id,
@@ -587,6 +589,7 @@ mod local_helpers {
         test_state: &TestStateBase<SrcProgram, S>,
         escrow: &Pubkey,
         escrow_ata: &Pubkey,
+        canceller: &Keypair,
     ) -> Transaction {
         let instruction_data =
             InstructionData::data(&cross_chain_escrow_src::instruction::PublicCancel {});
@@ -596,7 +599,7 @@ mod local_helpers {
             accounts: vec![
                 AccountMeta::new(test_state.creator_wallet.keypair.pubkey(), false),
                 AccountMeta::new_readonly(test_state.token, false),
-                AccountMeta::new_readonly(test_state.context.payer.pubkey(), true),
+                AccountMeta::new(canceller.pubkey(), true),
                 AccountMeta::new(*escrow, false),
                 AccountMeta::new(*escrow_ata, false),
                 AccountMeta::new(test_state.creator_wallet.token_account, false),
@@ -609,7 +612,7 @@ mod local_helpers {
         Transaction::new_signed_with_payer(
             &[instruction],
             Some(&test_state.payer_kp.pubkey()),
-            &[&test_state.payer_kp],
+            &[&test_state.payer_kp, canceller],
             test_state.context.last_blockhash,
         )
     }
