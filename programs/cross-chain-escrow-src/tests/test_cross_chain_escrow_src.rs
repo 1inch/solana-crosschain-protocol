@@ -451,16 +451,23 @@ run_for_tokens!(
                 let (escrow, escrow_ata) = create_escrow(test_state).await;
                 let public_cancel_ix = create_public_cancel_ix(test_state, &escrow, &escrow_ata);
 
-        set_time(
-            &mut test_state.context,
-            test_state.init_timestamp + DEFAULT_PERIOD_DURATION * PeriodType::Cancellation as u32,
-        );
-        test_state
-            .client
-            .process_transaction(transaction)
-            .await
-            .expect_error((0, ProgramError::Custom(EscrowError::InvalidTime.into())))
- 
+                let transaction = Transaction::new_signed_with_payer(
+                    &[public_cancel_ix],
+                    Some(&test_state.payer_kp.pubkey()),
+                    &[&test_state.payer_kp],
+                    test_state.context.last_blockhash,
+                );
+
+                set_time(
+                    &mut test_state.context,
+                    test_state.init_timestamp
+                        + DEFAULT_PERIOD_DURATION * PeriodType::Cancellation as u32,
+                );
+                test_state
+                    .client
+                    .process_transaction(transaction)
+                    .await
+                    .expect_error((0, ProgramError::Custom(EscrowError::InvalidTime.into())))
             }
         }
         mod test_escrow_rescue_funds {
