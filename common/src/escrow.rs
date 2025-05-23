@@ -1,10 +1,12 @@
-use anchor_lang::prelude::*;
-use anchor_lang::solana_program::keccak::hash;
-use anchor_spl::token_interface::{Mint, TokenAccount, TokenInterface};
-
 use crate::constants::RESCUE_DELAY;
 use crate::error::EscrowError;
 use crate::utils;
+use anchor_lang::prelude::*;
+use anchor_lang::solana_program::keccak::hash;
+use anchor_spl::token_interface::{
+    close_account, transfer_checked, CloseAccount, Mint, TokenAccount, TokenInterface,
+    TransferChecked,
+};
 
 pub trait EscrowBase {
     fn order_hash(&self) -> &[u8; 32];
@@ -61,10 +63,10 @@ pub fn create<'info>(
     }
 
     // Transfer tokens from creator to escrow
-    anchor_spl::token_2022::transfer_checked(
+    transfer_checked(
         CpiContext::new(
             token_program.to_account_info(),
-            anchor_spl::token_2022::TransferChecked {
+            TransferChecked {
                 from: creator_ata.to_account_info(),
                 to: escrow_ata.to_account_info(),
                 authority: creator.to_account_info(),
@@ -115,10 +117,10 @@ where
     ];
 
     // Transfer tokens from escrow to recipient
-    anchor_spl::token_2022::transfer_checked(
+    transfer_checked(
         CpiContext::new_with_signer(
             token_program.to_account_info(),
-            anchor_spl::token_2022::TransferChecked {
+            TransferChecked {
                 from: escrow_ata.to_account_info(),
                 to: recipient_ata.to_account_info(),
                 authority: escrow.to_account_info(),
@@ -178,10 +180,10 @@ where
     ];
 
     // Return tokens to creator
-    anchor_spl::token_2022::transfer_checked(
+    transfer_checked(
         CpiContext::new_with_signer(
             token_program.to_account_info(),
-            anchor_spl::token_2022::TransferChecked {
+            TransferChecked {
                 from: escrow_ata.to_account_info(),
                 to: creator_ata.to_account_info(),
                 authority: escrow.to_account_info(),
@@ -194,9 +196,9 @@ where
     )?;
 
     // Close the escrow_ata account
-    anchor_spl::token_2022::close_account(CpiContext::new_with_signer(
+    close_account(CpiContext::new_with_signer(
         token_program.to_account_info(),
-        anchor_spl::token_2022::CloseAccount {
+        CloseAccount {
             account: escrow_ata.to_account_info(),
             destination: creator.to_account_info(),
             authority: escrow.to_account_info(),
@@ -272,10 +274,10 @@ pub fn rescue_funds<'info>(
     ];
 
     // Transfer tokens from escrow to recipient
-    anchor_spl::token_2022::transfer_checked(
+    transfer_checked(
         CpiContext::new_with_signer(
             token_program.to_account_info(),
-            anchor_spl::token_2022::TransferChecked {
+            TransferChecked {
                 from: escrow_ata.to_account_info(),
                 to: recipient_ata.to_account_info(),
                 authority: escrow.to_account_info(),
@@ -289,9 +291,9 @@ pub fn rescue_funds<'info>(
 
     if rescue_amount == escrow_ata.amount {
         // Close the escrow_ata account
-        anchor_spl::token_2022::close_account(CpiContext::new_with_signer(
+        close_account(CpiContext::new_with_signer(
             token_program.to_account_info(),
-            anchor_spl::token_2022::CloseAccount {
+            CloseAccount {
                 account: escrow_ata.to_account_info(),
                 destination: recipient.to_account_info(),
                 authority: escrow.to_account_info(),
