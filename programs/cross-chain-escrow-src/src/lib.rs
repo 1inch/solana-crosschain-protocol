@@ -239,6 +239,7 @@ pub struct Create<'info> {
 pub struct Withdraw<'info> {
     #[account(constraint = recipient.key() == escrow.recipient @ EscrowError::InvalidAccount)]
     recipient: Signer<'info>,
+    /// CHECK: this account is used only to receive rent and is checked against the one stored in the escrow account
     #[account(
         mut, // Needed because this account receives lamports (safety deposit and rent from closed accounts)
         constraint = rent_recipient.key() == escrow.rent_recipient @ EscrowError::InvalidAccount)]
@@ -282,6 +283,7 @@ pub struct PublicWithdraw<'info> {
     /// CHECK: This account is used to check its pubkey to match the one stored in the escrow account
     #[account(constraint = recipient.key() == escrow.recipient @ EscrowError::InvalidAccount)]
     recipient: AccountInfo<'info>,
+    /// CHECK: this account is used only to receive rent and is checked against the one stored in the escrow account
     #[account(
         mut, // Needed because this account receives lamports (safety deposit and from closed accounts)
         constraint = rent_recipient.key() == escrow.rent_recipient @ EscrowError::InvalidAccount)]
@@ -324,8 +326,9 @@ pub struct PublicWithdraw<'info> {
 
 #[derive(Accounts)]
 pub struct Cancel<'info> {
+    /// CHECK: Currently only used for the token-authority check and to receive lamports if the token is native
     #[account(
-        mut, // Needed because this account receives lamports (safety deposit and from closed accounts)
+        mut, // Needed because this account receives lamports if the token is native
         constraint = creator.key() == escrow.creator @ EscrowError::InvalidAccount
     )]
     // TODO: change signer after adding gasless creation
