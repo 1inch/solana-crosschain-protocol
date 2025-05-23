@@ -94,8 +94,13 @@ run_for_tokens!(
                 test_state: &mut TestState,
             ) {
                 test_state.test_arguments.cancellation_duration = u32::MAX;
-                let (_, _, tx_result) = create_escrow_tx(test_state).await;
-                tx_result.expect_error((0, ProgramError::ArithmeticOverflow));
+                let (_, _, transaction) = create_escrow_data(test_state);
+
+                test_state
+                    .client
+                    .process_transaction(transaction)
+                    .await
+                    .expect_error((0, ProgramError::ArithmeticOverflow));
             }
         }
 

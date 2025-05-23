@@ -44,7 +44,7 @@ pub async fn test_escrow_creation_fail_with_zero_amount<T: EscrowVariant<S>, S: 
     test_state: &mut TestStateBase<T, S>,
 ) {
     test_state.test_arguments.escrow_amount = 0;
-    let (_, escrow_ata, transaction) = get_escrow_addresses(test_state, None);
+    let (_, escrow_ata, transaction) = create_escrow_data(test_state);
 
     test_state
         .client
@@ -66,7 +66,7 @@ pub async fn test_escrow_creation_fail_with_zero_safety_deposit<
     test_state: &mut TestStateBase<T, S>,
 ) {
     test_state.test_arguments.safety_deposit = 0;
-    let (_, escrow_ata, transaction) = get_escrow_addresses(test_state, None);
+    let (_, escrow_ata, transaction) = create_escrow_data(test_state);
 
     test_state
         .client
@@ -88,7 +88,7 @@ pub async fn test_escrow_creation_fail_with_insufficient_funds<
     test_state: &mut TestStateBase<T, S>,
 ) {
     test_state.test_arguments.safety_deposit = WALLET_DEFAULT_LAMPORTS + 1;
-    let (escrow, escrow_ata, transaction) = get_escrow_addresses(test_state, None);
+    let (escrow, escrow_ata, transaction) = create_escrow_data(test_state);
 
     test_state
         .client
@@ -113,7 +113,7 @@ pub async fn test_escrow_creation_fail_with_insufficient_tokens<
     test_state: &mut TestStateBase<T, S>,
 ) {
     test_state.test_arguments.escrow_amount = WALLET_DEFAULT_TOKENS + 1;
-    let (escrow, escrow_ata, transaction) = get_escrow_addresses(test_state, None);
+    let (escrow, escrow_ata, transaction) = create_escrow_data(test_state);
 
     test_state
         .client
@@ -134,7 +134,7 @@ pub async fn test_escrow_creation_fail_with_existing_order_hash<
 >(
     test_state: &mut TestStateBase<T, S>,
 ) {
-    let (_, _, mut transaction) = get_escrow_addresses(test_state, None);
+    let (_, _, mut transaction) = create_escrow_data(test_state);
     // Send the transaction.
     test_state
         .client
@@ -161,7 +161,7 @@ pub async fn test_escrow_creation_fail_with_invalid_rescue_start<
 ) {
     test_state.test_arguments.rescue_start =
         test_state.test_arguments.init_timestamp + RESCUE_DELAY - 100;
-    let (_, escrow_ata, transaction) = get_escrow_addresses(test_state, None);
+    let (_, escrow_ata, transaction) = create_escrow_data(test_state);
 
     test_state
         .client
@@ -668,7 +668,7 @@ pub async fn test_escrow_creation_fail_if_finality_duration_overflows<
     test_state: &mut TestStateBase<T, S>,
 ) {
     test_state.test_arguments.finality_duration = u32::MAX;
-    let (_, _, transaction) = get_escrow_addresses(test_state, None);
+    let (_, _, transaction) = create_escrow_data(test_state);
     test_state
         .client
         .process_transaction(transaction)
@@ -683,7 +683,7 @@ pub async fn test_escrow_creation_fail_if_withdrawal_duration_overflows<
     test_state: &mut TestStateBase<T, S>,
 ) {
     test_state.test_arguments.withdrawal_duration = u32::MAX;
-    let (_, _, transaction) = get_escrow_addresses(test_state, None);
+    let (_, _, transaction) = create_escrow_data(test_state);
     test_state
         .client
         .process_transaction(transaction)
@@ -698,7 +698,7 @@ pub async fn test_escrow_creation_fail_if_public_withdrawal_duration_overflows<
     test_state: &mut TestStateBase<T, S>,
 ) {
     test_state.test_arguments.public_withdrawal_duration = u32::MAX;
-    let (_, _, transaction) = get_escrow_addresses(test_state, None);
+    let (_, _, transaction) = create_escrow_data(test_state);
     test_state
         .client
         .process_transaction(transaction)

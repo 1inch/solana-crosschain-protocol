@@ -77,7 +77,7 @@ run_for_tokens!(
             ) {
                 let c: Clock = test_state.client.get_sysvar().await.unwrap();
                 test_state.test_arguments.src_cancellation_timestamp = c.unix_timestamp as u32 + 1;
-                let (_, _, transaction) = get_escrow_addresses(test_state, None);
+                let (_, _, transaction) = create_escrow_data(test_state);
 
                 test_state
                     .client

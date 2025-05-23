@@ -117,7 +117,7 @@ pub async fn prepare_trading_account<S: TokenVariant>(
     test_state: &mut TestStateBase<SrcProgram, S>,
 ) -> (Pubkey, Pubkey, Pubkey, Pubkey) {
     let (trading_pda, _) = get_trading_addresses(test_state);
-    let (escrow_pda, escrow_ata, _) = get_escrow_addresses(test_state, Some(trading_pda));
+    let (escrow_pda, escrow_ata) = get_escrow_addresses(test_state, trading_pda);
 
     let trading_ata = S::initialize_spl_associated_account(
         &mut test_state.context,
