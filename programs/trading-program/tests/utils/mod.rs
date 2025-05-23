@@ -1,8 +1,6 @@
 use anchor_lang::{prelude::AccountInfo, AnchorSerialize, InstructionData};
-use anchor_spl::{
-    associated_token::{get_associated_token_address, ID as spl_associated_token_id},
-    token::spl_token::ID as spl_program_id,
-};
+use anchor_spl::associated_token::spl_associated_token_account;
+use anchor_spl::associated_token::ID as spl_associated_token_id;
 use common_tests::src_program::SrcProgram;
 use common_tests::{helpers::*, wrap_entry};
 use ed25519_dalek::Keypair as DalekKeypair;
@@ -26,22 +24,20 @@ use std::time::{SystemTime, UNIX_EPOCH};
 use test_context::AsyncTestContext;
 use trading_program::{constants::SEED_PREFIX, utils::Order};
 
-pub struct TestStateTrading {
-    pub base: TestStateBase<SrcProgram>,
+pub struct TestStateTrading<S> {
+    pub base: TestStateBase<SrcProgram, S>,
 }
 
 fn get_trading_program_spec() -> (Pubkey, Option<BuiltinFunctionWithContext>) {
     (trading_program::id(), wrap_entry!(trading_program::entry))
 }
 
-impl AsyncTestContext for TestStateTrading {
-    async fn setup() -> TestStateTrading {
+impl<S: TokenVariant> AsyncTestContext for TestStateTrading<S> {
+    async fn setup() -> TestStateTrading<S> {
         let mut program_test: ProgramTest = ProgramTest::default();
-        add_program_to_test(
-            &mut program_test,
-            "escrow_contract",
-            SrcProgram::get_program_spec,
-        );
+        add_program_to_test(&mut program_test, "escrow_contract", || {
+            <SrcProgram as EscrowVariant<S>>::get_program_spec()
+        });
         add_program_to_test(
             &mut program_test,
             "trading_program",
@@ -58,19 +54,23 @@ impl AsyncTestContext for TestStateTrading {
             .unwrap();
 
         set_time(&mut context, timestamp);
-        let token = deploy_spl_token(&mut context, 8).await.pubkey();
+        let token = S::deploy_spl_token(&mut context).await.pubkey();
         let secret = hash(b"default_secret").to_bytes();
         let payer_kp = context.payer.insecure_clone();
-        let creator_wallet = create_wallet(
+        let creator_wallet = create_wallet::<S>(
             &mut context,
             &token,
+            &payer_kp,
+            &payer_kp,
             WALLET_DEFAULT_LAMPORTS,
             WALLET_DEFAULT_TOKENS,
         )
         .await;
-        let recipient_wallet = create_wallet(
+        let recipient_wallet = create_wallet::<S>(
             &mut context,
             &token,
+            &payer_kp,
+            &payer_kp,
             WALLET_DEFAULT_LAMPORTS,
             WALLET_DEFAULT_TOKENS,
         )
@@ -88,13 +88,15 @@ impl AsyncTestContext for TestStateTrading {
                 recipient_wallet,
                 init_timestamp: timestamp,
                 test_arguments: get_default_testargs(timestamp),
-                pd: PhantomData,
+                pd: (PhantomData, PhantomData),
             },
         }
     }
 }
 
-fn get_trading_addresses(test_state: &TestStateBase<SrcProgram>) -> (Pubkey, Pubkey) {
+fn get_trading_addresses<S: TokenVariant>(
+    test_state: &TestStateBase<SrcProgram, S>,
+) -> (Pubkey, Pubkey) {
     let (trading_pda, _) = Pubkey::find_program_address(
         &[
             SEED_PREFIX,
@@ -102,25 +104,35 @@ fn get_trading_addresses(test_state: &TestStateBase<SrcProgram>) -> (Pubkey, Pub
         ],
         &trading_program::id(),
     );
-    let trading_ata = get_associated_token_address(&trading_pda, &test_state.token);
+    let trading_ata = spl_associated_token_account::get_associated_token_address_with_program_id(
+        &trading_pda,
+        &test_state.token,
+        &S::get_token_program_id(),
+    );
 
     (trading_pda, trading_ata)
 }
 
-pub async fn prepare_trading_account(
-    test_state: &mut TestStateBase<SrcProgram>,
+pub async fn prepare_trading_account<S: TokenVariant>(
+    test_state: &mut TestStateBase<SrcProgram, S>,
 ) -> (Pubkey, Pubkey, Pubkey, Pubkey) {
     let (trading_pda, _) = get_trading_addresses(test_state);
-    let (escrow_pda, escrow_ata) = get_escrow_addresses(test_state, trading_pda);
+    let (escrow_pda, escrow_ata, _) = get_escrow_addresses(test_state, Some(trading_pda));
 
-    let trading_ata =
-        initialize_spl_associated_account(&mut test_state.context, &test_state.token, &trading_pda)
-            .await;
+    let trading_ata = S::initialize_spl_associated_account(
+        &mut test_state.context,
+        &test_state.token,
+        &trading_pda,
+    )
+    .await;
 
-    mint_spl_tokens(
+    let payer_kp = test_state.payer_kp.insecure_clone();
+    S::mint_spl_tokens(
         &mut test_state.context,
         &test_state.token,
         &trading_ata,
+        &payer_kp.pubkey(),
+        &payer_kp,
         test_state.test_arguments.escrow_amount,
     )
     .await;
@@ -128,8 +140,8 @@ pub async fn prepare_trading_account(
     (escrow_pda, escrow_ata, trading_pda, trading_ata)
 }
 
-pub fn create_signinig_default_order_ix(
-    test_state: &mut TestStateBase<SrcProgram>,
+pub fn create_signinig_default_order_ix<S: TokenVariant>(
+    test_state: &mut TestStateBase<SrcProgram, S>,
     signer: Keypair,
 ) -> Instruction {
     let order = Order {
@@ -151,8 +163,8 @@ pub fn create_signinig_default_order_ix(
     new_ed25519_instruction(&dalek_kp, &order_bytes)
 }
 
-pub fn init_escrow_src_tx(
-    test_state: &mut TestStateBase<SrcProgram>,
+pub fn init_escrow_src_tx<S: TokenVariant>(
+    test_state: &mut TestStateBase<SrcProgram, S>,
     escrow_pda: Pubkey,
     escrow_ata: Pubkey,
     trading_pda: Pubkey,
@@ -170,7 +182,7 @@ pub fn init_escrow_src_tx(
             AccountMeta::new(escrow_ata, false),  // escrow_ata
             AccountMeta::new_readonly(ix_sysvar_id, false),
             AccountMeta::new_readonly(spl_associated_token_id, false),
-            AccountMeta::new_readonly(spl_program_id, false),
+            AccountMeta::new_readonly(S::get_token_program_id(), false),
             AccountMeta::new_readonly(rent_id, false),
             AccountMeta::new_readonly(system_program_id, false),
             AccountMeta::new_readonly(cross_chain_escrow_src::id(), false),
@@ -186,8 +198,8 @@ pub fn init_escrow_src_tx(
     )
 }
 
-pub async fn create_escrow_via_trading_program(
-    test_state: &mut TestStateBase<SrcProgram>,
+pub async fn create_escrow_via_trading_program<S: TokenVariant>(
+    test_state: &mut TestStateBase<SrcProgram, S>,
 ) -> (Pubkey, Pubkey, Pubkey, Pubkey) {
     let (escrow_pda, escrow_ata, trading_pda, trading_ata) =
         prepare_trading_account(test_state).await;

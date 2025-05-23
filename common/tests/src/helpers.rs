@@ -95,7 +95,7 @@ pub struct TestStateBase<T: ?Sized, S: ?Sized> {
     pub recipient_wallet: Wallet,
     pub test_arguments: TestArgs,
     pub init_timestamp: u32,
-    _pd: (PhantomData<T>, PhantomData<S>),
+    pub pd: (PhantomData<T>, PhantomData<S>),
 }
 
 #[async_trait]
@@ -436,7 +436,7 @@ where
             recipient_wallet,
             init_timestamp: timestamp,
             test_arguments: get_default_testargs(timestamp),
-            _pd: (PhantomData, PhantomData),
+            pd: (PhantomData, PhantomData),
         }
     }
 }
@@ -456,17 +456,17 @@ impl Clone for Wallet {
     }
 }
 
-pub fn get_escrow_addresses<T: EscrowVariant>(
-    test_state: &TestStateBase<T>,
-    creator: Pubkey,
-) -> (Pubkey, Pubkey) {
+pub fn get_escrow_addresses<T: EscrowVariant<S>, S: TokenVariant>(
+    test_state: &TestStateBase<T, S>,
+    opt_creator: Option<Pubkey>,
+) -> (Pubkey, Pubkey, Transaction) {
     let (program_id, _) = T::get_program_spec();
     let (escrow_pda, _) = Pubkey::find_program_address(
         &[
             b"escrow",
             test_state.order_hash.as_ref(),
             test_state.hashlock.as_ref(),
-            creator.as_ref(),
+            (opt_creator.unwrap_or(test_state.creator_wallet.keypair.pubkey())).as_ref(),
             test_state.recipient_wallet.keypair.pubkey().as_ref(),
             test_state.token.as_ref(),
             test_state
@@ -487,16 +487,23 @@ pub fn get_escrow_addresses<T: EscrowVariant>(
         ],
         &program_id,
     );
-    let escrow_ata = get_associated_token_address(&escrow_pda, &test_state.token);
 
-    (escrow_pda, escrow_ata)
+    let escrow_ata = spl_associated_token_account::get_associated_token_address_with_program_id(
+        &escrow_pda,
+        &test_state.token,
+        &S::get_token_program_id(),
+    );
+
+    let tx: Transaction = T::get_create_tx(test_state, &escrow_pda, &escrow_ata);
+
+    (escrow_pda, escrow_ata, tx)
 }
 
 pub async fn create_escrow_tx<T: EscrowVariant<S>, S: TokenVariant>(
     test_state: &mut TestStateBase<T, S>,
 ) -> (Pubkey, Pubkey, Result<(), BanksClientError>) {
     let mut client = test_state.context.banks_client.clone();
-    let (escrow, escrow_ata, transaction) = create_escrow_data(test_state);
+    let (escrow, escrow_ata, transaction) = get_escrow_addresses(test_state, None);
 
     (
         escrow,
@@ -508,7 +515,7 @@ pub async fn create_escrow_tx<T: EscrowVariant<S>, S: TokenVariant>(
 pub async fn create_escrow<T: EscrowVariant<S>, S: TokenVariant>(
     test_state: &mut TestStateBase<T, S>,
 ) -> (Pubkey, Pubkey) {
-    let (escrow, escrow_ata, tx) = create_escrow_data(test_state);
+    let (escrow, escrow_ata, tx) = get_escrow_addresses(test_state, None);
     test_state
         .client
         .process_transaction(tx)
@@ -723,6 +730,17 @@ macro_rules! run_for_tokens {
         $(mod $mn {
             use super::*;
             type TestState = TestStateBase<$s, $tv>;
+            $b
+          })*
+    };
+}
+
+#[macro_export]
+macro_rules! trading_program_run_for_tokens {
+    ($(($tv:ty, $mn: ident)),* | $b: item) => {
+        $(mod $mn {
+            use super::*;
+            type TestState = TestStateTrading<$tv>;
             $b
           })*
     };

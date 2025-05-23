@@ -1,13 +1,13 @@
 use common::error::EscrowError;
 use common_tests::dst_program::DstProgram;
 use common_tests::helpers::*;
+use common_tests::run_for_tokens;
 use common_tests::tests as common_escrow_tests;
-use solana_program::{program_error::ProgramError, program_pack::Pack};
+use solana_program::program_error::ProgramError;
 use solana_program_test::tokio;
 use solana_sdk::{signature::Signer, signer::keypair::Keypair, sysvar::clock::Clock};
 
 use test_context::test_context;
-
 
 run_for_tokens!(
     (Token2020, token_2020_tests),
@@ -77,7 +77,7 @@ run_for_tokens!(
             ) {
                 let c: Clock = test_state.client.get_sysvar().await.unwrap();
                 test_state.test_arguments.src_cancellation_timestamp = c.unix_timestamp as u32 + 1;
-                let (_, _, transaction) = create_escrow_data(test_state);
+                let (_, _, transaction) = get_escrow_addresses(test_state, None);
 
                 test_state
                     .client
