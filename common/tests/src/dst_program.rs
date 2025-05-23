@@ -74,8 +74,6 @@ impl<S: TokenVariant> EscrowVariant<S> for DstProgram {
         build_withdraw_tx_dst(test_state, escrow, escrow_ata, None)
     }
 
-    }
-
     fn get_cancel_tx(
         test_state: &TestState<S>,
         escrow: &Pubkey,
@@ -153,6 +151,25 @@ impl<S: TokenVariant> EscrowVariant<S> for DstProgram {
             ],
             test_state.context.last_blockhash,
         )
+    }
+
+    fn get_withdraw_tx_opt_creator(
+        test_state: &TestState<S>,
+        escrow: &Pubkey,
+        escrow_ata: &Pubkey,
+        opt_creator: Option<&Pubkey>,
+    ) -> Transaction {
+        build_withdraw_tx_dst(test_state, escrow, escrow_ata, opt_creator)
+    }
+
+    fn get_public_withdraw_tx_opt_creator(
+        test_state: &TestState<S>,
+        escrow: &Pubkey,
+        escrow_ata: &Pubkey,
+        withdrawer: &Keypair,
+        opt_creator: Option<&Pubkey>,
+    ) -> Transaction {
+        build_public_withdraw_tx_dst(test_state, escrow, escrow_ata, withdrawer, opt_creator)
     }
 
     fn get_rescue_funds_tx(

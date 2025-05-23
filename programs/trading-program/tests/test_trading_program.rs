@@ -1,5 +1,6 @@
 use anchor_lang::error::ErrorCode;
 use common_tests::{helpers::*, src_program::SrcProgram};
+use std::marker::PhantomData;
 
 use solana_program::program_error::ProgramError;
 use solana_program_test::tokio;
@@ -188,10 +189,17 @@ mod test_trading_program {
             ));
     }
 
-    #[test_context(TestStateTrading)]
+    pub fn get_token_account_size<S: TokenVariant>(
+        _: PhantomData<TestStateTrading<S>>,
+    ) -> usize {
+        S::get_token_account_size()
+    }
+
+
+    #[test_context(TestState)]
     #[tokio::test]
     async fn test_escrow_withdrawal_via_trading_program_for_resolver(
-        test_state_trading: &mut TestStateTrading,
+        test_state_trading: &mut TestState,
     ) {
         let test_state = &mut test_state_trading.base;
 
@@ -210,7 +218,7 @@ mod test_trading_program {
 
         // Check the lamport balance of escrow account is as expected.
         let escrow_rent_lamports =
-            get_min_rent_for_size(&mut test_state.client, SrcProgram::get_escrow_data_len()).await;
+            get_min_rent_for_size(&mut test_state.client, <SrcProgram as EscrowVariant<Token2020>>::get_escrow_data_len()).await;
         assert_eq!(
             escrow_rent_lamports,
             test_state.client.get_balance(escrow).await.unwrap()
@@ -218,7 +226,7 @@ mod test_trading_program {
 
         // Get the token account rent
         let token_account_rent =
-            get_min_rent_for_size(&mut test_state.client, get_token_account_size()).await;
+            get_min_rent_for_size(&mut test_state.client, get_token_account_size(PhantomData::<TestState>)).await;
 
         // Create the transaction to withdraw from the escrow
         let transaction = SrcProgram::get_withdraw_tx_opt_creator(
@@ -268,10 +276,10 @@ mod test_trading_program {
             .is_none());
     }
 
-    #[test_context(TestStateTrading)]
+    #[test_context(TestState)]
     #[tokio::test]
     async fn test_escrow_public_withdrawal_via_trading_program_for_resolver(
-        test_state_trading: &mut TestStateTrading,
+        test_state_trading: &mut TestState,
     ) {
         let test_state = &mut test_state_trading.base;
 
@@ -290,7 +298,7 @@ mod test_trading_program {
 
         // Check the lamport balance of escrow account is as expected.
         let escrow_rent_lamports =
-            get_min_rent_for_size(&mut test_state.client, SrcProgram::get_escrow_data_len()).await;
+            get_min_rent_for_size(&mut test_state.client, <SrcProgram as EscrowVariant<Token2020>>::get_escrow_data_len()).await;
         assert_eq!(
             escrow_rent_lamports,
             test_state.client.get_balance(escrow).await.unwrap()
@@ -298,7 +306,7 @@ mod test_trading_program {
 
         // Get the token account rent
         let token_account_rent =
-            get_min_rent_for_size(&mut test_state.client, get_token_account_size()).await;
+            get_min_rent_for_size(&mut test_state.client, get_token_account_size(PhantomData::<TestState>)).await;
         let withdrawer = test_state.recipient_wallet.keypair.insecure_clone();
 
         // Create the transaction to withdraw from the escrow
@@ -352,10 +360,10 @@ mod test_trading_program {
             .is_none());
     }
 
-    #[test_context(TestStateTrading)]
+    #[test_context(TestState)]
     #[tokio::test]
     async fn test_escrow_public_withdrawal_via_trading_program_for_any_account(
-        test_state_trading: &mut TestStateTrading,
+        test_state_trading: &mut TestState,
     ) {
         let test_state = &mut test_state_trading.base;
 
@@ -374,7 +382,7 @@ mod test_trading_program {
 
         // Check the lamport balance of escrow account is as expected.
         let escrow_rent_lamports =
-            get_min_rent_for_size(&mut test_state.client, SrcProgram::get_escrow_data_len()).await;
+            get_min_rent_for_size(&mut test_state.client, <SrcProgram as EscrowVariant<Token2020>>::get_escrow_data_len()).await;
         assert_eq!(
             escrow_rent_lamports,
             test_state.client.get_balance(escrow).await.unwrap()
@@ -382,7 +390,7 @@ mod test_trading_program {
 
         // Get the token account rent
         let token_account_rent =
-            get_min_rent_for_size(&mut test_state.client, get_token_account_size()).await;
+            get_min_rent_for_size(&mut test_state.client, get_token_account_size(PhantomData::<TestState>)).await;
 
         let withdrawer = Keypair::new();
         transfer_lamports(

@@ -369,7 +369,7 @@ pub trait EscrowVariant<S: TokenVariant> {
         escrow_ata: &Pubkey,
     ) -> Transaction;
     fn get_withdraw_tx_opt_creator(
-        test_state: &TestStateBase<Self>,
+        test_state: &TestStateBase<Self, S>,
         escrow: &Pubkey,
         escrow_ata: &Pubkey,
         opt_creator: Option<&Pubkey>,
@@ -381,7 +381,7 @@ pub trait EscrowVariant<S: TokenVariant> {
         safety_deposit_recipient: &Keypair,
     ) -> Transaction;
     fn get_public_withdraw_tx_opt_creator(
-        test_state: &TestStateBase<Self>,
+        test_state: &TestStateBase<Self, S>,
         escrow: &Pubkey,
         escrow_ata: &Pubkey,
         safety_deposit_recipient: &Keypair,
@@ -666,15 +666,15 @@ impl<T, S> TestStateBase<T, S> {
                 BalanceChange::Token(k, token_expected_diff) => {
                     assert_eq!(
                         real_diff, *token_expected_diff,
-                        "Token balance changed unexpectedley for {}, left = {}, right = {}",
-                        k, real_diff, token_expected_diff
+                        "Token balance changed unexpectedley for {}, real = {}, expected = {}, diff = {}",
+                        k, real_diff, token_expected_diff, token_expected_diff - real_diff
                     )
                 }
                 BalanceChange::Native(k, native_expected_diff) => {
                     assert_eq!(
                         real_diff, *native_expected_diff,
-                        "SOL balance changed unexpectedley for {}, left = {}, right = {}",
-                        k, real_diff, native_expected_diff
+                        "SOL balance changed unexpectedley for {}, real = {}, expected = {}, diff= {}",
+                        k, real_diff, native_expected_diff, native_expected_diff - real_diff
                     )
                 }
             }
@@ -715,8 +715,8 @@ pub async fn get_min_rent_for_size(client: &mut BanksClient, s: usize) -> u64 {
     rent.minimum_balance(s)
 }
 
-pub fn build_withdraw_tx_src(
-    test_state: &TestStateBase<SrcProgram>,
+pub fn build_withdraw_tx_src<S: TokenVariant>(
+    test_state: &TestStateBase<SrcProgram, S>,
     escrow: &Pubkey,
     escrow_ata: &Pubkey,
     opt_creator: Option<&Pubkey>,
@@ -740,7 +740,7 @@ pub fn build_withdraw_tx_src(
             AccountMeta::new(*escrow, false),
             AccountMeta::new(*escrow_ata, false),
             AccountMeta::new(test_state.recipient_wallet.token_account, false),
-            AccountMeta::new_readonly(spl_program_id, false),
+            AccountMeta::new_readonly(S::get_token_program_id(), false),
             AccountMeta::new_readonly(system_program_id, false),
         ],
         data: instruction_data,
@@ -757,8 +757,8 @@ pub fn build_withdraw_tx_src(
     )
 }
 
-pub fn build_public_withdraw_tx_src(
-    test_state: &TestStateBase<SrcProgram>,
+pub fn build_public_withdraw_tx_src<S: TokenVariant>(
+    test_state: &TestStateBase<SrcProgram, S>,
     escrow: &Pubkey,
     escrow_ata: &Pubkey,
     withdrawer: &Keypair,
@@ -785,7 +785,7 @@ pub fn build_public_withdraw_tx_src(
             AccountMeta::new(*escrow, false),
             AccountMeta::new(*escrow_ata, false),
             AccountMeta::new(test_state.recipient_wallet.token_account, false),
-            AccountMeta::new_readonly(spl_program_id, false),
+            AccountMeta::new_readonly(S::get_token_program_id(), false),
             AccountMeta::new_readonly(system_program_id, false),
         ],
         data: instruction_data,
@@ -801,8 +801,8 @@ pub fn build_public_withdraw_tx_src(
     )
 }
 
-pub fn build_withdraw_tx_dst(
-    test_state: &TestStateBase<DstProgram>,
+pub fn build_withdraw_tx_dst<S: TokenVariant>(
+    test_state: &TestStateBase<DstProgram, S>,
     escrow: &Pubkey,
     escrow_ata: &Pubkey,
     opt_creator: Option<&Pubkey>,
@@ -826,7 +826,7 @@ pub fn build_withdraw_tx_dst(
             AccountMeta::new(*escrow, false),
             AccountMeta::new(*escrow_ata, false),
             AccountMeta::new(test_state.recipient_wallet.token_account, false),
-            AccountMeta::new_readonly(spl_program_id, false),
+            AccountMeta::new_readonly(S::get_token_program_id(), false),
             AccountMeta::new_readonly(system_program_id, false),
         ],
         data: instruction_data,
@@ -843,8 +843,8 @@ pub fn build_withdraw_tx_dst(
     )
 }
 
-pub fn build_public_withdraw_tx_dst(
-    test_state: &TestStateBase<DstProgram>,
+pub fn build_public_withdraw_tx_dst<S: TokenVariant>(
+    test_state: &TestStateBase<DstProgram, S>,
     escrow: &Pubkey,
     escrow_ata: &Pubkey,
     withdrawer: &Keypair,
@@ -871,7 +871,7 @@ pub fn build_public_withdraw_tx_dst(
             AccountMeta::new(*escrow, false),
             AccountMeta::new(*escrow_ata, false),
             AccountMeta::new(test_state.recipient_wallet.token_account, false),
-            AccountMeta::new_readonly(spl_program_id, false),
+            AccountMeta::new_readonly(S::get_token_program_id(), false),
             AccountMeta::new_readonly(system_program_id, false),
         ],
         data: instruction_data,
