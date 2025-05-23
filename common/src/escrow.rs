@@ -292,7 +292,7 @@ where
     let escrow_ata_rent = Rent::get()?.minimum_balance(escrow_ata.to_account_info().data_len());
 
     if sol_destination_ata.is_some() {
-        // using escrow pda as an intermediate account to transfer native tokens
+        // in case of sol_desination_ata provided, we transfer wSOL from the escrow_ata to sol_destination_ata (without unwrapping)
         anchor_spl::token::transfer(
             CpiContext::new_with_signer(
                 token_program.to_account_info(),
