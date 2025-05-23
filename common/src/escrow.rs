@@ -133,9 +133,9 @@ where
     )?;
 
     // Close the escrow_ata account
-    anchor_spl::token_2022::close_account(CpiContext::new_with_signer(
+    close_account(CpiContext::new_with_signer(
         token_program.to_account_info(),
-        anchor_spl::token_2022::CloseAccount {
+        CloseAccount {
             account: escrow_ata.to_account_info(),
             destination: rent_recipient.to_account_info(),
             authority: escrow.to_account_info(),
