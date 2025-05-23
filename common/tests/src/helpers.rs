@@ -891,6 +891,9 @@ macro_rules! wrap_entry {
     };
 }
 
+// These following two macros are used to run the tests against both Token2020 and Token2022 tokens
+// by defining a type alias (TestState) with type parameters that represent Token2020/Token2022 and
+// including the tests in both contexts.
 #[macro_export]
 macro_rules! run_for_tokens {
     ($(($tv:ty, $mn: ident)),* | $s: ty, $b: item) => {
