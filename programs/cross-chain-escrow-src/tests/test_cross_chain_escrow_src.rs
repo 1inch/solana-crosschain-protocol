@@ -119,7 +119,7 @@ run_for_tokens!(
 
             #[test_context(TestState)]
             #[tokio::test]
-            pub async fn test_withdraw(test_state: &mut TestState) {
+            pub async fn test_withdraw_only(test_state: &mut TestState) {
                 common_escrow_tests::test_withdraw(test_state).await
             }
 

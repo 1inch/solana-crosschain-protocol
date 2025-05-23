@@ -142,7 +142,18 @@ pub async fn test_escrow_creation_fail_with_existing_order_hash<
         .await
         .expect_success();
     let new_hash = test_state.context.get_new_latest_blockhash().await.unwrap();
-    transaction.sign(&[&test_state.creator_wallet.keypair], new_hash);
+    if transaction.signatures.len() == 1 {
+        transaction.sign(&[&test_state.creator_wallet.keypair], new_hash);
+    }
+    if transaction.signatures.len() == 2 {
+        transaction.sign(
+            &[
+                &test_state.creator_wallet.keypair,
+                &test_state.context.payer,
+            ],
+            new_hash,
+        );
+    }
     test_state
         .client
         .process_transaction(transaction)
