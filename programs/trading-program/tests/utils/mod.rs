@@ -175,7 +175,7 @@ pub fn init_escrow_src_tx<S: TokenVariant>(
         program_id: trading_program::id(),
         accounts: vec![
             AccountMeta::new(test_state.recipient_wallet.keypair.pubkey(), true), // taker
-            AccountMeta::new(trading_pda, false),                                 // trading_account
+            AccountMeta::new_readonly(trading_pda, false),                        // trading_account
             AccountMeta::new(trading_ata, false), // trading_account_ata
             AccountMeta::new(escrow_pda, false),  // escrow
             AccountMeta::new_readonly(test_state.token, false), // token

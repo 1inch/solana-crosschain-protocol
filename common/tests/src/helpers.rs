@@ -552,7 +552,7 @@ pub async fn create_wallet<S: TokenVariant>(
 
 pub fn add_program_to_test<F>(
     program_test: &mut ProgramTest,
-    program_name: &str,
+    program_name: &'static str,
     get_program_spec: F,
 ) where
     F: Fn() -> (Pubkey, Option<BuiltinFunctionWithContext>),

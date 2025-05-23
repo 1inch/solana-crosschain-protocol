@@ -172,7 +172,6 @@ pub struct Create<'info> {
     #[account(mut)]
     payer: Signer<'info>,
     /// Puts tokens into escrow
-    #[account(mut)]
     creator: Signer<'info>,
     /// CHECK: check is not necessary as token is only used as a constraint to creator_ata and escrow_ata
     token: Box<InterfaceAccount<'info, Mint>>,
