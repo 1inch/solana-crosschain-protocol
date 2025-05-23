@@ -5,6 +5,9 @@ use anchor_spl::associated_token::{
     spl_associated_token_account::instruction::create_associated_token_account,
 };
 use anchor_spl::token::spl_token::{
+    self, instruction::sync_native, native_mint::ID as NATIVE_MINT,
+};
+use anchor_spl::token::spl_token::{
     instruction as spl_instruction,
     state::{Account as SplTokenAccount, Mint},
     ID as spl_program_id,
@@ -18,7 +21,9 @@ use solana_program::{
     pubkey::Pubkey,
 };
 use solana_program_runtime::invoke_context::BuiltinFunctionWithContext;
-use solana_program_test::{BanksClient, BanksClientError, ProgramTest, ProgramTestContext};
+use solana_program_test::{
+    BanksClient, BanksClientError, ProgramTest, ProgramTestBanksClientExt, ProgramTestContext,
+};
 use solana_sdk::system_program::ID as system_program_id;
 use solana_sdk::{
     signature::Signer,
@@ -34,8 +39,10 @@ use test_context::AsyncTestContext;
 use crate::dst_program::DstProgram;
 use crate::src_program::SrcProgram;
 
+pub const DEFAULT_FEE_PER_SIGNATURE_LAMPORTS: u64 = 5000;
+
 pub const WALLET_DEFAULT_LAMPORTS: u64 = 1000000000;
-pub const WALLET_DEFAULT_TOKENS: u64 = 1000;
+pub const WALLET_DEFAULT_TOKENS: u64 = 1000000000;
 
 pub const DEFAULT_PERIOD_DURATION: u32 = 100;
 
@@ -47,7 +54,7 @@ pub enum PeriodType {
     PublicCancellation = 4,
 }
 
-pub const DEFAULT_ESCROW_AMOUNT: u64 = 100;
+pub const DEFAULT_ESCROW_AMOUNT: u64 = 100000;
 pub const DEFAULT_RESCUE_AMOUNT: u64 = 100;
 pub const DEFAULT_SAFETY_DEPOSIT: u64 = 25;
 
@@ -190,6 +197,7 @@ where
 pub struct Wallet {
     pub keypair: Keypair,
     pub token_account: Pubkey,
+    pub native_token_account: Pubkey,
 }
 
 impl Clone for Wallet {
@@ -197,6 +205,7 @@ impl Clone for Wallet {
         Wallet {
             keypair: self.keypair.insecure_clone(),
             token_account: self.token_account,
+            native_token_account: self.native_token_account,
         }
     }
 }
@@ -266,18 +275,29 @@ pub async fn create_wallet(
     mint_tokens: u64,
 ) -> Wallet {
     let dummy_kp = Keypair::new();
-    let ata = initialize_spl_associated_account(ctx, token, &dummy_kp.pubkey()).await;
-    mint_spl_tokens(ctx, token, &ata, mint_tokens).await;
-    transfer_lamports(
-        ctx,
-        fund_lamports,
-        &ctx.payer.insecure_clone(),
-        &dummy_kp.pubkey(),
-    )
-    .await;
+    let user_pubkey = dummy_kp.pubkey();
+    let payer_kp = ctx.payer.insecure_clone();
+
+    // Always initialize native ATA and fund it
+    let native_ata = initialize_spl_associated_account(ctx, &NATIVE_MINT, &user_pubkey).await;
+    transfer_lamports(ctx, fund_lamports, &payer_kp, &user_pubkey).await;
+    transfer_lamports(ctx, fund_lamports, &payer_kp, &native_ata).await;
+    sync_native_ata(ctx, &native_ata).await;
+
+    // Handle non-native token minting
+    let token_ata = if token != &NATIVE_MINT {
+        let ata = initialize_spl_associated_account(ctx, token, &user_pubkey).await;
+        mint_spl_tokens(ctx, token, &ata, mint_tokens).await;
+        transfer_lamports(ctx, fund_lamports, &payer_kp, &user_pubkey).await;
+        ata
+    } else {
+        native_ata
+    };
+
     Wallet {
         keypair: dummy_kp,
-        token_account: ata,
+        token_account: token_ata,
+        native_token_account: native_ata,
     }
 }
 
@@ -336,16 +356,35 @@ pub async fn transfer_lamports(
 ) {
     let transfer_ix = system_instruction::transfer(&src.pubkey(), dst, amount);
     let signers: Vec<&Keypair> = vec![src];
+    // Updating the latest blockhash to avoid the "RpcError(DeadlineExceeded)" error
+    let last_blockhash = ctx
+        .banks_client
+        .get_new_latest_blockhash(&ctx.last_blockhash)
+        .await
+        .unwrap();
     let client = &mut ctx.banks_client;
     client
         .process_transaction(Transaction::new_signed_with_payer(
             &[transfer_ix],
             Some(&ctx.payer.pubkey()),
             &signers,
-            ctx.last_blockhash,
+            last_blockhash,
         ))
         .await
         .unwrap();
+}
+
+pub async fn sync_native_ata(ctx: &mut ProgramTestContext, ata: &Pubkey) {
+    let ix = sync_native(&spl_token::ID, ata).unwrap();
+
+    let tx = Transaction::new_signed_with_payer(
+        &[ix],
+        Some(&ctx.payer.pubkey()),
+        &[&ctx.payer],
+        ctx.last_blockhash,
+    );
+
+    ctx.banks_client.process_transaction(tx).await.unwrap();
 }
 
 pub async fn deploy_spl_token(ctx: &mut ProgramTestContext, decimals: u8) -> Keypair {
@@ -526,25 +565,33 @@ pub fn build_withdraw_tx_src(
     escrow: &Pubkey,
     escrow_ata: &Pubkey,
     opt_rent_recipient: Option<&Pubkey>,
+    opt_sol_destination: Option<&Pubkey>,
 ) -> Transaction {
     let instruction_data = InstructionData::data(&cross_chain_escrow_src::instruction::Withdraw {
         secret: test_state.secret,
     });
 
-    let rent_recipient_pk: Pubkey = match opt_rent_recipient {
-        Some(pubkey) => *pubkey,
-        None => test_state.creator_wallet.keypair.pubkey(),
-    };
+    let rent_recipient_pk = opt_rent_recipient
+        .copied()
+        .unwrap_or_else(|| test_state.creator_wallet.keypair.pubkey());
+
+    let recipient_ata = opt_sol_destination.copied().unwrap_or_else(|| {
+        if test_state.token == NATIVE_MINT {
+            cross_chain_escrow_src::id()
+        } else {
+            test_state.recipient_wallet.token_account
+        }
+    });
 
     let instruction: Instruction = Instruction {
         program_id: cross_chain_escrow_src::id(),
         accounts: vec![
-            AccountMeta::new_readonly(test_state.recipient_wallet.keypair.pubkey(), true),
+            AccountMeta::new(test_state.recipient_wallet.keypair.pubkey(), true),
             AccountMeta::new(rent_recipient_pk, false),
             AccountMeta::new_readonly(test_state.token, false),
             AccountMeta::new(*escrow, false),
             AccountMeta::new(*escrow_ata, false),
-            AccountMeta::new(test_state.recipient_wallet.token_account, false),
+            AccountMeta::new(recipient_ata, false),
             AccountMeta::new_readonly(spl_program_id, false),
             AccountMeta::new_readonly(system_program_id, false),
         ],
@@ -568,27 +615,35 @@ pub fn build_public_withdraw_tx_src(
     escrow_ata: &Pubkey,
     withdrawer: &Keypair,
     opt_rent_recipient: Option<&Pubkey>,
+    opt_sol_destination: Option<&Pubkey>,
 ) -> Transaction {
     let instruction_data =
         InstructionData::data(&cross_chain_escrow_src::instruction::PublicWithdraw {
             secret: test_state.secret,
         });
 
-    let rent_recipient_pk: Pubkey = match opt_rent_recipient {
-        Some(pubkey) => *pubkey,
-        None => test_state.creator_wallet.keypair.pubkey(),
-    };
+    let rent_recipient_pk = opt_rent_recipient
+        .copied()
+        .unwrap_or_else(|| test_state.creator_wallet.keypair.pubkey());
+
+    let recipient_ata = opt_sol_destination.copied().unwrap_or_else(|| {
+        if test_state.token == NATIVE_MINT {
+            cross_chain_escrow_src::id()
+        } else {
+            test_state.recipient_wallet.token_account
+        }
+    });
 
     let instruction: Instruction = Instruction {
         program_id: cross_chain_escrow_src::id(),
         accounts: vec![
-            AccountMeta::new_readonly(test_state.recipient_wallet.keypair.pubkey(), false),
+            AccountMeta::new(test_state.recipient_wallet.keypair.pubkey(), false),
             AccountMeta::new(rent_recipient_pk, false),
             AccountMeta::new(withdrawer.pubkey(), true),
             AccountMeta::new_readonly(test_state.token, false),
             AccountMeta::new(*escrow, false),
             AccountMeta::new(*escrow_ata, false),
-            AccountMeta::new(test_state.recipient_wallet.token_account, false),
+            AccountMeta::new(recipient_ata, false),
             AccountMeta::new_readonly(spl_program_id, false),
             AccountMeta::new_readonly(system_program_id, false),
         ],
@@ -614,15 +669,21 @@ pub fn build_withdraw_tx_dst(
         secret: test_state.secret,
     });
 
+    let recipient_ata = if test_state.token == NATIVE_MINT {
+        cross_chain_escrow_dst::id()
+    } else {
+        test_state.recipient_wallet.token_account
+    };
+
     let instruction: Instruction = Instruction {
         program_id: cross_chain_escrow_dst::id(),
         accounts: vec![
             AccountMeta::new(test_state.creator_wallet.keypair.pubkey(), true),
-            AccountMeta::new_readonly(test_state.recipient_wallet.keypair.pubkey(), false),
+            AccountMeta::new(test_state.recipient_wallet.keypair.pubkey(), false),
             AccountMeta::new_readonly(test_state.token, false),
             AccountMeta::new(*escrow, false),
             AccountMeta::new(*escrow_ata, false),
-            AccountMeta::new(test_state.recipient_wallet.token_account, false),
+            AccountMeta::new(recipient_ata, false),
             AccountMeta::new_readonly(spl_program_id, false),
             AccountMeta::new_readonly(system_program_id, false),
         ],
@@ -651,16 +712,22 @@ pub fn build_public_withdraw_tx_dst(
             secret: test_state.secret,
         });
 
+    let recipient_ata = if test_state.token == NATIVE_MINT {
+        cross_chain_escrow_dst::id()
+    } else {
+        test_state.recipient_wallet.token_account
+    };
+
     let instruction: Instruction = Instruction {
         program_id: cross_chain_escrow_dst::id(),
         accounts: vec![
             AccountMeta::new(test_state.creator_wallet.keypair.pubkey(), false),
-            AccountMeta::new_readonly(test_state.recipient_wallet.keypair.pubkey(), false),
+            AccountMeta::new(test_state.recipient_wallet.keypair.pubkey(), false),
             AccountMeta::new(withdrawer.pubkey(), true),
             AccountMeta::new_readonly(test_state.token, false),
             AccountMeta::new(*escrow, false),
             AccountMeta::new(*escrow_ata, false),
-            AccountMeta::new(test_state.recipient_wallet.token_account, false),
+            AccountMeta::new(recipient_ata, false),
             AccountMeta::new_readonly(spl_program_id, false),
             AccountMeta::new_readonly(system_program_id, false),
         ],
@@ -681,13 +748,24 @@ pub fn build_cancel_tx(
     escrow_ata: &Pubkey,
     opt_creator_pk_and_ata: Option<(Pubkey, Pubkey)>,
     opt_rent_recipient: Option<Pubkey>,
+    opt_sol_destination: Option<&Pubkey>,
 ) -> Transaction {
     let instruction_data = InstructionData::data(&cross_chain_escrow_src::instruction::Cancel {});
 
-    let (creator_acc, creator_ata) = opt_creator_pk_and_ata.unwrap_or((
-        test_state.creator_wallet.keypair.pubkey(),
-        test_state.creator_wallet.token_account,
-    ));
+    let (creator_acc, default_creator_ata) = opt_creator_pk_and_ata.unwrap_or_else(|| {
+        (
+            test_state.creator_wallet.keypair.pubkey(),
+            test_state.creator_wallet.token_account,
+        )
+    });
+
+    let creator_ata = opt_sol_destination.copied().unwrap_or_else(|| {
+        if test_state.token == NATIVE_MINT {
+            cross_chain_escrow_src::id()
+        } else {
+            default_creator_ata
+        }
+    });
 
     let rent_recipient = opt_rent_recipient.unwrap_or(test_state.creator_wallet.keypair.pubkey());
 

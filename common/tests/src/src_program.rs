@@ -1,5 +1,6 @@
 use crate::helpers::*;
 use anchor_lang::prelude::AccountInfo;
+use anchor_spl::token::spl_token::native_mint::ID as NATIVE_MINT;
 use solana_program_runtime::invoke_context::BuiltinFunctionWithContext;
 use solana_sdk::{signature::Signer, signer::keypair::Keypair, transaction::Transaction};
 
@@ -55,13 +56,19 @@ impl EscrowVariant for SrcProgram {
                 rescue_start: test_state.test_arguments.rescue_start,
             });
 
+        let creator_ata = if test_state.token == NATIVE_MINT {
+            cross_chain_escrow_src::id()
+        } else {
+            test_state.creator_wallet.token_account
+        };
+
         let instruction: Instruction = Instruction {
             program_id: cross_chain_escrow_src::id(),
             accounts: vec![
                 AccountMeta::new(test_state.creator_wallet.keypair.pubkey(), true),
-                AccountMeta::new_readonly(test_state.creator_wallet.keypair.pubkey(), true),
+                AccountMeta::new(test_state.creator_wallet.keypair.pubkey(), true),
                 AccountMeta::new_readonly(test_state.token, false),
-                AccountMeta::new(test_state.creator_wallet.token_account, false),
+                AccountMeta::new(creator_ata, false),
                 AccountMeta::new(*escrow, false),
                 AccountMeta::new(*escrow_ata, false),
                 AccountMeta::new_readonly(spl_associated_token_id, false),
@@ -84,7 +91,7 @@ impl EscrowVariant for SrcProgram {
         escrow: &Pubkey,
         escrow_ata: &Pubkey,
     ) -> Transaction {
-        build_withdraw_tx_src(test_state, escrow, escrow_ata, None)
+        build_withdraw_tx_src(test_state, escrow, escrow_ata, None, None)
     }
 
     fn get_public_withdraw_tx(
@@ -93,7 +100,7 @@ impl EscrowVariant for SrcProgram {
         escrow_ata: &Pubkey,
         withdrawer: &Keypair,
     ) -> Transaction {
-        build_public_withdraw_tx_src(test_state, escrow, escrow_ata, withdrawer, None)
+        build_public_withdraw_tx_src(test_state, escrow, escrow_ata, withdrawer, None, None)
     }
 
     fn get_cancel_tx(
@@ -101,7 +108,7 @@ impl EscrowVariant for SrcProgram {
         escrow: &Pubkey,
         escrow_ata: &Pubkey,
     ) -> Transaction {
-        build_cancel_tx(test_state, escrow, escrow_ata, None, None)
+        build_cancel_tx(test_state, escrow, escrow_ata, None, None, None)
     }
 
     fn get_rescue_funds_tx(

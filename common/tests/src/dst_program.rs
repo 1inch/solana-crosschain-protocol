@@ -1,5 +1,6 @@
 use crate::helpers::*;
 use anchor_lang::prelude::AccountInfo;
+use anchor_spl::token::spl_token::native_mint::ID as NATIVE_MINT;
 use solana_program_runtime::invoke_context::BuiltinFunctionWithContext;
 use solana_sdk::{signature::Signer, signer::keypair::Keypair, transaction::Transaction};
 
@@ -55,13 +56,19 @@ impl EscrowVariant for DstProgram {
                 rescue_start: test_state.test_arguments.rescue_start,
             });
 
+        let creator_ata = if test_state.token == NATIVE_MINT {
+            cross_chain_escrow_dst::id()
+        } else {
+            test_state.creator_wallet.token_account
+        };
+
         let instruction: Instruction = Instruction {
             program_id: cross_chain_escrow_dst::id(),
             accounts: vec![
                 AccountMeta::new(test_state.creator_wallet.keypair.pubkey(), true),
-                AccountMeta::new_readonly(test_state.creator_wallet.keypair.pubkey(), true),
+                AccountMeta::new(test_state.creator_wallet.keypair.pubkey(), true),
                 AccountMeta::new_readonly(test_state.token, false),
-                AccountMeta::new(test_state.creator_wallet.token_account, false),
+                AccountMeta::new(creator_ata, false),
                 AccountMeta::new(*escrow, false),
                 AccountMeta::new(*escrow_ata, false),
                 AccountMeta::new_readonly(spl_associated_token_id, false),
@@ -105,6 +112,12 @@ impl EscrowVariant for DstProgram {
         let instruction_data =
             InstructionData::data(&cross_chain_escrow_dst::instruction::Cancel {});
 
+        let creator_ata = if test_state.token == NATIVE_MINT {
+            cross_chain_escrow_dst::id()
+        } else {
+            test_state.creator_wallet.token_account
+        };
+
         let instruction: Instruction = Instruction {
             program_id: cross_chain_escrow_dst::id(),
             accounts: vec![
@@ -112,7 +125,7 @@ impl EscrowVariant for DstProgram {
                 AccountMeta::new_readonly(test_state.token, false),
                 AccountMeta::new(*escrow, false),
                 AccountMeta::new(*escrow_ata, false),
-                AccountMeta::new(test_state.creator_wallet.token_account, false),
+                AccountMeta::new(creator_ata, false),
                 AccountMeta::new_readonly(spl_program_id, false),
                 AccountMeta::new_readonly(system_program_id, false),
             ],

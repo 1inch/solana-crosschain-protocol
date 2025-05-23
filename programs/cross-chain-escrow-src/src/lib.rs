@@ -40,12 +40,15 @@ pub mod cross_chain_escrow_src {
             .checked_add(cancellation_duration)
             .ok_or(ProgramError::ArithmeticOverflow)?;
 
+        let creator_ata = ctx.accounts.creator_ata.as_deref();
+
         common::escrow::create(
             EscrowSrc::INIT_SPACE + constants::DISCRIMINATOR,
             &ctx.accounts.creator,
             &ctx.accounts.escrow_ata,
-            &ctx.accounts.creator_ata,
+            creator_ata,
             &ctx.accounts.token_program,
+            &ctx.accounts.system_program,
             amount,
             safety_deposit,
             rescue_start,
@@ -83,11 +86,14 @@ pub mod cross_chain_escrow_src {
         // In a standard withdrawal, the rent recipient receives the entire rent amount, including the safety deposit,
         // because they initially covered the entire rent during escrow creation.
 
+        let recipient_ata = ctx.accounts.recipient_ata.as_deref();
+
         common::escrow::withdraw(
             &ctx.accounts.escrow,
             ctx.bumps.escrow,
             &ctx.accounts.escrow_ata,
-            &ctx.accounts.recipient_ata,
+            &ctx.accounts.recipient,
+            recipient_ata,
             &ctx.accounts.token_program,
             &ctx.accounts.rent_recipient,
             &ctx.accounts.rent_recipient,
@@ -106,11 +112,14 @@ pub mod cross_chain_escrow_src {
         // In a public withdrawal, the rent recipient receives the rent minus the safety deposit
         // while the safety deposit is awarded to the payer who executed the public withdrawal
 
+        let recipient_ata = ctx.accounts.recipient_ata.as_deref();
+
         common::escrow::withdraw(
             &ctx.accounts.escrow,
             ctx.bumps.escrow,
             &ctx.accounts.escrow_ata,
-            &ctx.accounts.recipient_ata,
+            &ctx.accounts.recipient,
+            recipient_ata,
             &ctx.accounts.token_program,
             &ctx.accounts.rent_recipient,
             &ctx.accounts.payer,
@@ -126,11 +135,15 @@ pub mod cross_chain_escrow_src {
 
         // In a standard cancel, the rent recipient receives the entire rent amount, including the safety deposit,
         // because they initially covered the entire rent during escrow creation.
+
+        let creator_ata = ctx.accounts.creator_ata.as_deref();
+
         common::escrow::cancel(
             &ctx.accounts.escrow,
             ctx.bumps.escrow,
             &ctx.accounts.escrow_ata,
-            &ctx.accounts.creator_ata,
+            &ctx.accounts.creator,
+            creator_ata,
             &ctx.accounts.token_program,
             &ctx.accounts.rent_recipient,
             &ctx.accounts.rent_recipient,
@@ -143,11 +156,14 @@ pub mod cross_chain_escrow_src {
             return err!(EscrowError::InvalidTime);
         }
 
+        let creator_ata = ctx.accounts.creator_ata.as_deref();
+
         common::escrow::cancel(
             &ctx.accounts.escrow,
             ctx.bumps.escrow,
             &ctx.accounts.escrow_ata,
-            &ctx.accounts.creator_ata,
+            &ctx.accounts.creator,
+            creator_ata,
             &ctx.accounts.token_program,
             &ctx.accounts.rent_recipient,
             &ctx.accounts.payer,
@@ -190,7 +206,9 @@ pub struct Create<'info> {
     /// Pays for the creation of escrow account
     #[account(mut)]
     payer: Signer<'info>,
-    /// Puts tokens into escrow
+    #[account(
+        mut, // Needed because this account transfers lamports if the token is native
+    )]
     creator: Signer<'info>,
     /// CHECK: check is not necessary as token is only used as a constraint to creator_ata and escrow_ata
     token: Box<Account<'info, Mint>>,
@@ -199,8 +217,8 @@ pub struct Create<'info> {
         associated_token::mint = token,
         associated_token::authority = creator,
     )]
-    /// Account to store creator's tokens
-    creator_ata: Box<Account<'info, TokenAccount>>,
+    /// Account to store creator's tokens (Optional if the token is native)
+    creator_ata: Option<Box<Account<'info, TokenAccount>>>,
     /// Account to store escrow details
     #[account(
         init,
@@ -239,7 +257,9 @@ pub struct Create<'info> {
 
 #[derive(Accounts)]
 pub struct Withdraw<'info> {
-    #[account(constraint = recipient.key() == escrow.recipient @ EscrowError::InvalidAccount)]
+    #[account(
+        mut, // Needed because this account receives unwrapped SOL if the token is native
+        constraint = recipient.key() == escrow.recipient @ EscrowError::InvalidAccount)]
     recipient: Signer<'info>,
     #[account(
         mut, // Needed because this account receives lamports (safety deposit and rent from closed accounts)
@@ -273,7 +293,8 @@ pub struct Withdraw<'info> {
         associated_token::mint = token,
         associated_token::authority = recipient,
     )]
-    recipient_ata: Box<Account<'info, TokenAccount>>,
+    // Optional if the token is native)
+    recipient_ata: Option<Box<Account<'info, TokenAccount>>>,
     #[account(address = TOKEN_PROGRAM_ID)]
     token_program: Program<'info, Token>,
     system_program: Program<'info, System>,
@@ -282,7 +303,10 @@ pub struct Withdraw<'info> {
 #[derive(Accounts)]
 pub struct PublicWithdraw<'info> {
     /// CHECK: This account is used to check its pubkey to match the one stored in the escrow account
-    #[account(constraint = recipient.key() == escrow.recipient @ EscrowError::InvalidAccount)]
+    /// Or to receive lamports if the token is native
+    #[account(
+        mut, // Needed because this account receives unwrapped SOL if the token is native
+        constraint = recipient.key() == escrow.recipient @ EscrowError::InvalidAccount)]
     recipient: AccountInfo<'info>,
     #[account(
         mut, // Needed because this account receives lamports (safety deposit and from closed accounts)
@@ -318,7 +342,8 @@ pub struct PublicWithdraw<'info> {
         associated_token::mint = token,
         associated_token::authority = recipient,
     )]
-    recipient_ata: Box<Account<'info, TokenAccount>>,
+    // Optional if the token is native
+    recipient_ata: Option<Box<Account<'info, TokenAccount>>>,
     #[account(address = TOKEN_PROGRAM_ID)]
     token_program: Program<'info, Token>,
     system_program: Program<'info, System>,
@@ -360,7 +385,8 @@ pub struct Cancel<'info> {
         associated_token::mint = token,
         associated_token::authority = creator,
     )]
-    creator_ata: Box<Account<'info, TokenAccount>>,
+    // Optional if the token is native
+    creator_ata: Option<Box<Account<'info, TokenAccount>>>,
     #[account(mut, constraint = rent_recipient.key() == escrow.rent_recipient @ EscrowError::InvalidAccount)]
     rent_recipient: AccountInfo<'info>,
     #[account(address = TOKEN_PROGRAM_ID)]
@@ -406,7 +432,8 @@ pub struct PublicCancel<'info> {
         associated_token::mint = token,
         associated_token::authority = creator,
     )]
-    creator_ata: Box<Account<'info, TokenAccount>>,
+    // Optional if the token is native
+    creator_ata: Option<Box<Account<'info, TokenAccount>>>,
     #[account(mut, constraint = rent_recipient.key() == escrow.rent_recipient @ EscrowError::InvalidAccount)]
     rent_recipient: AccountInfo<'info>,
     #[account(address = TOKEN_PROGRAM_ID)]

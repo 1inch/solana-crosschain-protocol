@@ -1,7 +1,7 @@
 use anchor_lang::{prelude::AccountInfo, AnchorSerialize, InstructionData};
 use anchor_spl::{
     associated_token::{get_associated_token_address, ID as spl_associated_token_id},
-    token::spl_token::ID as spl_program_id,
+    token::spl_token::{self, ID as spl_program_id},
 };
 use common_tests::src_program::SrcProgram;
 use common_tests::{helpers::*, wrap_entry};
@@ -94,6 +94,70 @@ impl AsyncTestContext for TestStateTrading {
     }
 }
 
+pub struct TestStateTradingNative {
+    pub base: TestStateBase<SrcProgram>,
+}
+
+impl AsyncTestContext for TestStateTradingNative {
+    async fn setup() -> TestStateTradingNative {
+        let mut program_test: ProgramTest = ProgramTest::default();
+        add_program_to_test(
+            &mut program_test,
+            "escrow_contract",
+            SrcProgram::get_program_spec,
+        );
+        add_program_to_test(
+            &mut program_test,
+            "trading_program",
+            get_trading_program_spec,
+        );
+        let mut context: ProgramTestContext = program_test.start_with_context().await;
+
+        let client: BanksClient = context.banks_client.clone();
+        let timestamp: u32 = SystemTime::now()
+            .duration_since(UNIX_EPOCH)
+            .expect("Time went backwards")
+            .as_secs()
+            .try_into()
+            .unwrap();
+
+        set_time(&mut context, timestamp);
+        let token = spl_token::native_mint::id();
+        let secret = hash(b"default_secret").to_bytes();
+        let payer_kp = context.payer.insecure_clone();
+        let creator_wallet = create_wallet(
+            &mut context,
+            &token,
+            WALLET_DEFAULT_LAMPORTS,
+            WALLET_DEFAULT_TOKENS,
+        )
+        .await;
+        let recipient_wallet = create_wallet(
+            &mut context,
+            &token,
+            WALLET_DEFAULT_LAMPORTS,
+            WALLET_DEFAULT_TOKENS,
+        )
+        .await;
+        TestStateTradingNative {
+            base: TestStateBase {
+                context,
+                client,
+                secret,
+                order_hash: Hash::new_unique(),
+                hashlock: hash(secret.as_ref()),
+                token,
+                payer_kp: payer_kp.insecure_clone(),
+                creator_wallet,
+                recipient_wallet,
+                init_timestamp: timestamp,
+                test_arguments: get_default_testargs(timestamp),
+                pd: PhantomData,
+            },
+        }
+    }
+}
+
 fn get_trading_addresses(test_state: &TestStateBase<SrcProgram>) -> (Pubkey, Pubkey) {
     let (trading_pda, _) = Pubkey::find_program_address(
         &[
@@ -113,18 +177,30 @@ pub async fn prepare_trading_account(
     let (trading_pda, _) = get_trading_addresses(test_state);
     let (escrow_pda, escrow_ata) = get_escrow_addresses(test_state, trading_pda);
 
+    let payer_kp = test_state.payer_kp.insecure_clone();
+
     let trading_ata =
         initialize_spl_associated_account(&mut test_state.context, &test_state.token, &trading_pda)
             .await;
+    if test_state.token != spl_token::native_mint::id() {
+        mint_spl_tokens(
+            &mut test_state.context,
+            &test_state.token,
+            &trading_ata,
+            test_state.test_arguments.escrow_amount,
+        )
+        .await;
+    } else {
+        transfer_lamports(
+            &mut test_state.context,
+            WALLET_DEFAULT_LAMPORTS,
+            &payer_kp,
+            &trading_ata,
+        )
+        .await;
 
-    mint_spl_tokens(
-        &mut test_state.context,
-        &test_state.token,
-        &trading_ata,
-        test_state.test_arguments.escrow_amount,
-    )
-    .await;
-
+        sync_native_ata(&mut test_state.context, &trading_ata).await;
+    }
     (escrow_pda, escrow_ata, trading_pda, trading_ata)
 }
 
@@ -163,7 +239,7 @@ pub fn init_escrow_src_tx(
         program_id: trading_program::id(),
         accounts: vec![
             AccountMeta::new(test_state.recipient_wallet.keypair.pubkey(), true), // taker
-            AccountMeta::new_readonly(trading_pda, false),                        // trading_account
+            AccountMeta::new(trading_pda, false),                                 // trading_account
             AccountMeta::new(trading_ata, false), // trading_account_ata
             AccountMeta::new(escrow_pda, false),  // escrow
             AccountMeta::new_readonly(test_state.token, false), // token

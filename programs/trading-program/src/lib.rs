@@ -43,7 +43,7 @@ pub mod trading_program {
                     payer: ctx.accounts.taker.to_account_info(),
                     creator: ctx.accounts.trading_account.to_account_info(),
                     token: ctx.accounts.token.to_account_info(),
-                    creator_ata: ctx.accounts.trading_account_ata.to_account_info(),
+                    creator_ata: Some(ctx.accounts.trading_account_ata.to_account_info()),
                     escrow: ctx.accounts.escrow.to_account_info(),
                     escrow_ata: ctx.accounts.escrow_ata.to_account_info(),
                     associated_token_program: ctx
@@ -82,6 +82,10 @@ pub struct InitEscrowSrc<'info> {
     pub taker: Signer<'info>,
 
     /// CHECK: check is not needed here as we never initialize the account
+    #[account(
+        mut, // Needed because of the mut constraint on the original program,
+        // since we alraedy store wSOL in the trading account ATA, this account will not be mutated
+    )]
     pub trading_account: UncheckedAccount<'info>,
 
     #[account(
