@@ -120,7 +120,7 @@ impl<S: TokenVariant> EscrowVariant<S> for SrcProgram {
         let instruction: Instruction = Instruction {
             program_id: cross_chain_escrow_src::id(),
             accounts: vec![
-                AccountMeta::new(test_state.payer_kp.pubkey(), true),
+                AccountMeta::new(test_state.creator_wallet.keypair.pubkey(), true),
                 AccountMeta::new_readonly(test_state.creator_wallet.keypair.pubkey(), true),
                 AccountMeta::new_readonly(test_state.token, false),
                 AccountMeta::new(test_state.creator_wallet.token_account, false),
@@ -135,11 +135,8 @@ impl<S: TokenVariant> EscrowVariant<S> for SrcProgram {
         };
         Transaction::new_signed_with_payer(
             &[instruction],
-            Some(&test_state.payer_kp.pubkey()),
-            &[
-                &test_state.context.payer,
-                &test_state.creator_wallet.keypair,
-            ],
+            Some(&test_state.creator_wallet.keypair.pubkey()),
+            &[&test_state.creator_wallet.keypair],
             test_state.context.last_blockhash,
         )
     }

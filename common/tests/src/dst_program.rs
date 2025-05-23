@@ -129,7 +129,7 @@ impl<S: TokenVariant> EscrowVariant<S> for DstProgram {
         let instruction: Instruction = Instruction {
             program_id: cross_chain_escrow_dst::id(),
             accounts: vec![
-                AccountMeta::new(test_state.payer_kp.pubkey(), true),
+                AccountMeta::new(test_state.creator_wallet.keypair.pubkey(), true),
                 AccountMeta::new_readonly(test_state.creator_wallet.keypair.pubkey(), true),
                 AccountMeta::new_readonly(test_state.token, false),
                 AccountMeta::new(test_state.creator_wallet.token_account, false),

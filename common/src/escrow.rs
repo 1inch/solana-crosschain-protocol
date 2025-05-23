@@ -28,6 +28,8 @@ pub trait EscrowBase {
     fn cancellation_start(&self) -> u32;
 
     fn rescue_start(&self) -> u32;
+
+    fn rent_recipient(&self) -> &Pubkey;
 }
 
 pub fn create<'info>(
@@ -82,7 +84,7 @@ pub fn withdraw<'info, T>(
     recipient_ata: &InterfaceAccount<'info, TokenAccount>,
     token: &InterfaceAccount<'info, Mint>,
     token_program: &Interface<'info, TokenInterface>,
-    creator: &AccountInfo<'info>,
+    rent_recipient: &AccountInfo<'info>,
     safety_deposit_recipient: &AccountInfo<'info>,
     secret: [u8; 32],
 ) -> Result<()>
@@ -133,14 +135,14 @@ where
         token_program.to_account_info(),
         anchor_spl::token_2022::CloseAccount {
             account: escrow_ata.to_account_info(),
-            destination: creator.to_account_info(),
+            destination: rent_recipient.to_account_info(),
             authority: escrow.to_account_info(),
         },
         &[&seeds],
     ))?;
 
     // Close the escrow account
-    close_escrow_account(escrow, safety_deposit_recipient, creator)?;
+    close_escrow_account(escrow, safety_deposit_recipient, rent_recipient)?;
 
     Ok(())
 }
@@ -211,20 +213,20 @@ where
 fn close_escrow_account<'info, T>(
     escrow: &Account<'info, T>,
     safety_deposit_recipient: &AccountInfo<'info>,
-    creator: &AccountInfo<'info>,
+    rent_recipient: &AccountInfo<'info>,
 ) -> Result<()>
 where
     T: EscrowBase + AccountSerialize + AccountDeserialize + Clone,
 {
     // Transfer safety_deposit from escrow to safety_deposit_recipient
-    if creator.key() != safety_deposit_recipient.key() {
+    if rent_recipient.key() != safety_deposit_recipient.key() {
         let safety_deposit = escrow.safety_deposit();
         escrow.sub_lamports(safety_deposit)?;
         safety_deposit_recipient.add_lamports(safety_deposit)?;
     }
 
-    // Close escrow account and transfer remaining lamports to creator
-    escrow.close(creator.to_account_info())?;
+    // Close escrow account and transfer remaining lamports to rent_recipient
+    escrow.close(rent_recipient.to_account_info())?;
 
     Ok(())
 }

@@ -203,7 +203,7 @@ mod test_trading_program {
     ) {
         let test_state = &mut test_state_trading.base;
 
-        let (escrow, escrow_ata, trading_pda, trading_ata) =
+        let (escrow, escrow_ata, _, trading_ata) =
             create_escrow_via_trading_program(test_state).await;
 
         // Check token balances for the escrow account and creator are as expected.
@@ -229,11 +229,11 @@ mod test_trading_program {
             get_min_rent_for_size(&mut test_state.client, get_token_account_size(PhantomData::<TestState>)).await;
 
         // Create the transaction to withdraw from the escrow
-        let transaction = SrcProgram::get_withdraw_tx_opt_creator(
+        let transaction = SrcProgram::get_withdraw_tx_opt_rent_recipient(
             test_state,
             &escrow,
             &escrow_ata,
-            Some(&trading_pda),
+            Some(&test_state.recipient_wallet.keypair.pubkey()),
         );
 
         set_time(
@@ -283,7 +283,7 @@ mod test_trading_program {
     ) {
         let test_state = &mut test_state_trading.base;
 
-        let (escrow, escrow_ata, trading_pda, trading_ata) =
+        let (escrow, escrow_ata, _, trading_ata) =
             create_escrow_via_trading_program(test_state).await;
 
         // Check token balances for the escrow account and creator are as expected.
@@ -310,12 +310,12 @@ mod test_trading_program {
         let withdrawer = test_state.recipient_wallet.keypair.insecure_clone();
 
         // Create the transaction to withdraw from the escrow
-        let transaction = SrcProgram::get_public_withdraw_tx_opt_creator(
+        let transaction = SrcProgram::get_public_withdraw_tx_opt_rent_recipient(
             test_state,
             &escrow,
             &escrow_ata,
             &withdrawer,
-            Some(&trading_pda),
+            Some(&test_state.recipient_wallet.keypair.pubkey()),
         );
 
         // Waiting for the public withdrawal period
@@ -367,7 +367,7 @@ mod test_trading_program {
     ) {
         let test_state = &mut test_state_trading.base;
 
-        let (escrow, escrow_ata, trading_pda, trading_ata) =
+        let (escrow, escrow_ata, _, trading_ata) =
             create_escrow_via_trading_program(test_state).await;
 
         // Check token balances for the escrow account and creator are as expected.
@@ -402,12 +402,12 @@ mod test_trading_program {
         .await;
 
         // Create the transaction to withdraw from the escrow
-        let transaction = SrcProgram::get_public_withdraw_tx_opt_creator(
+        let transaction = SrcProgram::get_public_withdraw_tx_opt_rent_recipient(
             test_state,
             &escrow,
             &escrow_ata,
             &withdrawer,
-            Some(&trading_pda),
+            Some(&test_state.recipient_wallet.keypair.pubkey()),
         );
 
         // Waiting for the public withdrawal period
