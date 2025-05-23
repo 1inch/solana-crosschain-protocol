@@ -177,23 +177,29 @@ impl<S: TokenVariant> EscrowVariant<S> for SrcProgram {
         )
     }
 
-    fn get_withdraw_tx_opt_creator(
+    fn get_withdraw_tx_opt_rent_recipient(
         test_state: &TestState<S>,
         escrow: &Pubkey,
         escrow_ata: &Pubkey,
-        opt_creator: Option<&Pubkey>,
+        opt_rent_recipient: Option<&Pubkey>,
     ) -> Transaction {
-        build_withdraw_tx_src(test_state, escrow, escrow_ata, opt_creator)
+        build_withdraw_tx_src(test_state, escrow, escrow_ata, opt_rent_recipient)
     }
 
-    fn get_public_withdraw_tx_opt_creator(
+    fn get_public_withdraw_tx_opt_rent_recipient(
         test_state: &TestState<S>,
         escrow: &Pubkey,
         escrow_ata: &Pubkey,
         withdrawer: &Keypair,
-        opt_creator: Option<&Pubkey>,
+        opt_rent_recipient: Option<&Pubkey>,
     ) -> Transaction {
-        build_public_withdraw_tx_src(test_state, escrow, escrow_ata, withdrawer, opt_creator)
+        build_public_withdraw_tx_src(
+            test_state,
+            escrow,
+            escrow_ata,
+            withdrawer,
+            opt_rent_recipient,
+        )
     }
 
     fn get_rescue_funds_tx(
