@@ -261,6 +261,7 @@ pub struct Withdraw<'info> {
         mut, // Needed because this account receives unwrapped SOL if the token is native
         constraint = recipient.key() == escrow.recipient @ EscrowError::InvalidAccount)]
     recipient: Signer<'info>,
+    /// CHECK: this account is used only to receive rent and is checked against the one stored in the escrow account
     #[account(
         mut, // Needed because this account receives lamports (safety deposit and rent from closed accounts)
         constraint = rent_recipient.key() == escrow.rent_recipient @ EscrowError::InvalidAccount)]
@@ -308,6 +309,7 @@ pub struct PublicWithdraw<'info> {
         mut, // Needed because this account receives unwrapped SOL if the token is native
         constraint = recipient.key() == escrow.recipient @ EscrowError::InvalidAccount)]
     recipient: AccountInfo<'info>,
+    /// CHECK: this account is used only to receive rent and is checked against the one stored in the escrow account
     #[account(
         mut, // Needed because this account receives lamports (safety deposit and from closed accounts)
         constraint = rent_recipient.key() == escrow.rent_recipient @ EscrowError::InvalidAccount)]
@@ -351,9 +353,9 @@ pub struct PublicWithdraw<'info> {
 
 #[derive(Accounts)]
 pub struct Cancel<'info> {
-    /// Currently only used for the token-authority check.
+    /// CHECK: Currently only used for the token-authority check and to receive lamports if the token is native
     #[account(
-        mut, // Needed because this account receives lamports (safety deposit and from closed accounts)
+        mut, // Needed because this account receives lamports if the token is native
         constraint = creator.key() == escrow.creator @ EscrowError::InvalidAccount
     )]
     creator: AccountInfo<'info>,
@@ -387,6 +389,7 @@ pub struct Cancel<'info> {
     )]
     // Optional if the token is native
     creator_ata: Option<Box<Account<'info, TokenAccount>>>,
+    /// CHECK: this account is used only to receive rent and is checked against the one stored in the escrow account
     #[account(mut, constraint = rent_recipient.key() == escrow.rent_recipient @ EscrowError::InvalidAccount)]
     rent_recipient: AccountInfo<'info>,
     #[account(address = TOKEN_PROGRAM_ID)]
@@ -434,6 +437,7 @@ pub struct PublicCancel<'info> {
     )]
     // Optional if the token is native
     creator_ata: Option<Box<Account<'info, TokenAccount>>>,
+    /// CHECK: this account is used only to receive rent and is checked against the one stored in the escrow account
     #[account(mut, constraint = rent_recipient.key() == escrow.rent_recipient @ EscrowError::InvalidAccount)]
     rent_recipient: AccountInfo<'info>,
     #[account(address = TOKEN_PROGRAM_ID)]
