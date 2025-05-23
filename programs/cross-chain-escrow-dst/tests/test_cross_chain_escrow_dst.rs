@@ -358,3 +358,13 @@ run_for_tokens!(
         }
     }
 );
+
+mod test_escrow_creation_cost {
+    use super::*;
+
+    #[test_context(TestState)]
+    #[tokio::test]
+    async fn test_escrow_creation_tx_cost(test_state: &mut TestState) {
+        common_escrow_tests::test_escrow_creation_tx_cost(test_state).await
+    }
+}

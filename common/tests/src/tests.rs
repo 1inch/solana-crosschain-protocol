@@ -3,7 +3,39 @@ use anchor_lang::error::ErrorCode;
 use anchor_spl::token::spl_token::error::TokenError;
 use common::{constants::RESCUE_DELAY, error::EscrowError};
 use solana_program::{keccak::hash, program_error::ProgramError};
-use solana_sdk::{signature::Signer, signer::keypair::Keypair, system_instruction::SystemError};
+use solana_sdk::{
+    signature::Signer, signer::keypair::Keypair, system_instruction::SystemError,
+    transaction::Transaction,
+};
+
+pub async fn test_escrow_creation_tx_cost<T: EscrowVariant>(test_state: &mut TestStateBase<T>) {
+    // NOTE: To actually see the output from this test, use the `--show-output` flag as shown below
+    // `cargo test -- --show-output` or
+    // `cargo test test_escrow_creation_cost -- --show-output`
+    let (_, _, tx) = create_escrow_data(test_state);
+
+    println!(
+        "CU cost for create: {}",
+        measure_tx_compute_units(test_state, tx).await
+    );
+}
+
+async fn measure_tx_compute_units<T>(test_state: &mut TestStateBase<T>, tx: Transaction) -> u64 {
+    // Simulate the transaction instead of processing
+    let result = test_state
+        .client
+        .simulate_transaction(tx.clone())
+        .await
+        .expect("Simulation RPC failed");
+
+    // Extract the simulation details
+    let sim_details = result
+        .simulation_details
+        .expect("Simulation details not found");
+
+    // Return the compute units consumed directly from the simulation
+    sim_details.units_consumed
+}
 
 pub async fn test_escrow_creation<T: EscrowVariant<S>, S: TokenVariant>(
     test_state: &mut TestStateBase<T, S>,
