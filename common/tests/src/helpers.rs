@@ -502,7 +502,7 @@ pub fn get_escrow_addresses<T: EscrowVariant<S>, S: TokenVariant>(
 pub async fn create_escrow_tx<T: EscrowVariant<S>, S: TokenVariant>(
     test_state: &mut TestStateBase<T, S>,
 ) -> (Pubkey, Pubkey, Result<(), BanksClientError>) {
-    let mut client = test_state.context.banks_client.clone();
+    let client = test_state.context.banks_client.clone();
     let (escrow, escrow_ata, transaction) = get_escrow_addresses(test_state, None);
 
     (
