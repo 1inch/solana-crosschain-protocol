@@ -8,7 +8,9 @@ use solana_sdk::{
     transaction::Transaction,
 };
 
-pub async fn test_escrow_creation_tx_cost<T: EscrowVariant>(test_state: &mut TestStateBase<T>) {
+pub async fn test_escrow_creation_tx_cost<T: EscrowVariant<S>, S: TokenVariant>(
+    test_state: &mut TestStateBase<T, S>,
+) {
     // NOTE: To actually see the output from this test, use the `--show-output` flag as shown below
     // `cargo test -- --show-output` or
     // `cargo test test_escrow_creation_cost -- --show-output`
@@ -20,7 +22,10 @@ pub async fn test_escrow_creation_tx_cost<T: EscrowVariant>(test_state: &mut Tes
     );
 }
 
-async fn measure_tx_compute_units<T>(test_state: &mut TestStateBase<T>, tx: Transaction) -> u64 {
+async fn measure_tx_compute_units<T, S>(
+    test_state: &mut TestStateBase<T, S>,
+    tx: Transaction,
+) -> u64 {
     // Simulate the transaction instead of processing
     let result = test_state
         .client
