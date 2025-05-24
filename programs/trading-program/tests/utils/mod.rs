@@ -144,6 +144,9 @@ pub fn create_signinig_default_order_ix(
         public_withdrawal_duration: test_state.test_arguments.public_withdrawal_duration,
         cancellation_duration: test_state.test_arguments.cancellation_duration,
         rescue_start: test_state.test_arguments.rescue_start,
+        dst_chain_id: test_state.test_arguments.dst_chain_id,
+        dst_token: test_state.test_arguments.dst_token,
+        dutch_auction_data: test_state.test_arguments.dutch_auction_data.clone(),
     };
     let order_bytes = order.try_to_vec().unwrap();
 

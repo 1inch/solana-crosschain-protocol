@@ -70,6 +70,9 @@ pub mod trading_program {
             order.public_withdrawal_duration,
             order.cancellation_duration,
             order.rescue_start,
+            order.dst_chain_id,
+            order.dst_token,
+            order.dutch_auction_data.clone(),
         )?;
 
         Ok(())

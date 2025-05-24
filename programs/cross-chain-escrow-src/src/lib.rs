@@ -5,6 +5,10 @@ pub use common::constants;
 use common::error::EscrowError;
 use common::escrow::EscrowBase;
 use common::utils;
+pub use auction::{calculate_rate_bump, AuctionData};
+use muldiv::MulDiv;
+
+pub mod auction;
 
 declare_id!("6NwMYeUmigiMDjhYeYpbxC6Kc63NzZy1dfGd7fGcdkVS");
 
@@ -24,6 +28,9 @@ pub mod cross_chain_escrow_src {
         public_withdrawal_duration: u32,
         cancellation_duration: u32,
         rescue_start: u32,
+        dst_chain_id: [u8; 32],
+        dst_token: [u8; 32],
+        dutch_auction_data: AuctionData,
     ) -> Result<()> {
         let now = utils::get_current_timestamp()?;
 
@@ -52,6 +59,12 @@ pub mod cross_chain_escrow_src {
             now,
         )?;
 
+        let dst_immutables = DstImmutablesComplement {
+            dst_chain_id,
+            dst_token,
+            dst_amount: get_dst_amount(amount, &dutch_auction_data)?,
+        };
+
         let escrow = &mut ctx.accounts.escrow;
         escrow.set_inner(EscrowSrc {
             order_hash,
@@ -67,6 +80,7 @@ pub mod cross_chain_escrow_src {
             public_cancellation_start,
             rescue_start,
             rent_recipient: ctx.accounts.payer.key(),
+            dst_immutables,
         });
 
         Ok(())
@@ -467,6 +481,19 @@ pub struct EscrowSrc {
     public_cancellation_start: u32,
     rescue_start: u32,
     rent_recipient: Pubkey,
+    dst_immutables: DstImmutablesComplement,
+}
+
+#[account]
+#[derive(InitSpace)]
+pub struct DstImmutablesComplement {
+    /// The destination chain ID.
+    dst_chain_id: [u8; 32],
+    /// The destination token address on the destination chain.
+    dst_token: [u8; 32],
+    /// The amount of tokens that the recipient will receive after the Dutch auction.
+    /// This is used to calculate the final amount after applying the rate bump.
+    dst_amount: u64,
 }
 
 impl EscrowBase for EscrowSrc {
@@ -517,4 +544,15 @@ impl EscrowBase for EscrowSrc {
     fn rent_recipient(&self) -> &Pubkey {
         &self.rent_recipient
     }
+}
+
+fn get_dst_amount(
+    dst_amount: u64,
+    data: &AuctionData,
+) -> Result<u64> {
+    let rate_bump = calculate_rate_bump(Clock::get()?.unix_timestamp as u64, data);
+    let result = dst_amount
+        .mul_div_ceil(constants::BASE_1E5 + rate_bump, constants::BASE_1E5)
+        .ok_or(ProgramError::ArithmeticOverflow)?;
+    Ok(result)
 }
