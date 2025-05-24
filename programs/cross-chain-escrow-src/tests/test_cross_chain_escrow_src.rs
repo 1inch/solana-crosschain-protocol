@@ -30,14 +30,11 @@ mod test_escrow_creation {
             start_time: test_state.init_timestamp - 250,
             duration: 1000,
             initial_rate_bump: 10_000, // 10%
-            points_and_time_deltas: vec![
-                cross_chain_escrow_src::auction::PointAndTimeDelta {
-                    rate_bump: 9_000,
-                    time_delta: 500,
-                },
-            ],
-        }
-        .into();
+            points_and_time_deltas: vec![cross_chain_escrow_src::auction::PointAndTimeDelta {
+                rate_bump: 9_000,
+                time_delta: 500,
+            }],
+        };
         common_escrow_tests::test_escrow_creation(test_state).await
     }
 
@@ -48,17 +45,22 @@ mod test_escrow_creation {
             start_time: test_state.init_timestamp - 250,
             duration: 1000,
             initial_rate_bump: 10_000, // 10%
-            points_and_time_deltas: vec![
-                cross_chain_escrow_src::auction::PointAndTimeDelta {
-                    rate_bump: 9_000, // 9%
-                    time_delta: 500,
-                },
-            ],
-        }
-        .into();
+            points_and_time_deltas: vec![cross_chain_escrow_src::auction::PointAndTimeDelta {
+                rate_bump: 9_000, // 9%
+                time_delta: 500,
+            }],
+        };
         let (escrow, _) = create_escrow(test_state).await;
-        let escrow_account_data = test_state.client.get_account(escrow).await.unwrap().unwrap().data;
-        let escrow: cross_chain_escrow_src::EscrowSrc = cross_chain_escrow_src::EscrowSrc::try_deserialize(&mut escrow_account_data.as_slice()).unwrap();
+        let escrow_account_data = test_state
+            .client
+            .get_account(escrow)
+            .await
+            .unwrap()
+            .unwrap()
+            .data;
+        let escrow: cross_chain_escrow_src::EscrowSrc =
+            cross_chain_escrow_src::EscrowSrc::try_deserialize(&mut escrow_account_data.as_slice())
+                .unwrap();
         assert_eq!(
             escrow.dst_immutables.dst_amount,
             test_state.test_arguments.dst_amount * 1095 / 1000,

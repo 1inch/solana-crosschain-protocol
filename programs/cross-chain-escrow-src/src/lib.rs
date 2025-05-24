@@ -1,11 +1,11 @@
 use anchor_lang::prelude::*;
 use anchor_spl::associated_token::{AssociatedToken, ID as ASSOCIATED_TOKEN_PROGRAM_ID};
 use anchor_spl::token::{Mint, Token, TokenAccount, ID as TOKEN_PROGRAM_ID};
+pub use auction::{calculate_rate_bump, AuctionData};
 pub use common::constants;
 use common::error::EscrowError;
 use common::escrow::EscrowBase;
 use common::utils;
-pub use auction::{calculate_rate_bump, AuctionData};
 use muldiv::MulDiv;
 
 pub mod auction;
@@ -547,10 +547,7 @@ impl EscrowBase for EscrowSrc {
     }
 }
 
-fn get_dst_amount(
-    dst_amount: u64,
-    data: &AuctionData,
-) -> Result<u64> {
+fn get_dst_amount(dst_amount: u64, data: &AuctionData) -> Result<u64> {
     let rate_bump = calculate_rate_bump(Clock::get()?.unix_timestamp as u64, data);
     let result = dst_amount
         .mul_div_ceil(constants::BASE_1E5 + rate_bump, constants::BASE_1E5)
