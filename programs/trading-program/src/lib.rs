@@ -72,6 +72,7 @@ pub mod trading_program {
             order.rescue_start,
             order.dst_chain_id,
             order.dst_token,
+            order.dst_amount,
             order.dutch_auction_data.clone(),
         )?;
 

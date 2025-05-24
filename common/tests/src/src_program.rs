@@ -55,6 +55,7 @@ impl EscrowVariant for SrcProgram {
                 rescue_start: test_state.test_arguments.rescue_start,
                 dst_chain_id: test_state.test_arguments.dst_chain_id,
                 dst_token: test_state.test_arguments.dst_token,
+                dst_amount: test_state.test_arguments.dst_amount,
                 dutch_auction_data: test_state.test_arguments.dutch_auction_data.clone(),
             });
 

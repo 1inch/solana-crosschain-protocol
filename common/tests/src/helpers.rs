@@ -48,6 +48,7 @@ pub enum PeriodType {
 }
 
 pub const DEFAULT_ESCROW_AMOUNT: u64 = 100;
+pub const DEFAULT_DST_ESCROW_AMOUNT: u64 = 1000;
 pub const DEFAULT_RESCUE_AMOUNT: u64 = 100;
 pub const DEFAULT_SAFETY_DEPOSIT: u64 = 25;
 
@@ -64,6 +65,7 @@ pub struct TestArgs {
     pub rescue_amount: u64,
     pub dst_chain_id: [u8; 32],
     pub dst_token: [u8; 32],
+    pub dst_amount: u64,
     pub dutch_auction_data: cross_chain_escrow_src::AuctionData,
 }
 
@@ -81,6 +83,7 @@ pub fn get_default_testargs(nowsecs: u32) -> TestArgs {
         rescue_amount: DEFAULT_RESCUE_AMOUNT,
         dst_chain_id: [0; 32],
         dst_token: [0; 32],
+        dst_amount: DEFAULT_DST_ESCROW_AMOUNT,
         dutch_auction_data: cross_chain_escrow_src::AuctionData {
             start_time: nowsecs,
             duration: DEFAULT_PERIOD_DURATION,

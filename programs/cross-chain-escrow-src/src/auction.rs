@@ -2,8 +2,8 @@ use anchor_lang::prelude::*;
 
 #[derive(AnchorSerialize, AnchorDeserialize, Clone)]
 pub struct PointAndTimeDelta {
-    rate_bump: u16,
-    time_delta: u16,
+    pub rate_bump: u16,
+    pub time_delta: u16,
 }
 
 #[derive(AnchorSerialize, AnchorDeserialize, Clone)]

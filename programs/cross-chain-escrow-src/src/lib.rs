@@ -30,6 +30,7 @@ pub mod cross_chain_escrow_src {
         rescue_start: u32,
         dst_chain_id: [u8; 32],
         dst_token: [u8; 32],
+        dst_amount: u64,
         dutch_auction_data: AuctionData,
     ) -> Result<()> {
         let now = utils::get_current_timestamp()?;
@@ -62,7 +63,7 @@ pub mod cross_chain_escrow_src {
         let dst_immutables = DstImmutablesComplement {
             dst_chain_id,
             dst_token,
-            dst_amount: get_dst_amount(amount, &dutch_auction_data)?,
+            dst_amount: get_dst_amount(dst_amount, &dutch_auction_data)?,
         };
 
         let escrow = &mut ctx.accounts.escrow;
@@ -481,19 +482,19 @@ pub struct EscrowSrc {
     public_cancellation_start: u32,
     rescue_start: u32,
     rent_recipient: Pubkey,
-    dst_immutables: DstImmutablesComplement,
+    pub dst_immutables: DstImmutablesComplement,
 }
 
 #[account]
 #[derive(InitSpace)]
 pub struct DstImmutablesComplement {
     /// The destination chain ID.
-    dst_chain_id: [u8; 32],
+    pub dst_chain_id: [u8; 32],
     /// The destination token address on the destination chain.
-    dst_token: [u8; 32],
+    pub dst_token: [u8; 32],
     /// The amount of tokens that the recipient will receive after the Dutch auction.
     /// This is used to calculate the final amount after applying the rate bump.
-    dst_amount: u64,
+    pub dst_amount: u64,
 }
 
 impl EscrowBase for EscrowSrc {
