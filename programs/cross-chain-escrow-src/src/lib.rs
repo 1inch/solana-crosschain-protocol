@@ -28,8 +28,6 @@ pub mod cross_chain_escrow_src {
         public_withdrawal_duration: u32,
         cancellation_duration: u32,
         rescue_start: u32,
-        dst_chain_id: [u8; 32],
-        dst_token: [u8; 32],
         dst_amount: u64,
         dutch_auction_data: AuctionData,
     ) -> Result<()> {
@@ -61,8 +59,6 @@ pub mod cross_chain_escrow_src {
         )?;
 
         let dst_immutables = DstImmutablesComplement {
-            dst_chain_id,
-            dst_token,
             dst_amount: get_dst_amount(dst_amount, &dutch_auction_data)?,
         };
 
@@ -488,10 +484,6 @@ pub struct EscrowSrc {
 #[account]
 #[derive(InitSpace)]
 pub struct DstImmutablesComplement {
-    /// The destination chain ID.
-    pub dst_chain_id: [u8; 32],
-    /// The destination token address on the destination chain.
-    pub dst_token: [u8; 32],
     /// The amount of tokens that the recipient will receive after the Dutch auction.
     /// This is used to calculate the final amount after applying the rate bump.
     pub dst_amount: u64,

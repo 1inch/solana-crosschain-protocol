@@ -63,8 +63,6 @@ pub struct TestArgs {
     pub init_timestamp: u32,
     pub rescue_start: u32,
     pub rescue_amount: u64,
-    pub dst_chain_id: [u8; 32],
-    pub dst_token: [u8; 32],
     pub dst_amount: u64,
     pub dutch_auction_data: cross_chain_escrow_src::AuctionData,
 }
@@ -81,8 +79,6 @@ pub fn get_default_testargs(nowsecs: u32) -> TestArgs {
         init_timestamp: nowsecs,
         rescue_start: nowsecs + RESCUE_DELAY + 100,
         rescue_amount: DEFAULT_RESCUE_AMOUNT,
-        dst_chain_id: [0; 32],
-        dst_token: [0; 32],
         dst_amount: DEFAULT_DST_ESCROW_AMOUNT,
         dutch_auction_data: cross_chain_escrow_src::AuctionData {
             start_time: nowsecs,

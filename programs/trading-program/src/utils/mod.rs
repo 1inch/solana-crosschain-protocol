@@ -26,8 +26,6 @@ pub struct Order {
     pub public_withdrawal_duration: u32,
     pub cancellation_duration: u32,
     pub rescue_start: u32,
-    pub dst_chain_id: [u8; 32],
-    pub dst_token: [u8; 32],
     pub dst_amount: u64,
     pub dutch_auction_data: cross_chain_escrow_src::AuctionData,
 }
