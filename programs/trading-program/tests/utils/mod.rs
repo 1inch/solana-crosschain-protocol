@@ -1,7 +1,7 @@
 use anchor_lang::{prelude::AccountInfo, AnchorSerialize, InstructionData};
 use anchor_spl::{
     associated_token::{get_associated_token_address, ID as spl_associated_token_id},
-    token::spl_token::{self, ID as spl_program_id},
+    token::spl_token::{native_mint::ID as NATIVE_MINT, ID as spl_program_id},
 };
 use common_tests::src_program::SrcProgram;
 use common_tests::{helpers::*, wrap_entry};
@@ -122,7 +122,7 @@ impl AsyncTestContext for TestStateTradingNative {
             .unwrap();
 
         set_time(&mut context, timestamp);
-        let token = spl_token::native_mint::id();
+        let token = NATIVE_MINT;
         let secret = hash(b"default_secret").to_bytes();
         let payer_kp = context.payer.insecure_clone();
         let creator_wallet = create_wallet(
@@ -182,7 +182,7 @@ pub async fn prepare_trading_account(
     let trading_ata =
         initialize_spl_associated_account(&mut test_state.context, &test_state.token, &trading_pda)
             .await;
-    if test_state.token != spl_token::native_mint::id() {
+    if test_state.token != NATIVE_MINT {
         mint_spl_tokens(
             &mut test_state.context,
             &test_state.token,

@@ -344,28 +344,28 @@ mod test_escrow_rescue_funds {
 }
 
 mod test_escrow_native {
-    use anchor_spl::token::spl_token::native_mint;
+    use anchor_spl::token::spl_token::native_mint::ID as NATIVE_MINT;
 
     use super::*;
 
     #[test_context(TestState)]
     #[tokio::test]
     async fn test_escrow_creation(test_state: &mut TestState) {
-        test_state.token = native_mint::ID;
+        test_state.token = NATIVE_MINT;
         common_escrow_tests::test_escrow_creation_native(test_state).await
     }
 
     #[test_context(TestState)]
     #[tokio::test]
     pub async fn test_withdraw(test_state: &mut TestState) {
-        test_state.token = native_mint::ID;
+        test_state.token = NATIVE_MINT;
         common_escrow_tests::test_withdraw_native(test_state).await
     }
 
     #[test_context(TestState)]
     #[tokio::test]
     pub async fn test_public_withdraw_by_resolver(test_state: &mut TestState) {
-        test_state.token = native_mint::ID;
+        test_state.token = NATIVE_MINT;
         let withdrawer = test_state.recipient_wallet.keypair.insecure_clone();
         common_escrow_tests::test_public_withdraw_tokens_native(test_state, withdrawer).await
     }
@@ -373,7 +373,7 @@ mod test_escrow_native {
     #[test_context(TestState)]
     #[tokio::test]
     pub async fn test_public_withdraw_by_any_account(test_state: &mut TestState) {
-        test_state.token = native_mint::ID;
+        test_state.token = NATIVE_MINT;
         let withdrawer = Keypair::new();
         let payer_kp = &test_state.payer_kp;
         let mut context = &mut test_state.context;
@@ -391,7 +391,7 @@ mod test_escrow_native {
     #[test_context(TestState)]
     #[tokio::test]
     pub async fn test_public_withdraw_by_any_creator(test_state: &mut TestState) {
-        test_state.token = native_mint::ID;
+        test_state.token = NATIVE_MINT;
         let withdrawer = test_state.creator_wallet.keypair.insecure_clone();
         common_escrow_tests::test_public_withdraw_tokens_native(test_state, withdrawer).await
     }
@@ -399,7 +399,7 @@ mod test_escrow_native {
     #[test_context(TestState)]
     #[tokio::test]
     async fn test_cancel(test_state: &mut TestState) {
-        test_state.token = native_mint::ID;
+        test_state.token = NATIVE_MINT;
         common_escrow_tests::test_cancel_native(test_state).await
     }
 }
