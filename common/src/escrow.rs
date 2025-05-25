@@ -165,12 +165,12 @@ where
             &[&seeds],
         ))?;
     } else {
+        // Handle native token (WSOL) withdrawal and ata closure
         close_and_withdraw_native_ata(
             escrow,
             escrow_ata,
             recipient,
             recipient_ata,
-            rent_recipient,
             token_program,
             seeds,
         )?;
@@ -239,12 +239,12 @@ where
             &[&seeds],
         ))?;
     } else {
+        // Handle native token (WSOL) withdrawal and ata closure
         close_and_withdraw_native_ata(
             escrow,
             escrow_ata,
             creator,
             creator_ata,
-            rent_recipient,
             token_program,
             seeds,
         )?;
@@ -281,16 +281,12 @@ fn close_and_withdraw_native_ata<'info, T>(
     escrow_ata: &Account<'info, TokenAccount>,
     recipient: &AccountInfo<'info>,
     sol_destination_ata: Option<&Account<'info, TokenAccount>>,
-    rent_recipient: &AccountInfo<'info>,
     token_program: &Program<'info, Token>,
     seeds: [&[u8]; 10],
 ) -> Result<()>
 where
     T: EscrowBase + AccountSerialize + AccountDeserialize + Clone,
 {
-    // Calculate the rent for the escrow_ata account
-    let escrow_ata_rent = Rent::get()?.minimum_balance(escrow_ata.to_account_info().data_len());
-
     if sol_destination_ata.is_some() {
         // in case of sol_desination_ata provided, we transfer wSOL from the escrow_ata to sol_destination_ata (without unwrapping)
         anchor_spl::token::transfer(
@@ -308,7 +304,10 @@ where
             escrow.amount(),
         )?;
     }
+
     // using escrow pda as an intermediate account to transfer native tokens
+    // in case of sol_destination_ata provided, escrow pda will only receive the escrow ata rent-exempt lamports
+    // which rent_recipient will receive after closing the escrow
     anchor_spl::token::close_account(CpiContext::new_with_signer(
         token_program.to_account_info(),
         anchor_spl::token::CloseAccount {
@@ -323,12 +322,6 @@ where
         // Transfer the native tokens from escrow pda to recipient
         escrow.sub_lamports(escrow.amount())?;
         recipient.add_lamports(escrow.amount())?;
-    }
-
-    // Transfer the escrow_ata rent from escrow pda to rent_recipient
-    if rent_recipient.key() != recipient.key() {
-        escrow.sub_lamports(escrow_ata_rent)?;
-        rent_recipient.add_lamports(escrow_ata_rent)?;
     }
 
     Ok(())
