@@ -883,22 +883,22 @@ macro_rules! wrap_entry {
 // including the tests in both contexts.
 #[macro_export]
 macro_rules! run_for_tokens {
-    ($(($tv:ty, $mn: ident)),* | $s: ty, $b: item) => {
-        $(mod $mn {
+    ($(($token_variant:ty, $module_name: ident)),* | $escrow_variant: ty, $tests: item) => {
+        $(mod $module_name {
             use super::*;
-            type TestState = TestStateBase<$s, $tv>;
-            $b
+            type TestState = TestStateBase<$escrow_variant, $token_variant>;
+            $tests
           })*
     };
 }
 
 #[macro_export]
 macro_rules! trading_program_run_for_tokens {
-    ($(($tv:ty, $mn: ident)),* | $b: item) => {
-        $(mod $mn {
+    ($(($token_variant:ty, $module_name: ident)),* | $tests: item) => {
+        $(mod $module_name {
             use super::*;
-            type TestState = TestStateTrading<$tv>;
-            $b
+            type TestState = TestStateTrading<$token_variant>;
+            $tests
           })*
     };
 }
