@@ -91,7 +91,16 @@ impl EscrowVariant for SrcProgram {
         escrow: &Pubkey,
         escrow_ata: &Pubkey,
     ) -> Transaction {
-        build_withdraw_tx_src(test_state, escrow, escrow_ata, None, None)
+        build_withdraw_tx_src(test_state, escrow, escrow_ata, None)
+    }
+
+    fn get_withdraw_tx_opt_rent_recipient(
+        test_state: &TestStateBase<Self>,
+        escrow: &Pubkey,
+        escrow_ata: &Pubkey,
+        opt_rent_recipient: Option<&Pubkey>,
+    ) -> Transaction {
+        build_withdraw_tx_src(test_state, escrow, escrow_ata, opt_rent_recipient)
     }
 
     fn get_public_withdraw_tx(
@@ -100,7 +109,23 @@ impl EscrowVariant for SrcProgram {
         escrow_ata: &Pubkey,
         withdrawer: &Keypair,
     ) -> Transaction {
-        build_public_withdraw_tx_src(test_state, escrow, escrow_ata, withdrawer, None, None)
+        build_public_withdraw_tx_src(test_state, escrow, escrow_ata, withdrawer, None)
+    }
+
+    fn get_public_withdraw_tx_opt_rent_recipient(
+        test_state: &TestStateBase<Self>,
+        escrow: &Pubkey,
+        escrow_ata: &Pubkey,
+        withdrawer: &Keypair,
+        opt_rent_recipient: Option<&Pubkey>,
+    ) -> Transaction {
+        build_public_withdraw_tx_src(
+            test_state,
+            escrow,
+            escrow_ata,
+            withdrawer,
+            opt_rent_recipient,
+        )
     }
 
     fn get_cancel_tx(
@@ -108,7 +133,39 @@ impl EscrowVariant for SrcProgram {
         escrow: &Pubkey,
         escrow_ata: &Pubkey,
     ) -> Transaction {
-        build_cancel_tx(test_state, escrow, escrow_ata, None, None, None)
+        let instruction_data =
+            InstructionData::data(&cross_chain_escrow_src::instruction::Cancel {});
+
+        let creator_ata = if test_state.token == NATIVE_MINT {
+            cross_chain_escrow_src::id()
+        } else {
+            test_state.creator_wallet.token_account
+        };
+
+        let instruction: Instruction = Instruction {
+            program_id: cross_chain_escrow_src::id(),
+            accounts: vec![
+                AccountMeta::new(test_state.creator_wallet.keypair.pubkey(), true),
+                AccountMeta::new_readonly(test_state.token, false),
+                AccountMeta::new(*escrow, false),
+                AccountMeta::new(*escrow_ata, false),
+                AccountMeta::new(creator_ata, false),
+                AccountMeta::new(test_state.creator_wallet.keypair.pubkey(), true),
+                AccountMeta::new_readonly(spl_program_id, false),
+                AccountMeta::new_readonly(system_program_id, false),
+            ],
+            data: instruction_data,
+        };
+
+        Transaction::new_signed_with_payer(
+            &[instruction],
+            Some(&test_state.payer_kp.pubkey()),
+            &[
+                &test_state.context.payer,
+                &test_state.creator_wallet.keypair,
+            ],
+            test_state.context.last_blockhash,
+        )
     }
 
     fn get_rescue_funds_tx(

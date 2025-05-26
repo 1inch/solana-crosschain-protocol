@@ -120,11 +120,24 @@ pub trait EscrowVariant {
         escrow: &Pubkey,
         escrow_ata: &Pubkey,
     ) -> Transaction;
+    fn get_withdraw_tx_opt_rent_recipient(
+        test_state: &TestStateBase<Self>,
+        escrow: &Pubkey,
+        escrow_ata: &Pubkey,
+        opt_rent_recipient: Option<&Pubkey>,
+    ) -> Transaction;
     fn get_public_withdraw_tx(
         test_state: &TestStateBase<Self>,
         escrow: &Pubkey,
         escrow_ata: &Pubkey,
         safety_deposit_recipient: &Keypair,
+    ) -> Transaction;
+    fn get_public_withdraw_tx_opt_rent_recipient(
+        test_state: &TestStateBase<Self>,
+        escrow: &Pubkey,
+        escrow_ata: &Pubkey,
+        safety_deposit_recipient: &Keypair,
+        opt_rent_recipient: Option<&Pubkey>,
     ) -> Transaction;
     fn get_cancel_tx(
         test_state: &TestStateBase<Self>,
@@ -565,7 +578,6 @@ pub fn build_withdraw_tx_src(
     escrow: &Pubkey,
     escrow_ata: &Pubkey,
     opt_rent_recipient: Option<&Pubkey>,
-    opt_sol_destination: Option<&Pubkey>,
 ) -> Transaction {
     let instruction_data = InstructionData::data(&cross_chain_escrow_src::instruction::Withdraw {
         secret: test_state.secret,
@@ -575,14 +587,12 @@ pub fn build_withdraw_tx_src(
         .copied()
         .unwrap_or_else(|| test_state.creator_wallet.keypair.pubkey());
 
-    let recipient_ata = opt_sol_destination.copied().unwrap_or_else(|| {
-        if test_state.token == NATIVE_MINT {
-            cross_chain_escrow_src::id()
-        } else {
-            test_state.recipient_wallet.token_account
-        }
-    });
-
+    let recipient_ata = if test_state.token == NATIVE_MINT {
+        cross_chain_escrow_src::id()
+    } else {
+        test_state.recipient_wallet.token_account
+    };
+    
     let instruction: Instruction = Instruction {
         program_id: cross_chain_escrow_src::id(),
         accounts: vec![
@@ -615,24 +625,22 @@ pub fn build_public_withdraw_tx_src(
     escrow_ata: &Pubkey,
     withdrawer: &Keypair,
     opt_rent_recipient: Option<&Pubkey>,
-    opt_sol_destination: Option<&Pubkey>,
 ) -> Transaction {
     let instruction_data =
         InstructionData::data(&cross_chain_escrow_src::instruction::PublicWithdraw {
             secret: test_state.secret,
         });
 
-    let rent_recipient_pk = opt_rent_recipient
-        .copied()
-        .unwrap_or_else(|| test_state.creator_wallet.keypair.pubkey());
+    let rent_recipient_pk: Pubkey = match opt_rent_recipient {
+        Some(pubkey) => *pubkey,
+        None => test_state.creator_wallet.keypair.pubkey(),
+    };
 
-    let recipient_ata = opt_sol_destination.copied().unwrap_or_else(|| {
-        if test_state.token == NATIVE_MINT {
-            cross_chain_escrow_src::id()
-        } else {
-            test_state.recipient_wallet.token_account
-        }
-    });
+    let recipient_ata = if test_state.token == NATIVE_MINT {
+        cross_chain_escrow_src::id()
+    } else {
+        test_state.recipient_wallet.token_account
+    };
 
     let instruction: Instruction = Instruction {
         program_id: cross_chain_escrow_src::id(),
@@ -748,7 +756,6 @@ pub fn build_cancel_tx(
     escrow_ata: &Pubkey,
     opt_creator_pk_and_ata: Option<(Pubkey, Pubkey)>,
     opt_rent_recipient: Option<Pubkey>,
-    opt_sol_destination: Option<&Pubkey>,
 ) -> Transaction {
     let instruction_data = InstructionData::data(&cross_chain_escrow_src::instruction::Cancel {});
 
@@ -759,13 +766,11 @@ pub fn build_cancel_tx(
         )
     });
 
-    let creator_ata = opt_sol_destination.copied().unwrap_or_else(|| {
-        if test_state.token == NATIVE_MINT {
-            cross_chain_escrow_src::id()
-        } else {
-            default_creator_ata
-        }
-    });
+    let creator_ata = if test_state.token == NATIVE_MINT {
+        cross_chain_escrow_src::id()
+    } else {
+        default_creator_ata
+    };
 
     let rent_recipient = opt_rent_recipient.unwrap_or(test_state.creator_wallet.keypair.pubkey());
 

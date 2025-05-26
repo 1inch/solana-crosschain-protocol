@@ -9,7 +9,7 @@ use trading_program::utils::error::TradingProgramError;
 mod utils;
 use utils::{
     create_escrow_via_trading_program, create_signinig_default_order_ix, init_escrow_src_tx,
-    prepare_trading_account, TestStateTrading, TestStateTradingNative,
+    prepare_trading_account, TestStateTrading,
 };
 
 mod test_trading_program {
@@ -217,7 +217,6 @@ mod test_trading_program {
             &escrow,
             &escrow_ata,
             Some(&test_state.recipient_wallet.keypair.pubkey()),
-            None,
         );
 
         set_time(
@@ -298,7 +297,6 @@ mod test_trading_program {
             &escrow_ata,
             &withdrawer,
             Some(&test_state.recipient_wallet.keypair.pubkey()),
-            None,
         );
 
         // Waiting for the public withdrawal period
@@ -389,7 +387,6 @@ mod test_trading_program {
             &escrow_ata,
             &withdrawer,
             Some(&test_state.recipient_wallet.keypair.pubkey()),
-            None,
         );
 
         // Waiting for the public withdrawal period
@@ -484,7 +481,6 @@ mod test_trading_program {
             &escrow_ata,
             Some((trading_pda, trading_ata)),
             Some(test_state.recipient_wallet.keypair.pubkey()),
-            None,
         );
 
         set_time(
