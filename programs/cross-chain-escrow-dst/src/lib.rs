@@ -43,7 +43,7 @@ pub mod cross_chain_escrow_dst {
         }
 
         common::escrow::create(
-            EscrowDst::INIT_SPACE + constants::DISCRIMINATOR,
+            EscrowDst::INIT_SPACE + constants::DISCRIMINATOR_BYTES,
             &ctx.accounts.creator,
             &ctx.accounts.escrow_ata,
             &ctx.accounts.creator_ata,
@@ -187,7 +187,7 @@ pub struct Create<'info> {
     #[account(
         init,
         payer = payer,
-        space = constants::DISCRIMINATOR + EscrowDst::INIT_SPACE,
+        space = constants::DISCRIMINATOR_BYTES + EscrowDst::INIT_SPACE,
         seeds = [
             "escrow".as_bytes(),
             order_hash.as_ref(),

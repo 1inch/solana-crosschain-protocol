@@ -32,7 +32,7 @@ impl EscrowVariant for DstProgram {
     }
 
     fn get_escrow_data_len() -> usize {
-        cross_chain_escrow_dst::constants::DISCRIMINATOR
+        cross_chain_escrow_dst::constants::DISCRIMINATOR_BYTES
             + cross_chain_escrow_dst::EscrowDst::INIT_SPACE
     }
 
