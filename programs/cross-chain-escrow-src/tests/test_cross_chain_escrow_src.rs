@@ -62,7 +62,7 @@ mod test_escrow_creation {
             cross_chain_escrow_src::EscrowSrc::try_deserialize(&mut escrow_account_data.as_slice())
                 .unwrap();
         assert_eq!(
-            escrow.dst_immutables.dst_amount,
+            escrow.dst_amount,
             test_state.test_arguments.dst_amount * 1095 / 1000,
         );
     }
