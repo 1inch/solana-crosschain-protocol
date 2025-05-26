@@ -169,29 +169,6 @@ impl<S: TokenVariant> EscrowVariant<S> for DstProgram {
         )
     }
 
-    // This method is not applicable for dst program
-    // Providing a default implementation
-    fn get_withdraw_tx_opt_rent_recipient(
-        _test_state: &TestState<S>,
-        _escrow: &Pubkey,
-        _escrow_ata: &Pubkey,
-        _opt_rent_recipient: Option<&Pubkey>,
-    ) -> Transaction {
-        Transaction::default()
-    }
-
-    // This method is not applicable for dst program
-    // Providing a default implementation
-    fn get_public_withdraw_tx_opt_rent_recipient(
-        _test_state: &TestState<S>,
-        _escrow: &Pubkey,
-        _escrow_ata: &Pubkey,
-        _withdrawer: &Keypair,
-        _opt_rent_recipient: Option<&Pubkey>,
-    ) -> Transaction {
-        Transaction::default()
-    }
-
     fn get_escrow_data_len() -> usize {
         cross_chain_escrow_dst::constants::DISCRIMINATOR
             + cross_chain_escrow_dst::EscrowDst::INIT_SPACE

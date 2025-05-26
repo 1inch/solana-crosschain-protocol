@@ -229,7 +229,7 @@ mod test_trading_program {
             get_min_rent_for_size(&mut test_state.client, get_token_account_size(PhantomData::<TestState>)).await;
 
         // Create the transaction to withdraw from the escrow
-        let transaction = SrcProgram::get_withdraw_tx_opt_rent_recipient(
+        let transaction = build_withdraw_tx_src(
             test_state,
             &escrow,
             &escrow_ata,
@@ -310,7 +310,7 @@ mod test_trading_program {
         let withdrawer = test_state.recipient_wallet.keypair.insecure_clone();
 
         // Create the transaction to withdraw from the escrow
-        let transaction = SrcProgram::get_public_withdraw_tx_opt_rent_recipient(
+        let transaction = build_public_withdraw_tx_src(
             test_state,
             &escrow,
             &escrow_ata,
@@ -402,7 +402,7 @@ mod test_trading_program {
         .await;
 
         // Create the transaction to withdraw from the escrow
-        let transaction = SrcProgram::get_public_withdraw_tx_opt_rent_recipient(
+        let transaction = build_public_withdraw_tx_src(
             test_state,
             &escrow,
             &escrow_ata,
