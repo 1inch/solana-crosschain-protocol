@@ -43,7 +43,7 @@ pub mod cross_chain_escrow_src {
         common::escrow::create(
             EscrowSrc::INIT_SPACE + constants::DISCRIMINATOR,
             &ctx.accounts.creator,
-            ctx.accounts.escrow_ata.as_ref(),
+            &ctx.accounts.escrow_ata,
             &ctx.accounts.creator_ata,
             &ctx.accounts.mint,
             &ctx.accounts.token_program,
