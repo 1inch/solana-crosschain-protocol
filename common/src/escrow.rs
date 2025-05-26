@@ -39,7 +39,7 @@ pub fn create<'info>(
     creator: &AccountInfo<'info>,
     escrow_ata: &InterfaceAccount<'info, TokenAccount>,
     creator_ata: &InterfaceAccount<'info, TokenAccount>,
-    token: &InterfaceAccount<'info, Mint>,
+    mint: &InterfaceAccount<'info, Mint>,
     token_program: &Interface<'info, TokenInterface>,
     amount: u64,
     safety_deposit: u64,
@@ -70,11 +70,11 @@ pub fn create<'info>(
                 from: creator_ata.to_account_info(),
                 to: escrow_ata.to_account_info(),
                 authority: creator.to_account_info(),
-                mint: token.to_account_info(),
+                mint: mint.to_account_info(),
             },
         ),
         amount,
-        token.decimals,
+        mint.decimals,
     )?;
     Ok(())
 }
@@ -84,7 +84,7 @@ pub fn withdraw<'info, T>(
     escrow_bump: u8,
     escrow_ata: &InterfaceAccount<'info, TokenAccount>,
     recipient_ata: &InterfaceAccount<'info, TokenAccount>,
-    token: &InterfaceAccount<'info, Mint>,
+    mint: &InterfaceAccount<'info, Mint>,
     token_program: &Interface<'info, TokenInterface>,
     rent_recipient: &AccountInfo<'info>,
     safety_deposit_recipient: &AccountInfo<'info>,
@@ -124,12 +124,12 @@ where
                 from: escrow_ata.to_account_info(),
                 to: recipient_ata.to_account_info(),
                 authority: escrow.to_account_info(),
-                mint: token.to_account_info(),
+                mint: mint.to_account_info(),
             },
             &[&seeds],
         ),
         escrow.amount(),
-        token.decimals,
+        mint.decimals,
     )?;
 
     // Close the escrow_ata account
@@ -154,7 +154,7 @@ pub fn cancel<'info, T>(
     escrow_bump: u8,
     escrow_ata: &InterfaceAccount<'info, TokenAccount>,
     creator_ata: &InterfaceAccount<'info, TokenAccount>,
-    token: &InterfaceAccount<'info, Mint>,
+    mint: &InterfaceAccount<'info, Mint>,
     token_program: &Interface<'info, TokenInterface>,
     creator: &AccountInfo<'info>,
     safety_deposit_recipient: &AccountInfo<'info>,
@@ -187,12 +187,12 @@ where
                 from: escrow_ata.to_account_info(),
                 to: creator_ata.to_account_info(),
                 authority: escrow.to_account_info(),
-                mint: token.to_account_info(),
+                mint: mint.to_account_info(),
             },
             &[&seeds],
         ),
         escrow.amount(),
-        token.decimals,
+        mint.decimals,
     )?;
 
     // Close the escrow_ata account
@@ -247,7 +247,7 @@ pub fn rescue_funds<'info>(
     escrow_ata: &InterfaceAccount<'info, TokenAccount>,
     recipient: &AccountInfo<'info>,
     recipient_ata: &InterfaceAccount<'info, TokenAccount>,
-    token: &InterfaceAccount<'info, Mint>,
+    mint: &InterfaceAccount<'info, Mint>,
     token_program: &Interface<'info, TokenInterface>,
     rescue_amount: u64,
 ) -> Result<()> {
@@ -281,12 +281,12 @@ pub fn rescue_funds<'info>(
                 from: escrow_ata.to_account_info(),
                 to: recipient_ata.to_account_info(),
                 authority: escrow.to_account_info(),
-                mint: token.to_account_info(),
+                mint: mint.to_account_info(),
             },
             &[&seeds],
         ),
         rescue_amount,
-        token.decimals,
+        mint.decimals,
     )?;
 
     if rescue_amount == escrow_ata.amount {

@@ -40,7 +40,7 @@ pub mod trading_program {
                 Create {
                     payer: ctx.accounts.taker.to_account_info(),
                     creator: ctx.accounts.trading_account.to_account_info(),
-                    token: ctx.accounts.token.to_account_info(),
+                    mint: ctx.accounts.token.to_account_info(),
                     creator_ata: ctx.accounts.trading_account_ata.to_account_info(),
                     escrow: ctx.accounts.escrow.to_account_info(),
                     escrow_ata: ctx.accounts.escrow_ata.to_account_info(),
