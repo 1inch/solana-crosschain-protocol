@@ -592,7 +592,7 @@ pub fn build_withdraw_tx_src(
     } else {
         test_state.recipient_wallet.token_account
     };
-    
+
     let instruction: Instruction = Instruction {
         program_id: cross_chain_escrow_src::id(),
         accounts: vec![
