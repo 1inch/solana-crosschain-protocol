@@ -613,7 +613,6 @@ pub async fn test_cancel<T: EscrowVariant<S>, S: TokenVariant>(
     );
     let token_account_rent = test_state.client.get_balance(escrow_ata).await.unwrap();
 
-    get_min_rent_for_size(&mut test_state.client, S::get_token_account_size()).await;
     let escrow_rent = get_min_rent_for_size(&mut test_state.client, T::get_escrow_data_len()).await;
 
     test_state
