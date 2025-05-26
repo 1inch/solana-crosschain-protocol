@@ -20,7 +20,7 @@ pub async fn deploy_spl_token_<T, S: TokenVariant>(t: &mut TestStateBase<T, S>) 
 }
 
 trading_program_run_for_tokens!(
-    (Token2020, token_2020_tests),
+    (TokenSPL, token_spl_tests),
     (Token2022, token_2022_tests) |
 mod test_trading_program {
     use common_tests::helpers::Expectation;
@@ -47,7 +47,7 @@ mod test_trading_program {
         );
         // Check the lamport balance of escrow account is as expected.
         let rent_lamports =
-            get_min_rent_for_size(&mut test_state.client, <SrcProgram as EscrowVariant<Token2020>>::get_escrow_data_len()).await;
+            get_min_rent_for_size(&mut test_state.client, <SrcProgram as EscrowVariant<Token2022>>::get_escrow_data_len()).await;
         assert_eq!(
             rent_lamports,
             test_state.client.get_balance(escrow).await.unwrap()
@@ -218,7 +218,7 @@ mod test_trading_program {
 
         // Check the lamport balance of escrow account is as expected.
         let escrow_rent_lamports =
-            get_min_rent_for_size(&mut test_state.client, <SrcProgram as EscrowVariant<Token2020>>::get_escrow_data_len()).await;
+            get_min_rent_for_size(&mut test_state.client, <SrcProgram as EscrowVariant<Token2022>>::get_escrow_data_len()).await;
         assert_eq!(
             escrow_rent_lamports,
             test_state.client.get_balance(escrow).await.unwrap()
@@ -298,7 +298,7 @@ mod test_trading_program {
 
         // Check the lamport balance of escrow account is as expected.
         let escrow_rent_lamports =
-            get_min_rent_for_size(&mut test_state.client, <SrcProgram as EscrowVariant<Token2020>>::get_escrow_data_len()).await;
+            get_min_rent_for_size(&mut test_state.client, <SrcProgram as EscrowVariant<Token2022>>::get_escrow_data_len()).await;
         assert_eq!(
             escrow_rent_lamports,
             test_state.client.get_balance(escrow).await.unwrap()
@@ -382,7 +382,7 @@ mod test_trading_program {
 
         // Check the lamport balance of escrow account is as expected.
         let escrow_rent_lamports =
-            get_min_rent_for_size(&mut test_state.client, <SrcProgram as EscrowVariant<Token2020>>::get_escrow_data_len()).await;
+            get_min_rent_for_size(&mut test_state.client, <SrcProgram as EscrowVariant<Token2022>>::get_escrow_data_len()).await;
         assert_eq!(
             escrow_rent_lamports,
             test_state.client.get_balance(escrow).await.unwrap()

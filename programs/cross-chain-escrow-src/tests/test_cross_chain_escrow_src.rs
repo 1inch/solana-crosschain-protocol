@@ -10,7 +10,7 @@ use solana_sdk::signer::keypair::Keypair;
 use test_context::test_context;
 
 run_for_tokens!(
-    (Token2020, token_2020_tests),
+    (TokenSPL, token_spl_tests),
     (Token2022, token_2022_tests) | SrcProgram,
     mod token_module {
 

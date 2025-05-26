@@ -124,7 +124,7 @@ pub trait TokenVariant {
     );
 }
 
-pub struct Token2020;
+pub struct TokenSPL;
 pub struct Token2022;
 
 #[async_trait]
@@ -245,7 +245,7 @@ impl TokenVariant for Token2022 {
 }
 
 #[async_trait]
-impl TokenVariant for Token2020 {
+impl TokenVariant for TokenSPL {
     fn get_token_program_id() -> Pubkey {
         spl_program_id
     }

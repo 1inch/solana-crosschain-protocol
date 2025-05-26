@@ -10,7 +10,7 @@ use solana_sdk::{signature::Signer, signer::keypair::Keypair, sysvar::clock::Clo
 use test_context::test_context;
 
 run_for_tokens!(
-    (Token2020, token_2020_tests),
+    (TokenSPL, token_spl_tests),
     (Token2022, token_2022_tests) | DstProgram,
     mod token_module {
 
@@ -198,7 +198,7 @@ run_for_tokens!(
                     test_state.test_arguments.escrow_amount
                 );
                 let escrow_data_len =
-                    <DstProgram as EscrowVariant<Token2020>>::get_escrow_data_len();
+                    <DstProgram as EscrowVariant<Token2022>>::get_escrow_data_len();
                 let rent_lamports =
                     get_min_rent_for_size(&mut test_state.client, escrow_data_len).await;
                 let token_account_rent = get_min_rent_for_size(
