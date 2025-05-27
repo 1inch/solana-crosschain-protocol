@@ -280,21 +280,21 @@ fn close_and_withdraw_native_ata<'info, T>(
     escrow: &Account<'info, T>,
     escrow_ata: &Account<'info, TokenAccount>,
     recipient: &AccountInfo<'info>,
-    sol_destination_ata: Option<&Account<'info, TokenAccount>>,
+    recipient_ata: Option<&Account<'info, TokenAccount>>,
     token_program: &Program<'info, Token>,
     seeds: [&[u8]; 10],
 ) -> Result<()>
 where
     T: EscrowBase + AccountSerialize + AccountDeserialize + Clone,
 {
-    if sol_destination_ata.is_some() {
-        // in case of sol_desination_ata provided, we transfer wSOL from the escrow_ata to sol_destination_ata (without unwrapping)
+    if recipient_ata.is_some() {
+        // in case of sol_desination_ata provided, we transfer wSOL from the escrow_ata to recipient_ata (without unwrapping)
         anchor_spl::token::transfer(
             CpiContext::new_with_signer(
                 token_program.to_account_info(),
                 anchor_spl::token::Transfer {
                     from: escrow_ata.to_account_info(),
-                    to: sol_destination_ata
+                    to: recipient_ata
                         .ok_or(EscrowError::MissingSolDestination)?
                         .to_account_info(),
                     authority: escrow.to_account_info(),
@@ -306,7 +306,7 @@ where
     }
 
     // using escrow pda as an intermediate account to transfer native tokens
-    // in case of sol_destination_ata provided, escrow pda will only receive the escrow ata rent-exempt lamports
+    // in case of recipient_ata provided, escrow pda will only receive the escrow ata rent-exempt lamports
     // which rent_recipient will receive after closing the escrow
     anchor_spl::token::close_account(CpiContext::new_with_signer(
         token_program.to_account_info(),
@@ -318,7 +318,7 @@ where
         &[&seeds],
     ))?;
 
-    if sol_destination_ata.is_none() {
+    if recipient_ata.is_none() {
         // Transfer the native tokens from escrow pda to recipient
         escrow.sub_lamports(escrow.amount())?;
         recipient.add_lamports(escrow.amount())?;
