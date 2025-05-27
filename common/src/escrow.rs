@@ -63,15 +63,14 @@ pub fn create<'info>(
     // Check if token is native (WSOL) and is expected to be wrapped
     if escrow_ata.mint == NATIVE_MINT && creator_ata.is_none() {
         // Transfer native tokens from creator to escrow_ata and wrap
-        system_program::transfer(
-            CpiContext::new(
-                sys_program.to_account_info(),
-                system_program::Transfer {
-                    from: creator.to_account_info(),
-                    to: escrow_ata.to_account_info(),
-                },
-            ),
-            amount,
+        uni_transfer(
+            &UniTransferParams::NativeTransfer {
+                from: creator.to_account_info(),
+                to: escrow_ata.to_account_info(),
+                amount,
+                program: sys_program.clone(),
+            },
+            None,
         )?;
 
         anchor_spl::token::sync_native(CpiContext::new(
@@ -82,18 +81,17 @@ pub fn create<'info>(
         ))?;
     } else {
         // Do SPL token transfer
-        anchor_spl::token::transfer(
-            CpiContext::new(
-                token_program.to_account_info(),
-                anchor_spl::token::Transfer {
-                    from: creator_ata
-                        .ok_or(EscrowError::MissingCreatorAta)?
-                        .to_account_info(),
-                    to: escrow_ata.to_account_info(),
-                    authority: creator.to_account_info(),
-                },
-            ),
-            amount,
+        uni_transfer(
+            &UniTransferParams::TokenTransfer {
+                from: creator_ata
+                    .ok_or(EscrowError::MissingCreatorAta)?
+                    .to_account_info(),
+                authority: creator.to_account_info(),
+                to: escrow_ata.to_account_info(),
+                amount,
+                program: token_program.clone(),
+            },
+            None,
         )?;
     }
 
@@ -139,19 +137,17 @@ where
 
     if escrow_ata.mint != NATIVE_MINT {
         // Transfer tokens from escrow to recipient
-        anchor_spl::token::transfer(
-            CpiContext::new_with_signer(
-                token_program.to_account_info(),
-                anchor_spl::token::Transfer {
-                    from: escrow_ata.to_account_info(),
-                    to: recipient_ata
-                        .ok_or(EscrowError::MissingRecipientAta)?
-                        .to_account_info(),
-                    authority: escrow.to_account_info(),
-                },
-                &[&seeds],
-            ),
-            escrow.amount(),
+        uni_transfer(
+            &UniTransferParams::TokenTransfer {
+                from: escrow_ata.to_account_info(),
+                authority: escrow.to_account_info(),
+                to: recipient_ata
+                    .ok_or(EscrowError::MissingRecipientAta)?
+                    .to_account_info(),
+                amount: escrow.amount(),
+                program: token_program.clone(),
+            },
+            Some(&[&seeds]),
         )?;
 
         // Close the escrow_ata account
@@ -213,19 +209,17 @@ where
 
     if escrow_ata.mint != NATIVE_MINT {
         // Return tokens to creator
-        anchor_spl::token::transfer(
-            CpiContext::new_with_signer(
-                token_program.to_account_info(),
-                anchor_spl::token::Transfer {
-                    from: escrow_ata.to_account_info(),
-                    to: creator_ata
-                        .ok_or(EscrowError::MissingCreatorAta)?
-                        .to_account_info(),
-                    authority: escrow.to_account_info(),
-                },
-                &[&seeds],
-            ),
-            escrow.amount(),
+        uni_transfer(
+            &UniTransferParams::TokenTransfer {
+                from: escrow_ata.to_account_info(),
+                authority: escrow.to_account_info(),
+                to: creator_ata
+                    .ok_or(EscrowError::MissingCreatorAta)?
+                    .to_account_info(),
+                amount: escrow.amount(),
+                program: token_program.clone(),
+            },
+            Some(&[&seeds]),
         )?;
 
         // Close the escrow_ata account
@@ -289,19 +283,17 @@ where
 {
     if recipient_ata.is_some() {
         // in case of sol_desination_ata provided, we transfer wSOL from the escrow_ata to recipient_ata (without unwrapping)
-        anchor_spl::token::transfer(
-            CpiContext::new_with_signer(
-                token_program.to_account_info(),
-                anchor_spl::token::Transfer {
-                    from: escrow_ata.to_account_info(),
-                    to: recipient_ata
-                        .ok_or(EscrowError::MissingRecipientAta)?
-                        .to_account_info(),
-                    authority: escrow.to_account_info(),
-                },
-                &[&seeds],
-            ),
-            escrow.amount(),
+        uni_transfer(
+            &UniTransferParams::TokenTransfer {
+                from: escrow_ata.to_account_info(),
+                authority: escrow.to_account_info(),
+                to: recipient_ata
+                    .ok_or(EscrowError::MissingRecipientAta)?
+                    .to_account_info(),
+                amount: escrow.amount(),
+                program: token_program.clone(),
+            },
+            Some(&[&seeds]),
         )?;
     }
 
@@ -394,4 +386,65 @@ pub fn rescue_funds<'info>(
     }
 
     Ok(())
+}
+
+enum UniTransferParams<'info> {
+    NativeTransfer {
+        from: AccountInfo<'info>,
+        to: AccountInfo<'info>,
+        amount: u64,
+        program: Program<'info, System>,
+    },
+
+    TokenTransfer {
+        from: AccountInfo<'info>,
+        authority: AccountInfo<'info>,
+        to: AccountInfo<'info>,
+        amount: u64,
+        program: Program<'info, Token>,
+    },
+}
+
+fn uni_transfer(params: &UniTransferParams<'_>, signer_seeds: Option<&[&[&[u8]]]>) -> Result<()> {
+    match params {
+        UniTransferParams::NativeTransfer {
+            from,
+            to,
+            amount,
+            program,
+        } => {
+            let ctx = system_program::Transfer {
+                from: from.to_account_info(),
+                to: to.to_account_info(),
+            };
+
+            let cpi_ctx = match signer_seeds {
+                Some(seeds) => CpiContext::new_with_signer(program.to_account_info(), ctx, seeds),
+                None => CpiContext::new(program.to_account_info(), ctx),
+            };
+
+            system_program::transfer(cpi_ctx, *amount)
+        }
+
+        UniTransferParams::TokenTransfer {
+            from,
+            authority,
+            to,
+            amount,
+            program,
+        } => {
+            let ctx = anchor_spl::token::Transfer {
+                from: from.to_account_info(),
+                to: to.to_account_info(),
+                authority: authority.to_account_info(),
+            };
+
+            let cpi_ctx = match signer_seeds {
+                Some(seeds) => CpiContext::new_with_signer(program.to_account_info(), ctx, seeds),
+                None => CpiContext::new(program.to_account_info(), ctx),
+            };
+
+            anchor_spl::token::transfer(cpi_ctx, *amount)
+        }
+    }
 }
