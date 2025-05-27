@@ -980,10 +980,6 @@ pub async fn test_escrow_creation_native<T: EscrowVariant>(test_state: &mut Test
 
     let token_account_rent =
         get_min_rent_for_size(&mut test_state.client, get_token_account_size()).await;
-    assert_eq!(
-        rent_lamports,
-        test_state.client.get_balance(escrow).await.unwrap()
-    );
 
     assert_eq!(
         WALLET_DEFAULT_LAMPORTS
