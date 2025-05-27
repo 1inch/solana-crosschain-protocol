@@ -99,10 +99,6 @@ where
         return err!(EscrowError::InvalidSecret);
     }
 
-    let amount_bytes = escrow.amount().to_be_bytes();
-    let safety_deposit_bytes = escrow.safety_deposit().to_be_bytes();
-    let rescue_start_bytes = escrow.rescue_start().to_be_bytes();
-
     let seeds = [
         "escrow".as_bytes(),
         escrow.order_hash(),
@@ -110,9 +106,9 @@ where
         escrow.creator().as_ref(),
         escrow.recipient().as_ref(),
         escrow.token().as_ref(),
-        amount_bytes.as_ref(),
-        safety_deposit_bytes.as_ref(),
-        rescue_start_bytes.as_ref(),
+        &escrow.amount().to_be_bytes(),
+        &escrow.safety_deposit().to_be_bytes(),
+        &escrow.rescue_start().to_be_bytes(),
         &[escrow_bump],
     ];
 
@@ -162,10 +158,6 @@ pub fn cancel<'info, T>(
 where
     T: EscrowBase + AccountSerialize + AccountDeserialize + Clone,
 {
-    let amount_bytes = escrow.amount().to_be_bytes();
-    let safety_deposit_bytes = escrow.safety_deposit().to_be_bytes();
-    let rescue_start_bytes = escrow.rescue_start().to_be_bytes();
-
     let seeds = [
         "escrow".as_bytes(),
         escrow.order_hash(),
@@ -173,9 +165,9 @@ where
         escrow.creator().as_ref(),
         escrow.recipient().as_ref(),
         escrow.token().as_ref(),
-        amount_bytes.as_ref(),
-        safety_deposit_bytes.as_ref(),
-        rescue_start_bytes.as_ref(),
+        &escrow.amount().to_be_bytes(),
+        &escrow.safety_deposit().to_be_bytes(),
+        &escrow.rescue_start().to_be_bytes(),
         &[escrow_bump],
     ];
 
@@ -254,10 +246,6 @@ pub fn rescue_funds<'info>(
     let now = utils::get_current_timestamp()?;
     require!(now >= rescue_start, EscrowError::InvalidTime);
 
-    let amount_bytes = escrow_amount.to_be_bytes();
-    let safety_deposit_bytes = safety_deposit.to_be_bytes();
-    let rescue_start_bytes = rescue_start.to_be_bytes();
-
     let recipient_pubkey = recipient.key();
 
     let seeds = [
@@ -267,9 +255,9 @@ pub fn rescue_funds<'info>(
         escrow_creator.as_ref(),
         recipient_pubkey.as_ref(),
         escrow_mint.as_ref(),
-        amount_bytes.as_ref(),
-        safety_deposit_bytes.as_ref(),
-        rescue_start_bytes.as_ref(),
+        &escrow_amount.to_be_bytes(),
+        &safety_deposit.to_be_bytes(),
+        &rescue_start.to_be_bytes(),
         &[escrow_bump],
     ];
 
