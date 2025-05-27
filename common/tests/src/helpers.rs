@@ -210,7 +210,6 @@ where
 pub struct Wallet {
     pub keypair: Keypair,
     pub token_account: Pubkey,
-    pub native_token_account: Pubkey,
 }
 
 impl Clone for Wallet {
@@ -218,7 +217,6 @@ impl Clone for Wallet {
         Wallet {
             keypair: self.keypair.insecure_clone(),
             token_account: self.token_account,
-            native_token_account: self.native_token_account,
         }
     }
 }
@@ -288,29 +286,18 @@ pub async fn create_wallet(
     mint_tokens: u64,
 ) -> Wallet {
     let dummy_kp = Keypair::new();
-    let user_pubkey = dummy_kp.pubkey();
-    let payer_kp = ctx.payer.insecure_clone();
-
-    // Always initialize native ATA and fund it
-    let native_ata = initialize_spl_associated_account(ctx, &NATIVE_MINT, &user_pubkey).await;
-    transfer_lamports(ctx, fund_lamports, &payer_kp, &user_pubkey).await;
-    transfer_lamports(ctx, fund_lamports, &payer_kp, &native_ata).await;
-    sync_native_ata(ctx, &native_ata).await;
-
-    // Handle non-native token minting
-    let token_ata = if token != &NATIVE_MINT {
-        let ata = initialize_spl_associated_account(ctx, token, &user_pubkey).await;
-        mint_spl_tokens(ctx, token, &ata, mint_tokens).await;
-        transfer_lamports(ctx, fund_lamports, &payer_kp, &user_pubkey).await;
-        ata
-    } else {
-        native_ata
-    };
-
+    let ata = initialize_spl_associated_account(ctx, token, &dummy_kp.pubkey()).await;
+    mint_spl_tokens(ctx, token, &ata, mint_tokens).await;
+    transfer_lamports(
+        ctx,
+        fund_lamports,
+        &ctx.payer.insecure_clone(),
+        &dummy_kp.pubkey(),
+    )
+    .await;
     Wallet {
         keypair: dummy_kp,
-        token_account: token_ata,
-        native_token_account: native_ata,
+        token_account: ata,
     }
 }
 

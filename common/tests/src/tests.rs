@@ -992,13 +992,12 @@ pub async fn test_escrow_creation_native<T: EscrowVariant>(test_state: &mut Test
             - token_account_rent
             - DEFAULT_FEE_PER_SIGNATURE_LAMPORTS,
         // The pure lamport balance of the creator wallet after the transaction.
-        // Deducting default lamports to avoid counting in the the WSOL as well
+        // Deducting default lamports to avoid wrong assertion with WSOL.
         test_state
             .client
             .get_balance(test_state.creator_wallet.keypair.pubkey())
             .await
             .unwrap()
-            - WALLET_DEFAULT_LAMPORTS
     );
 }
 
