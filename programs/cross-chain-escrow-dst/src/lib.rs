@@ -38,9 +38,10 @@ pub mod cross_chain_escrow_dst {
             .checked_add(public_withdrawal_duration)
             .ok_or(ProgramError::ArithmeticOverflow)?;
 
-        if cancellation_start > src_cancellation_timestamp {
-            return err!(EscrowError::InvalidCreationTime);
-        }
+        require!(
+            cancellation_start <= src_cancellation_timestamp,
+            EscrowError::InvalidCreationTime
+        );
 
         common::escrow::create(
             EscrowDst::INIT_SPACE + constants::DISCRIMINATOR,
@@ -75,11 +76,11 @@ pub mod cross_chain_escrow_dst {
 
     pub fn withdraw(ctx: Context<Withdraw>, secret: [u8; 32]) -> Result<()> {
         let now = utils::get_current_timestamp()?;
-        if now < ctx.accounts.escrow.withdrawal_start
-            || now >= ctx.accounts.escrow.cancellation_start
-        {
-            return err!(EscrowError::InvalidTime);
-        }
+        require!(
+            now >= ctx.accounts.escrow.withdrawal_start
+                && now < ctx.accounts.escrow.cancellation_start,
+            EscrowError::InvalidTime
+        );
 
         // In a standard withdrawal, the creator receives the entire rent amount, including the safety deposit,
         // because they initially covered the entire rent during escrow creation.
@@ -98,11 +99,11 @@ pub mod cross_chain_escrow_dst {
 
     pub fn public_withdraw(ctx: Context<PublicWithdraw>, secret: [u8; 32]) -> Result<()> {
         let now = utils::get_current_timestamp()?;
-        if now < ctx.accounts.escrow.public_withdrawal_start
-            || now >= ctx.accounts.escrow.cancellation_start
-        {
-            return err!(EscrowError::InvalidTime);
-        }
+        require!(
+            now >= ctx.accounts.escrow.public_withdrawal_start
+                && now < ctx.accounts.escrow.cancellation_start,
+            EscrowError::InvalidTime
+        );
 
         // In a public withdrawal, the creator receives the rent minus the safety deposit
         // while the safety deposit is awarded to the payer who executed the public withdrawal
@@ -121,9 +122,10 @@ pub mod cross_chain_escrow_dst {
 
     pub fn cancel(ctx: Context<Cancel>) -> Result<()> {
         let now = utils::get_current_timestamp()?;
-        if now < ctx.accounts.escrow.cancellation_start {
-            return err!(EscrowError::InvalidTime);
-        }
+        require!(
+            now >= ctx.accounts.escrow.cancellation_start,
+            EscrowError::InvalidTime
+        );
 
         common::escrow::cancel(
             &ctx.accounts.escrow,
