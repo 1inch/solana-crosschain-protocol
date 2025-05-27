@@ -390,7 +390,7 @@ mod test_escrow_native {
 
     #[test_context(TestState)]
     #[tokio::test]
-    pub async fn test_public_withdraw_by_any_creator(test_state: &mut TestState) {
+    pub async fn test_public_withdraw_by_creator(test_state: &mut TestState) {
         test_state.token = NATIVE_MINT;
         let withdrawer = test_state.creator_wallet.keypair.insecure_clone();
         common_escrow_tests::test_public_withdraw_tokens_native(test_state, withdrawer).await
