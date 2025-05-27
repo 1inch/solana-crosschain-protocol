@@ -54,10 +54,13 @@ impl EscrowVariant for DstProgram {
                 withdrawal_duration: test_state.test_arguments.withdrawal_duration,
                 src_cancellation_timestamp: test_state.test_arguments.src_cancellation_timestamp,
                 rescue_start: test_state.test_arguments.rescue_start,
+                asset_is_native: test_state.asset_is_native,
             });
 
-        let creator_ata = if test_state.token == NATIVE_MINT {
+        let creator_ata = if test_state.asset_is_native {
             cross_chain_escrow_dst::id()
+        } else if test_state.token == NATIVE_MINT {
+            test_state.creator_wallet.native_token_account
         } else {
             test_state.creator_wallet.token_account
         };
@@ -135,8 +138,10 @@ impl EscrowVariant for DstProgram {
         let instruction_data =
             InstructionData::data(&cross_chain_escrow_dst::instruction::Cancel {});
 
-        let creator_ata = if test_state.token == NATIVE_MINT {
+        let creator_ata = if test_state.asset_is_native {
             cross_chain_escrow_dst::id()
+        } else if test_state.token == NATIVE_MINT {
+            test_state.creator_wallet.native_token_account
         } else {
             test_state.creator_wallet.token_account
         };

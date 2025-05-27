@@ -88,6 +88,7 @@ impl AsyncTestContext for TestStateTrading {
                 recipient_wallet,
                 init_timestamp: timestamp,
                 test_arguments: get_default_testargs(timestamp),
+                asset_is_native: false, // This is set to false by default, will be changed for native tests.
                 pd: PhantomData,
             },
         }

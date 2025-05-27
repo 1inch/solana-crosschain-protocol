@@ -24,6 +24,7 @@ pub mod cross_chain_escrow_src {
         public_withdrawal_duration: u32,
         cancellation_duration: u32,
         rescue_start: u32,
+        asset_is_native: bool,
     ) -> Result<()> {
         let now = utils::get_current_timestamp()?;
 
@@ -43,6 +44,8 @@ pub mod cross_chain_escrow_src {
         common::escrow::create(
             EscrowSrc::INIT_SPACE + constants::DISCRIMINATOR,
             &ctx.accounts.creator,
+            &ctx.accounts.token,
+            asset_is_native,
             &ctx.accounts.escrow_ata,
             ctx.accounts.creator_ata.as_deref(),
             &ctx.accounts.token_program,
@@ -68,6 +71,7 @@ pub mod cross_chain_escrow_src {
             public_cancellation_start,
             rescue_start,
             rent_recipient: ctx.accounts.payer.key(),
+            asset_is_native,
         });
 
         Ok(())
@@ -88,8 +92,7 @@ pub mod cross_chain_escrow_src {
             &ctx.accounts.escrow,
             ctx.bumps.escrow,
             &ctx.accounts.escrow_ata,
-            &ctx.accounts.recipient,
-            ctx.accounts.recipient_ata.as_deref(),
+            &ctx.accounts.recipient_ata,
             &ctx.accounts.token_program,
             &ctx.accounts.rent_recipient,
             &ctx.accounts.rent_recipient,
@@ -112,8 +115,7 @@ pub mod cross_chain_escrow_src {
             &ctx.accounts.escrow,
             ctx.bumps.escrow,
             &ctx.accounts.escrow_ata,
-            &ctx.accounts.recipient,
-            ctx.accounts.recipient_ata.as_deref(),
+            &ctx.accounts.recipient_ata,
             &ctx.accounts.token_program,
             &ctx.accounts.rent_recipient,
             &ctx.accounts.payer,
@@ -285,7 +287,7 @@ pub struct Withdraw<'info> {
         associated_token::authority = recipient,
     )]
     // Optional if the token is native)
-    recipient_ata: Option<Box<Account<'info, TokenAccount>>>,
+    recipient_ata: Box<Account<'info, TokenAccount>>,
     #[account(address = TOKEN_PROGRAM_ID)]
     token_program: Program<'info, Token>,
     system_program: Program<'info, System>,
@@ -334,8 +336,7 @@ pub struct PublicWithdraw<'info> {
         associated_token::mint = token,
         associated_token::authority = recipient,
     )]
-    // Optional if the token is native
-    recipient_ata: Option<Box<Account<'info, TokenAccount>>>,
+    recipient_ata: Box<Account<'info, TokenAccount>>,
     #[account(address = TOKEN_PROGRAM_ID)]
     token_program: Program<'info, Token>,
     system_program: Program<'info, System>,
@@ -491,6 +492,7 @@ pub struct EscrowSrc {
     public_cancellation_start: u32,
     rescue_start: u32,
     rent_recipient: Pubkey,
+    asset_is_native: bool,
 }
 
 impl EscrowBase for EscrowSrc {
@@ -540,5 +542,9 @@ impl EscrowBase for EscrowSrc {
 
     fn rent_recipient(&self) -> &Pubkey {
         &self.rent_recipient
+    }
+
+    fn asset_is_native(&self) -> bool {
+        self.asset_is_native
     }
 }

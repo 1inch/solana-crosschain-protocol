@@ -1,5 +1,6 @@
 use anchor_lang::solana_program::keccak::hash;
 use anchor_lang::{prelude::*, system_program};
+use anchor_spl::token::Mint;
 use anchor_spl::token::{spl_token::native_mint::ID as NATIVE_MINT, Token, TokenAccount};
 
 use crate::constants::RESCUE_DELAY;
@@ -30,11 +31,15 @@ pub trait EscrowBase {
     fn rescue_start(&self) -> u32;
 
     fn rent_recipient(&self) -> &Pubkey;
+
+    fn asset_is_native(&self) -> bool;
 }
 
 pub fn create<'info>(
     escrow_size: usize,
     creator: &AccountInfo<'info>,
+    token: &Account<'info, Mint>,
+    asset_is_native: bool,
     escrow_ata: &Account<'info, TokenAccount>,
     creator_ata: Option<&Account<'info, TokenAccount>>,
     token_program: &Program<'info, Token>,
@@ -60,8 +65,13 @@ pub fn create<'info>(
         return err!(EscrowError::SafetyDepositTooLarge);
     }
 
+    require!(
+        token.key() == NATIVE_MINT || !asset_is_native,
+        EscrowError::InconsistentNativeTrait
+    );
+
     // Check if token is native (WSOL) and is expected to be wrapped
-    if escrow_ata.mint == NATIVE_MINT && creator_ata.is_none() {
+    if asset_is_native {
         // Transfer native tokens from creator to escrow_ata and wrap
         uni_transfer(
             &UniTransferParams::NativeTransfer {
@@ -102,8 +112,7 @@ pub fn withdraw<'info, T>(
     escrow: &Account<'info, T>,
     escrow_bump: u8,
     escrow_ata: &Account<'info, TokenAccount>,
-    recipient: &AccountInfo<'info>,
-    recipient_ata: Option<&Account<'info, TokenAccount>>,
+    recipient_ata: &Account<'info, TokenAccount>,
     token_program: &Program<'info, Token>,
     rent_recipient: &AccountInfo<'info>,
     safety_deposit_recipient: &AccountInfo<'info>,
@@ -135,42 +144,29 @@ where
         &[escrow_bump],
     ];
 
-    if escrow_ata.mint != NATIVE_MINT {
-        // Transfer tokens from escrow to recipient
-        uni_transfer(
-            &UniTransferParams::TokenTransfer {
-                from: escrow_ata.to_account_info(),
-                authority: escrow.to_account_info(),
-                to: recipient_ata
-                    .ok_or(EscrowError::MissingRecipientAta)?
-                    .to_account_info(),
-                amount: escrow.amount(),
-                program: token_program.clone(),
-            },
-            Some(&[&seeds]),
-        )?;
+    // Transfer tokens from escrow to recipient
+    uni_transfer(
+        &UniTransferParams::TokenTransfer {
+            from: escrow_ata.to_account_info(),
+            authority: escrow.to_account_info(),
+            to: recipient_ata.to_account_info(),
+            amount: escrow.amount(),
+            program: token_program.clone(),
+        },
+        Some(&[&seeds]),
+    )?;
 
-        // Close the escrow_ata account
-        anchor_spl::token::close_account(CpiContext::new_with_signer(
-            token_program.to_account_info(),
-            anchor_spl::token::CloseAccount {
-                account: escrow_ata.to_account_info(),
-                destination: rent_recipient.to_account_info(),
-                authority: escrow.to_account_info(),
-            },
-            &[&seeds],
-        ))?;
-    } else {
-        // Handle native token (WSOL) withdrawal and ata closure
-        close_and_withdraw_native_ata(
-            escrow,
-            escrow_ata,
-            recipient,
-            recipient_ata,
-            token_program,
-            seeds,
-        )?;
-    }
+    // Close the escrow_ata account
+    anchor_spl::token::close_account(CpiContext::new_with_signer(
+        token_program.to_account_info(),
+        anchor_spl::token::CloseAccount {
+            account: escrow_ata.to_account_info(),
+            destination: rent_recipient.to_account_info(),
+            authority: escrow.to_account_info(),
+        },
+        &[&seeds],
+    ))?;
+
     // Close the escrow account
     close_escrow_account(escrow, safety_deposit_recipient, rent_recipient)?;
 
@@ -207,7 +203,7 @@ where
         &[escrow_bump],
     ];
 
-    if escrow_ata.mint != NATIVE_MINT {
+    if !escrow.asset_is_native() {
         // Return tokens to creator
         uni_transfer(
             &UniTransferParams::TokenTransfer {

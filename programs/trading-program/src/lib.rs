@@ -70,6 +70,7 @@ pub mod trading_program {
             order.public_withdrawal_duration,
             order.cancellation_duration,
             order.rescue_start,
+            false, // hardcoded to pass CI checks, as trading program will be removed in SOL-117
         )?;
 
         Ok(())

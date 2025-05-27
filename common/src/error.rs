@@ -20,4 +20,6 @@ pub enum EscrowError {
     MissingCreatorAta,
     #[msg("Missing recipient ata")]
     MissingRecipientAta,
+    #[msg("Inconsistent native trait")]
+    InconsistentNativeTrait,
 }

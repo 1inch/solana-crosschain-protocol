@@ -10,6 +10,7 @@ use anchor_spl::token::spl_token::{
     state::{Account as SplTokenAccount, Mint},
     ID as spl_program_id,
 };
+use anchor_spl::token::{spl_token, spl_token::instruction::sync_native};
 use common::constants::RESCUE_DELAY;
 use solana_program::{
     instruction::Instruction,
@@ -19,7 +20,10 @@ use solana_program::{
     pubkey::Pubkey,
 };
 use solana_program_runtime::invoke_context::BuiltinFunctionWithContext;
-use solana_program_test::{BanksClient, BanksClientError, ProgramTest, ProgramTestContext};
+use solana_program_test::{
+    BanksClient, BanksClientError, ProgramTest, ProgramTestBanksClientExt, ProgramTestContext,
+};
+use solana_sdk::native_token::LAMPORTS_PER_SOL;
 use solana_sdk::system_program::ID as system_program_id;
 use solana_sdk::{
     signature::Signer,
@@ -37,7 +41,7 @@ use crate::src_program::SrcProgram;
 
 pub const DEFAULT_FEE_PER_SIGNATURE_LAMPORTS: u64 = 5000;
 
-pub const WALLET_DEFAULT_LAMPORTS: u64 = 1000000000;
+pub const WALLET_DEFAULT_LAMPORTS: u64 = 10 * LAMPORTS_PER_SOL;
 pub const WALLET_DEFAULT_TOKENS: u64 = 1000000000;
 
 pub const DEFAULT_PERIOD_DURATION: u32 = 100;
@@ -96,6 +100,7 @@ pub struct TestStateBase<T: ?Sized> {
     pub recipient_wallet: Wallet,
     pub test_arguments: TestArgs,
     pub init_timestamp: u32,
+    pub asset_is_native: bool,
     pub pd: PhantomData<T>,
 }
 
@@ -198,6 +203,7 @@ where
             recipient_wallet,
             init_timestamp: timestamp,
             test_arguments: get_default_testargs(timestamp),
+            asset_is_native: false, // This is set to false by default, will be changed for native tests.
             pd: PhantomData,
         }
     }
@@ -206,6 +212,7 @@ where
 pub struct Wallet {
     pub keypair: Keypair,
     pub token_account: Pubkey,
+    pub native_token_account: Pubkey,
 }
 
 impl Clone for Wallet {
@@ -213,6 +220,7 @@ impl Clone for Wallet {
         Wallet {
             keypair: self.keypair.insecure_clone(),
             token_account: self.token_account,
+            native_token_account: self.native_token_account,
         }
     }
 }
@@ -291,10 +299,33 @@ pub async fn create_wallet(
         &dummy_kp.pubkey(),
     )
     .await;
+
+    let user_pubkey = dummy_kp.pubkey();
+    let payer_kp = ctx.payer.insecure_clone();
+
+    let native_ata = initialize_spl_associated_account(ctx, &NATIVE_MINT, &user_pubkey).await;
+    transfer_lamports(ctx, fund_lamports, &payer_kp, &user_pubkey).await;
+    transfer_lamports(ctx, mint_tokens, &payer_kp, &native_ata).await;
+    sync_native_ata(ctx, &native_ata).await;
+
     Wallet {
         keypair: dummy_kp,
         token_account: ata,
+        native_token_account: native_ata,
     }
+}
+
+pub async fn sync_native_ata(ctx: &mut ProgramTestContext, ata: &Pubkey) {
+    let ix = sync_native(&spl_token::ID, ata).unwrap();
+
+    let tx = Transaction::new_signed_with_payer(
+        &[ix],
+        Some(&ctx.payer.pubkey()),
+        &[&ctx.payer],
+        ctx.last_blockhash,
+    );
+
+    ctx.banks_client.process_transaction(tx).await.unwrap();
 }
 
 pub fn add_program_to_test<F>(
@@ -352,13 +383,19 @@ pub async fn transfer_lamports(
 ) {
     let transfer_ix = system_instruction::transfer(&src.pubkey(), dst, amount);
     let signers: Vec<&Keypair> = vec![src];
+    // Updating the latest blockhash to avoid the "RpcError(DeadlineExceeded)" error
+    let last_blockhash = ctx
+        .banks_client
+        .get_new_latest_blockhash(&ctx.last_blockhash)
+        .await
+        .unwrap();
     let client = &mut ctx.banks_client;
     client
         .process_transaction(Transaction::new_signed_with_payer(
             &[transfer_ix],
             Some(&ctx.payer.pubkey()),
             &signers,
-            ctx.last_blockhash,
+            last_blockhash,
         ))
         .await
         .unwrap();
@@ -552,7 +589,7 @@ pub fn build_withdraw_tx_src(
         .unwrap_or_else(|| test_state.creator_wallet.keypair.pubkey());
 
     let recipient_ata = if test_state.token == NATIVE_MINT {
-        cross_chain_escrow_src::id()
+        test_state.recipient_wallet.native_token_account
     } else {
         test_state.recipient_wallet.token_account
     };
@@ -601,7 +638,7 @@ pub fn build_public_withdraw_tx_src(
     };
 
     let recipient_ata = if test_state.token == NATIVE_MINT {
-        cross_chain_escrow_src::id()
+        test_state.recipient_wallet.native_token_account
     } else {
         test_state.recipient_wallet.token_account
     };
@@ -642,7 +679,7 @@ pub fn build_withdraw_tx_dst(
     });
 
     let recipient_ata = if test_state.token == NATIVE_MINT {
-        cross_chain_escrow_dst::id()
+        test_state.recipient_wallet.native_token_account
     } else {
         test_state.recipient_wallet.token_account
     };
@@ -685,7 +722,7 @@ pub fn build_public_withdraw_tx_dst(
         });
 
     let recipient_ata = if test_state.token == NATIVE_MINT {
-        cross_chain_escrow_dst::id()
+        test_state.recipient_wallet.native_token_account
     } else {
         test_state.recipient_wallet.token_account
     };

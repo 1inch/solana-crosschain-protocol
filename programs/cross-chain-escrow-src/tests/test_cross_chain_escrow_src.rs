@@ -527,7 +527,7 @@ mod local_helpers {
     use super::*;
 
     use anchor_lang::InstructionData;
-    use anchor_spl::token::spl_token::{self, ID as spl_program_id};
+    use anchor_spl::token::spl_token::{native_mint::ID as NATIVE_MINT, ID as spl_program_id};
     use solana_program::instruction::{AccountMeta, Instruction};
     use solana_program::pubkey::Pubkey;
     use solana_program::system_program::ID as system_program_id;
@@ -542,8 +542,10 @@ mod local_helpers {
         let instruction_data =
             InstructionData::data(&cross_chain_escrow_src::instruction::PublicCancel {});
 
-        let creator_ata = if test_state.token == spl_token::native_mint::ID {
+        let creator_ata = if test_state.asset_is_native {
             cross_chain_escrow_src::id()
+        } else if test_state.token == NATIVE_MINT {
+            test_state.creator_wallet.native_token_account
         } else {
             test_state.creator_wallet.token_account
         };
@@ -574,9 +576,8 @@ mod local_helpers {
 }
 
 mod test_escrow_native {
-    use anchor_spl::token::spl_token::native_mint::ID as NATIVE_MINT;
-
     use crate::local_helpers::create_public_cancel_tx;
+    use anchor_spl::token::spl_token::native_mint::ID as NATIVE_MINT;
 
     use super::*;
 
@@ -584,14 +585,197 @@ mod test_escrow_native {
     #[tokio::test]
     async fn test_escrow_creation(test_state: &mut TestState) {
         test_state.token = NATIVE_MINT;
+        test_state.asset_is_native = true;
         common_escrow_tests::test_escrow_creation_native(test_state).await
+    }
+
+    #[test_context(TestState)]
+    #[tokio::test]
+    async fn test_escrow_creation_fail_if_token_is_not_native(test_state: &mut TestState) {
+        test_state.asset_is_native = true;
+        common_escrow_tests::test_escrow_creation_fail_if_token_is_not_native(test_state).await
     }
 
     #[test_context(TestState)]
     #[tokio::test]
     pub async fn test_withdraw(test_state: &mut TestState) {
         test_state.token = NATIVE_MINT;
-        common_escrow_tests::test_withdraw_native(test_state).await
+        test_state.asset_is_native = true;
+        common_escrow_tests::test_withdraw(test_state).await
+    }
+
+    #[test_context(TestState)]
+    #[tokio::test]
+    pub async fn test_public_withdraw_by_resolver(test_state: &mut TestState) {
+        test_state.token = NATIVE_MINT;
+        test_state.asset_is_native = true;
+        let withdrawer = test_state.recipient_wallet.keypair.insecure_clone();
+        common_escrow_tests::test_public_withdraw_tokens(test_state, withdrawer).await
+    }
+
+    #[test_context(TestState)]
+    #[tokio::test]
+    pub async fn test_public_withdraw_by_any_account(test_state: &mut TestState) {
+        test_state.token = NATIVE_MINT;
+        test_state.asset_is_native = true;
+        let withdrawer = Keypair::new();
+        let payer_kp = &test_state.payer_kp;
+        let mut context = &mut test_state.context;
+
+        transfer_lamports(
+            &mut context,
+            WALLET_DEFAULT_LAMPORTS,
+            payer_kp,
+            &withdrawer.pubkey(),
+        )
+        .await;
+        common_escrow_tests::test_public_withdraw_tokens(test_state, withdrawer).await
+    }
+
+    #[test_context(TestState)]
+    #[tokio::test]
+    pub async fn test_cancel(test_state: &mut TestState) {
+        test_state.token = NATIVE_MINT;
+        test_state.asset_is_native = true;
+        common_escrow_tests::test_cancel_native(test_state).await
+    }
+
+    #[test_context(TestState)]
+    #[tokio::test]
+    async fn test_public_cancel_by_creator(test_state: &mut TestState) {
+        test_state.token = NATIVE_MINT;
+        test_state.asset_is_native = true;
+
+        let (escrow, escrow_ata) = create_escrow(test_state).await;
+
+        let transaction = create_public_cancel_tx(
+            test_state,
+            &escrow,
+            &escrow_ata,
+            &test_state.creator_wallet.keypair,
+        );
+
+        set_time(
+            &mut test_state.context,
+            test_state.init_timestamp
+                + DEFAULT_PERIOD_DURATION * PeriodType::PublicCancellation as u32,
+        );
+
+        let escrow_data_len = SrcProgram::get_escrow_data_len();
+        let rent_lamports = get_min_rent_for_size(&mut test_state.client, escrow_data_len).await;
+
+        let token_account_rent =
+            get_min_rent_for_size(&mut test_state.client, SplTokenAccount::LEN).await;
+
+        test_state
+            .expect_balance_change(
+                transaction,
+                &[native_change(
+                    test_state.creator_wallet.keypair.pubkey(),
+                    rent_lamports + token_account_rent + test_state.test_arguments.escrow_amount,
+                )],
+            )
+            .await;
+
+        // Assert accounts were closed
+        assert!(test_state
+            .client
+            .get_account(escrow)
+            .await
+            .unwrap()
+            .is_none());
+
+        // Assert escrow_ata was closed
+        assert!(test_state
+            .client
+            .get_account(escrow_ata)
+            .await
+            .unwrap()
+            .is_none());
+    }
+
+    #[test_context(TestState)]
+    #[tokio::test]
+    async fn test_public_cancel_by_any_account(test_state: &mut TestState) {
+        test_state.token = NATIVE_MINT;
+        test_state.asset_is_native = true;
+
+        let (escrow, escrow_ata) = create_escrow(test_state).await;
+
+        let canceller = Keypair::new();
+        transfer_lamports(
+            &mut test_state.context,
+            WALLET_DEFAULT_LAMPORTS,
+            &test_state.payer_kp,
+            &canceller.pubkey(),
+        )
+        .await;
+
+        let transaction = create_public_cancel_tx(test_state, &escrow, &escrow_ata, &canceller);
+
+        set_time(
+            &mut test_state.context,
+            test_state.init_timestamp
+                + DEFAULT_PERIOD_DURATION * PeriodType::PublicCancellation as u32,
+        );
+
+        let escrow_data_len = SrcProgram::get_escrow_data_len();
+        let rent_lamports = get_min_rent_for_size(&mut test_state.client, escrow_data_len).await;
+
+        let token_account_rent =
+            get_min_rent_for_size(&mut test_state.client, SplTokenAccount::LEN).await;
+
+        test_state
+            .expect_balance_change(
+                transaction,
+                &[
+                    native_change(canceller.pubkey(), test_state.test_arguments.safety_deposit),
+                    native_change(
+                        test_state.creator_wallet.keypair.pubkey(),
+                        rent_lamports + token_account_rent
+                            - test_state.test_arguments.safety_deposit
+                            + test_state.test_arguments.escrow_amount,
+                    ),
+                ],
+            )
+            .await;
+
+        // Assert accounts were closed
+        assert!(test_state
+            .client
+            .get_account(escrow)
+            .await
+            .unwrap()
+            .is_none());
+
+        // Assert escrow_ata was closed
+        assert!(test_state
+            .client
+            .get_account(escrow_ata)
+            .await
+            .unwrap()
+            .is_none());
+    }
+}
+
+mod test_escrow_wrapped_native {
+    use crate::local_helpers::create_public_cancel_tx;
+    use anchor_spl::token::spl_token::native_mint::ID as NATIVE_MINT;
+
+    use super::*;
+
+    #[test_context(TestState)]
+    #[tokio::test]
+    async fn test_escrow_creation(test_state: &mut TestState) {
+        test_state.token = NATIVE_MINT;
+        common_escrow_tests::test_escrow_creation(test_state).await
+    }
+
+    #[test_context(TestState)]
+    #[tokio::test]
+    pub async fn test_withdraw(test_state: &mut TestState) {
+        test_state.token = NATIVE_MINT;
+        common_escrow_tests::test_withdraw(test_state).await
     }
 
     #[test_context(TestState)]
@@ -599,7 +783,7 @@ mod test_escrow_native {
     pub async fn test_public_withdraw_by_resolver(test_state: &mut TestState) {
         test_state.token = NATIVE_MINT;
         let withdrawer = test_state.recipient_wallet.keypair.insecure_clone();
-        common_escrow_tests::test_public_withdraw_tokens_native(test_state, withdrawer).await
+        common_escrow_tests::test_public_withdraw_tokens(test_state, withdrawer).await
     }
 
     #[test_context(TestState)]
@@ -617,14 +801,14 @@ mod test_escrow_native {
             &withdrawer.pubkey(),
         )
         .await;
-        common_escrow_tests::test_public_withdraw_tokens_native(test_state, withdrawer).await
+        common_escrow_tests::test_public_withdraw_tokens(test_state, withdrawer).await
     }
 
     #[test_context(TestState)]
     #[tokio::test]
-    pub async fn test_cancel(test_state: &mut TestState) {
+    async fn test_cancel(test_state: &mut TestState) {
         test_state.token = NATIVE_MINT;
-        common_escrow_tests::test_cancel_native(test_state).await
+        common_escrow_tests::test_cancel(test_state).await
     }
 
     #[test_context(TestState)]
@@ -656,10 +840,16 @@ mod test_escrow_native {
         test_state
             .expect_balance_change(
                 transaction,
-                &[native_change(
-                    test_state.creator_wallet.keypair.pubkey(),
-                    rent_lamports + token_account_rent + test_state.test_arguments.escrow_amount,
-                )],
+                &[
+                    native_change(
+                        test_state.creator_wallet.keypair.pubkey(),
+                        rent_lamports + token_account_rent,
+                    ),
+                    token_change(
+                        test_state.creator_wallet.native_token_account,
+                        test_state.test_arguments.escrow_amount,
+                    ),
+                ],
             )
             .await;
 
@@ -718,8 +908,11 @@ mod test_escrow_native {
                     native_change(
                         test_state.creator_wallet.keypair.pubkey(),
                         rent_lamports + token_account_rent
-                            - test_state.test_arguments.safety_deposit
-                            + test_state.test_arguments.escrow_amount,
+                            - test_state.test_arguments.safety_deposit,
+                    ),
+                    token_change(
+                        test_state.creator_wallet.native_token_account,
+                        test_state.test_arguments.escrow_amount,
                     ),
                 ],
             )
