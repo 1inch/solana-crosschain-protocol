@@ -1,7 +1,7 @@
 use anchor_lang::{prelude::AccountInfo, AnchorSerialize, InstructionData};
 use anchor_spl::{
     associated_token::{get_associated_token_address, ID as spl_associated_token_id},
-    token::spl_token::{native_mint::ID as NATIVE_MINT, ID as spl_program_id},
+    token::spl_token::ID as spl_program_id,
 };
 use common_tests::src_program::SrcProgram;
 use common_tests::{helpers::*, wrap_entry};
@@ -113,30 +113,16 @@ pub async fn prepare_trading_account(
     let (trading_pda, _) = get_trading_addresses(test_state);
     let (escrow_pda, escrow_ata) = get_escrow_addresses(test_state, trading_pda);
 
-    let payer_kp = test_state.payer_kp.insecure_clone();
-
     let trading_ata =
         initialize_spl_associated_account(&mut test_state.context, &test_state.token, &trading_pda)
             .await;
-    if test_state.token != NATIVE_MINT {
-        mint_spl_tokens(
-            &mut test_state.context,
-            &test_state.token,
-            &trading_ata,
-            test_state.test_arguments.escrow_amount,
-        )
-        .await;
-    } else {
-        transfer_lamports(
-            &mut test_state.context,
-            WALLET_DEFAULT_LAMPORTS,
-            &payer_kp,
-            &trading_ata,
-        )
-        .await;
-
-        sync_native_ata(&mut test_state.context, &trading_ata).await;
-    }
+    mint_spl_tokens(
+        &mut test_state.context,
+        &test_state.token,
+        &trading_ata,
+        test_state.test_arguments.escrow_amount,
+    )
+    .await;
     (escrow_pda, escrow_ata, trading_pda, trading_ata)
 }
 

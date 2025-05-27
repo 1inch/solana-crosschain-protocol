@@ -4,9 +4,7 @@ use anchor_spl::associated_token::{
     get_associated_token_address,
     spl_associated_token_account::instruction::create_associated_token_account,
 };
-use anchor_spl::token::spl_token::{
-    self, instruction::sync_native, native_mint::ID as NATIVE_MINT,
-};
+use anchor_spl::token::spl_token::native_mint::ID as NATIVE_MINT;
 use anchor_spl::token::spl_token::{
     instruction as spl_instruction,
     state::{Account as SplTokenAccount, Mint},
@@ -21,9 +19,7 @@ use solana_program::{
     pubkey::Pubkey,
 };
 use solana_program_runtime::invoke_context::BuiltinFunctionWithContext;
-use solana_program_test::{
-    BanksClient, BanksClientError, ProgramTest, ProgramTestBanksClientExt, ProgramTestContext,
-};
+use solana_program_test::{BanksClient, BanksClientError, ProgramTest, ProgramTestContext};
 use solana_sdk::system_program::ID as system_program_id;
 use solana_sdk::{
     signature::Signer,
@@ -356,35 +352,16 @@ pub async fn transfer_lamports(
 ) {
     let transfer_ix = system_instruction::transfer(&src.pubkey(), dst, amount);
     let signers: Vec<&Keypair> = vec![src];
-    // Updating the latest blockhash to avoid the "RpcError(DeadlineExceeded)" error
-    let last_blockhash = ctx
-        .banks_client
-        .get_new_latest_blockhash(&ctx.last_blockhash)
-        .await
-        .unwrap();
     let client = &mut ctx.banks_client;
     client
         .process_transaction(Transaction::new_signed_with_payer(
             &[transfer_ix],
             Some(&ctx.payer.pubkey()),
             &signers,
-            last_blockhash,
+            ctx.last_blockhash,
         ))
         .await
         .unwrap();
-}
-
-pub async fn sync_native_ata(ctx: &mut ProgramTestContext, ata: &Pubkey) {
-    let ix = sync_native(&spl_token::ID, ata).unwrap();
-
-    let tx = Transaction::new_signed_with_payer(
-        &[ix],
-        Some(&ctx.payer.pubkey()),
-        &[&ctx.payer],
-        ctx.last_blockhash,
-    );
-
-    ctx.banks_client.process_transaction(tx).await.unwrap();
 }
 
 pub async fn deploy_spl_token(ctx: &mut ProgramTestContext, decimals: u8) -> Keypair {
