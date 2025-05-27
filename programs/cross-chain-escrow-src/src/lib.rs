@@ -40,13 +40,11 @@ pub mod cross_chain_escrow_src {
             .checked_add(cancellation_duration)
             .ok_or(ProgramError::ArithmeticOverflow)?;
 
-        let creator_ata = ctx.accounts.creator_ata.as_deref();
-
         common::escrow::create(
             EscrowSrc::INIT_SPACE + constants::DISCRIMINATOR,
             &ctx.accounts.creator,
             &ctx.accounts.escrow_ata,
-            creator_ata,
+            ctx.accounts.creator_ata.as_deref(),
             &ctx.accounts.token_program,
             &ctx.accounts.system_program,
             amount,
@@ -86,14 +84,12 @@ pub mod cross_chain_escrow_src {
         // In a standard withdrawal, the rent recipient receives the entire rent amount, including the safety deposit,
         // because they initially covered the entire rent during escrow creation.
 
-        let recipient_ata = ctx.accounts.recipient_ata.as_deref();
-
         common::escrow::withdraw(
             &ctx.accounts.escrow,
             ctx.bumps.escrow,
             &ctx.accounts.escrow_ata,
             &ctx.accounts.recipient,
-            recipient_ata,
+            ctx.accounts.recipient_ata.as_deref(),
             &ctx.accounts.token_program,
             &ctx.accounts.rent_recipient,
             &ctx.accounts.rent_recipient,
@@ -112,14 +108,12 @@ pub mod cross_chain_escrow_src {
         // In a public withdrawal, the rent recipient receives the rent minus the safety deposit
         // while the safety deposit is awarded to the payer who executed the public withdrawal
 
-        let recipient_ata = ctx.accounts.recipient_ata.as_deref();
-
         common::escrow::withdraw(
             &ctx.accounts.escrow,
             ctx.bumps.escrow,
             &ctx.accounts.escrow_ata,
             &ctx.accounts.recipient,
-            recipient_ata,
+            ctx.accounts.recipient_ata.as_deref(),
             &ctx.accounts.token_program,
             &ctx.accounts.rent_recipient,
             &ctx.accounts.payer,
@@ -136,14 +130,12 @@ pub mod cross_chain_escrow_src {
         // In a standard cancel, the rent recipient receives the entire rent amount, including the safety deposit,
         // because they initially covered the entire rent during escrow creation.
 
-        let creator_ata = ctx.accounts.creator_ata.as_deref();
-
         common::escrow::cancel(
             &ctx.accounts.escrow,
             ctx.bumps.escrow,
             &ctx.accounts.escrow_ata,
             &ctx.accounts.creator,
-            creator_ata,
+            ctx.accounts.creator_ata.as_deref(),
             &ctx.accounts.token_program,
             &ctx.accounts.rent_recipient,
             &ctx.accounts.rent_recipient,
@@ -156,14 +148,12 @@ pub mod cross_chain_escrow_src {
             return err!(EscrowError::InvalidTime);
         }
 
-        let creator_ata = ctx.accounts.creator_ata.as_deref();
-
         common::escrow::cancel(
             &ctx.accounts.escrow,
             ctx.bumps.escrow,
             &ctx.accounts.escrow_ata,
             &ctx.accounts.creator,
-            creator_ata,
+            ctx.accounts.creator_ata.as_deref(),
             &ctx.accounts.token_program,
             &ctx.accounts.rent_recipient,
             &ctx.accounts.payer,
