@@ -20,6 +20,4 @@ pub enum EscrowError {
     MissingCreatorAta,
     #[msg("Missing recipient ata")]
     MissingRecipientAta,
-    #[msg("Missing SOL destination")]
-    MissingSolDestination,
 }

@@ -295,7 +295,7 @@ where
                 anchor_spl::token::Transfer {
                     from: escrow_ata.to_account_info(),
                     to: recipient_ata
-                        .ok_or(EscrowError::MissingSolDestination)?
+                        .ok_or(EscrowError::MissingRecipientAta)?
                         .to_account_info(),
                     authority: escrow.to_account_info(),
                 },
