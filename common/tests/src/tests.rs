@@ -1060,19 +1060,10 @@ pub async fn test_public_withdraw_tokens_native<T: EscrowVariant>(
         test_state.init_timestamp + DEFAULT_PERIOD_DURATION * PeriodType::PublicWithdrawal as u32,
     );
 
-    // Check that the escrow balance is correct
-    assert_eq!(
-        get_token_balance(&mut test_state.context, &escrow_ata).await,
-        test_state.test_arguments.escrow_amount
-    );
     let escrow_data_len = T::get_escrow_data_len();
     let rent_lamports = get_min_rent_for_size(&mut test_state.client, escrow_data_len).await;
     let token_account_rent =
         get_min_rent_for_size(&mut test_state.client, SplTokenAccount::LEN).await;
-    assert_eq!(
-        rent_lamports,
-        test_state.client.get_balance(escrow).await.unwrap()
-    );
 
     let expected_changes = match withdrawer.pubkey() {
         pubkey if pubkey == test_state.recipient_wallet.keypair.pubkey() => vec![

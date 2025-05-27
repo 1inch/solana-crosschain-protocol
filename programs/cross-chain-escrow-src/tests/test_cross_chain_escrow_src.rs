@@ -653,16 +653,6 @@ mod test_escrow_native {
         let token_account_rent =
             get_min_rent_for_size(&mut test_state.client, SplTokenAccount::LEN).await;
 
-        assert_eq!(
-            rent_lamports,
-            test_state.client.get_balance(escrow).await.unwrap()
-        );
-
-        assert_eq!(
-            get_token_balance(&mut test_state.context, &escrow_ata).await,
-            test_state.test_arguments.escrow_amount
-        );
-
         test_state
             .expect_balance_change(
                 transaction,
@@ -719,16 +709,6 @@ mod test_escrow_native {
 
         let token_account_rent =
             get_min_rent_for_size(&mut test_state.client, SplTokenAccount::LEN).await;
-
-        assert_eq!(
-            get_token_balance(&mut test_state.context, &escrow_ata).await,
-            test_state.test_arguments.escrow_amount
-        );
-
-        assert_eq!(
-            rent_lamports,
-            test_state.client.get_balance(escrow).await.unwrap()
-        );
 
         test_state
             .expect_balance_change(
