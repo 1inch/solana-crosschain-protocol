@@ -1,10 +1,12 @@
-use anchor_lang::prelude::*;
-use anchor_lang::solana_program::keccak::hash;
-use anchor_spl::token::{Token, TokenAccount};
-
 use crate::constants::RESCUE_DELAY;
 use crate::error::EscrowError;
 use crate::utils;
+use anchor_lang::prelude::*;
+use anchor_lang::solana_program::keccak::hash;
+use anchor_spl::token_interface::{
+    close_account, transfer_checked, CloseAccount, Mint, TokenAccount, TokenInterface,
+    TransferChecked,
+};
 
 pub trait EscrowBase {
     fn order_hash(&self) -> &[u8; 32];
@@ -35,9 +37,10 @@ pub trait EscrowBase {
 pub fn create<'info>(
     escrow_size: usize,
     creator: &AccountInfo<'info>,
-    escrow_ata: &Account<'info, TokenAccount>,
-    creator_ata: &Account<'info, TokenAccount>,
-    token_program: &Program<'info, Token>,
+    escrow_ata: &InterfaceAccount<'info, TokenAccount>,
+    creator_ata: &InterfaceAccount<'info, TokenAccount>,
+    mint: &InterfaceAccount<'info, Mint>,
+    token_program: &Interface<'info, TokenInterface>,
     amount: u64,
     safety_deposit: u64,
     rescue_start: u32,
@@ -60,27 +63,29 @@ pub fn create<'info>(
     }
 
     // Transfer tokens from creator to escrow
-    anchor_spl::token::transfer(
+    transfer_checked(
         CpiContext::new(
             token_program.to_account_info(),
-            anchor_spl::token::Transfer {
+            TransferChecked {
                 from: creator_ata.to_account_info(),
                 to: escrow_ata.to_account_info(),
                 authority: creator.to_account_info(),
+                mint: mint.to_account_info(),
             },
         ),
         amount,
+        mint.decimals,
     )?;
-
     Ok(())
 }
 
 pub fn withdraw<'info, T>(
     escrow: &Account<'info, T>,
     escrow_bump: u8,
-    escrow_ata: &Account<'info, TokenAccount>,
-    recipient_ata: &Account<'info, TokenAccount>,
-    token_program: &Program<'info, Token>,
+    escrow_ata: &InterfaceAccount<'info, TokenAccount>,
+    recipient_ata: &InterfaceAccount<'info, TokenAccount>,
+    mint: &InterfaceAccount<'info, Mint>,
+    token_program: &Interface<'info, TokenInterface>,
     rent_recipient: &AccountInfo<'info>,
     safety_deposit_recipient: &AccountInfo<'info>,
     secret: [u8; 32],
@@ -112,23 +117,25 @@ where
     ];
 
     // Transfer tokens from escrow to recipient
-    anchor_spl::token::transfer(
+    transfer_checked(
         CpiContext::new_with_signer(
             token_program.to_account_info(),
-            anchor_spl::token::Transfer {
+            TransferChecked {
                 from: escrow_ata.to_account_info(),
                 to: recipient_ata.to_account_info(),
                 authority: escrow.to_account_info(),
+                mint: mint.to_account_info(),
             },
             &[&seeds],
         ),
         escrow.amount(),
+        mint.decimals,
     )?;
 
     // Close the escrow_ata account
-    anchor_spl::token::close_account(CpiContext::new_with_signer(
+    close_account(CpiContext::new_with_signer(
         token_program.to_account_info(),
-        anchor_spl::token::CloseAccount {
+        CloseAccount {
             account: escrow_ata.to_account_info(),
             destination: rent_recipient.to_account_info(),
             authority: escrow.to_account_info(),
@@ -145,9 +152,10 @@ where
 pub fn cancel<'info, T>(
     escrow: &Account<'info, T>,
     escrow_bump: u8,
-    escrow_ata: &Account<'info, TokenAccount>,
-    creator_ata: &Account<'info, TokenAccount>,
-    token_program: &Program<'info, Token>,
+    escrow_ata: &InterfaceAccount<'info, TokenAccount>,
+    creator_ata: &InterfaceAccount<'info, TokenAccount>,
+    mint: &InterfaceAccount<'info, Mint>,
+    token_program: &Interface<'info, TokenInterface>,
     creator: &AccountInfo<'info>,
     safety_deposit_recipient: &AccountInfo<'info>,
 ) -> Result<()>
@@ -172,23 +180,25 @@ where
     ];
 
     // Return tokens to creator
-    anchor_spl::token::transfer(
+    transfer_checked(
         CpiContext::new_with_signer(
             token_program.to_account_info(),
-            anchor_spl::token::Transfer {
+            TransferChecked {
                 from: escrow_ata.to_account_info(),
                 to: creator_ata.to_account_info(),
                 authority: escrow.to_account_info(),
+                mint: mint.to_account_info(),
             },
             &[&seeds],
         ),
         escrow.amount(),
+        mint.decimals,
     )?;
 
     // Close the escrow_ata account
-    anchor_spl::token::close_account(CpiContext::new_with_signer(
+    close_account(CpiContext::new_with_signer(
         token_program.to_account_info(),
-        anchor_spl::token::CloseAccount {
+        CloseAccount {
             account: escrow_ata.to_account_info(),
             destination: creator.to_account_info(),
             authority: escrow.to_account_info(),
@@ -234,10 +244,11 @@ pub fn rescue_funds<'info>(
     safety_deposit: u64,
     rescue_start: u32,
     escrow_bump: u8,
-    escrow_ata: &Account<'info, TokenAccount>,
+    escrow_ata: &InterfaceAccount<'info, TokenAccount>,
     recipient: &AccountInfo<'info>,
-    recipient_ata: &Account<'info, TokenAccount>,
-    token_program: &Program<'info, Token>,
+    recipient_ata: &InterfaceAccount<'info, TokenAccount>,
+    mint: &InterfaceAccount<'info, Mint>,
+    token_program: &Interface<'info, TokenInterface>,
     rescue_amount: u64,
 ) -> Result<()> {
     let now = utils::get_current_timestamp()?;
@@ -263,24 +274,26 @@ pub fn rescue_funds<'info>(
     ];
 
     // Transfer tokens from escrow to recipient
-    anchor_spl::token::transfer(
+    transfer_checked(
         CpiContext::new_with_signer(
             token_program.to_account_info(),
-            anchor_spl::token::Transfer {
+            TransferChecked {
                 from: escrow_ata.to_account_info(),
                 to: recipient_ata.to_account_info(),
                 authority: escrow.to_account_info(),
+                mint: mint.to_account_info(),
             },
             &[&seeds],
         ),
         rescue_amount,
+        mint.decimals,
     )?;
 
     if rescue_amount == escrow_ata.amount {
         // Close the escrow_ata account
-        anchor_spl::token::close_account(CpiContext::new_with_signer(
+        close_account(CpiContext::new_with_signer(
             token_program.to_account_info(),
-            anchor_spl::token::CloseAccount {
+            CloseAccount {
                 account: escrow_ata.to_account_info(),
                 destination: recipient.to_account_info(),
                 authority: escrow.to_account_info(),
