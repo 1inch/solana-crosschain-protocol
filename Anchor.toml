@@ -13,7 +13,6 @@ cross_chain_escrow_src = "6NwMYeUmigiMDjhYeYpbxC6Kc63NzZy1dfGd7fGcdkVS"
 dutch_auction_taking_amount = "6Y87E6QNyrsVZbQSRapcYcXUi9fpFrMiC16C5nLmCCHV"
 mocks = "5Jvn87vo6XzejGMBhTss4kYDJC7D7JxkKuN3zG1fZnk6"
 non_custodial_escrow = "AKEVm47qyu5E2LgBDrXifJjS2WJ7i4D1f9REzYvJEsLg"
-trading-program = "5ahQ9NWeDmVKG3dJza1ZrFRoJ9wbEUM271HCvfHpAqFC"
 whitelist_validator = "3zPcYCrngDJQjzTd7vN1povXWtxwKR1BbofWoaHYxPhv"
 
 [registry]

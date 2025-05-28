@@ -891,14 +891,3 @@ macro_rules! run_for_tokens {
           })*
     };
 }
-
-#[macro_export]
-macro_rules! trading_program_run_for_tokens {
-    ($(($token_variant:ty, $module_name: ident)),* | $tests: item) => {
-        $(mod $module_name {
-            use super::*;
-            type TestState = TestStateTrading<$token_variant>;
-            $tests
-          })*
-    };
-}
