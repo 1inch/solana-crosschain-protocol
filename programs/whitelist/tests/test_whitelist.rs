@@ -1,7 +1,8 @@
 use crate::helpers::{
-    deregister, get_whitelist_access_address, init_whitelist, register, TestState,
+    deregister, get_whitelist_access_address, init_whitelist, register, register_deregister_data,
+    set_authority, set_authority_data, TestState,
 };
-use anchor_lang::Space;
+use anchor_lang::{prelude::ProgramError, AccountDeserialize, InstructionData, Space};
 use common::constants::DISCRIMINATOR;
 use common_tests::helpers::*;
 use solana_program_test::tokio;
@@ -9,10 +10,9 @@ use solana_sdk::signer::Signer;
 
 use test_context::test_context;
 pub mod helpers;
+use whitelist::{self, error::WhitelistError};
 
 mod test_whitelist {
-
-    use anchor_lang::AccountDeserialize;
 
     use super::*;
 
@@ -46,7 +46,6 @@ mod test_whitelist {
         assert_eq!(whitelist_state.authority, test_state.authority_kp.pubkey());
     }
 
-    // Can register and deregister a user from whitelist
     #[test_context(TestState)]
     #[tokio::test]
     async fn test_register_deregister_user(test_state: &mut TestState) {
@@ -75,7 +74,6 @@ mod test_whitelist {
             .is_none());
     }
 
-    // Stores the canonical bump in the whitelist account
     #[test_context(TestState)]
     #[tokio::test]
     async fn test_register_bump(test_state: &mut TestState) {
@@ -96,5 +94,145 @@ mod test_whitelist {
             )
             .unwrap();
         assert_eq!(resolver_access.bump, canonical_bump);
+    }
+
+    #[test_context(TestState)]
+    #[tokio::test]
+    async fn test_set_authority(test_state: &mut TestState) {
+        init_whitelist(test_state).await;
+
+        let whitelist_state = set_authority(test_state).await;
+
+        let whitelist_state_account = test_state
+            .client
+            .get_account(whitelist_state)
+            .await
+            .unwrap()
+            .unwrap();
+        let whitelist_state: whitelist::WhitelistState =
+            whitelist::WhitelistState::try_deserialize(
+                &mut whitelist_state_account.data.as_slice(),
+            )
+            .unwrap();
+        assert_eq!(whitelist_state.authority, test_state.someone_kp.pubkey());
+    }
+
+    #[test_context(TestState)]
+    #[tokio::test]
+    async fn test_new_authority_register_deregister(test_state: &mut TestState) {
+        init_whitelist(test_state).await;
+        set_authority(test_state).await;
+
+        test_state.authority_kp = test_state.someone_kp.insecure_clone();
+        let whitelist_access_address = register(test_state).await;
+
+        let whitelist_data_len = DISCRIMINATOR + whitelist::ResolverAccess::INIT_SPACE;
+        let rent_lamports = get_min_rent_for_size(&mut test_state.client, whitelist_data_len).await;
+        assert_eq!(
+            rent_lamports,
+            test_state
+                .client
+                .get_balance(whitelist_access_address)
+                .await
+                .unwrap()
+        );
+
+        deregister(test_state).await;
+
+        assert!(test_state
+            .client
+            .get_account(whitelist_access_address)
+            .await
+            .unwrap()
+            .is_none());
+    }
+
+    #[test_context(TestState)]
+    #[tokio::test]
+    async fn test_register_wrong_authority(test_state: &mut TestState) {
+        init_whitelist(test_state).await;
+
+        let instruction_data = InstructionData::data(&whitelist::instruction::Register {
+            _user: test_state.whitelisted_kp.pubkey(),
+        });
+
+        test_state.authority_kp = test_state.someone_kp.insecure_clone();
+        let (_, tx) = register_deregister_data(test_state, instruction_data);
+
+        test_state
+            .client
+            .process_transaction(tx)
+            .await
+            .expect_error((0, ProgramError::Custom(WhitelistError::Unauthorized.into())));
+    }
+
+    #[test_context(TestState)]
+    #[tokio::test]
+    async fn test_deregister_wrong_authority(test_state: &mut TestState) {
+        init_whitelist(test_state).await;
+        register(test_state).await;
+
+        let instruction_data = InstructionData::data(&whitelist::instruction::Deregister {
+            _user: test_state.whitelisted_kp.pubkey(),
+        });
+
+        test_state.authority_kp = test_state.someone_kp.insecure_clone();
+        let (_, tx) = register_deregister_data(test_state, instruction_data);
+
+        test_state
+            .client
+            .process_transaction(tx)
+            .await
+            .expect_error((0, ProgramError::Custom(WhitelistError::Unauthorized.into())));
+    }
+
+    #[test_context(TestState)]
+    #[tokio::test]
+    async fn test_previous_authority_register_deregister(test_state: &mut TestState) {
+        init_whitelist(test_state).await;
+        set_authority(test_state).await;
+
+        let instruction_data = InstructionData::data(&whitelist::instruction::Register {
+            _user: test_state.whitelisted_kp.pubkey(),
+        });
+        let (_, tx) = register_deregister_data(test_state, instruction_data);
+
+        test_state
+            .client
+            .process_transaction(tx)
+            .await
+            .expect_error((0, ProgramError::Custom(WhitelistError::Unauthorized.into())));
+
+        // Register user and then try to deregister with previous authority
+        let previous_kp = test_state.authority_kp.insecure_clone();
+        test_state.authority_kp = test_state.someone_kp.insecure_clone();
+        register(test_state).await;
+        test_state.authority_kp = previous_kp.insecure_clone();
+
+        let instruction_data = InstructionData::data(&whitelist::instruction::Deregister {
+            _user: test_state.whitelisted_kp.pubkey(),
+        });
+        let (_, tx) = register_deregister_data(test_state, instruction_data);
+
+        test_state
+            .client
+            .process_transaction(tx)
+            .await
+            .expect_error((0, ProgramError::Custom(WhitelistError::Unauthorized.into())));
+    }
+
+    #[test_context(TestState)]
+    #[tokio::test]
+    async fn test_set_authority_wrong_authority(test_state: &mut TestState) {
+        init_whitelist(test_state).await;
+
+        test_state.authority_kp = test_state.someone_kp.insecure_clone();
+        let (_, tx) = set_authority_data(test_state);
+
+        test_state
+            .client
+            .process_transaction(tx)
+            .await
+            .expect_error((0, ProgramError::Custom(WhitelistError::Unauthorized.into())));
     }
 }

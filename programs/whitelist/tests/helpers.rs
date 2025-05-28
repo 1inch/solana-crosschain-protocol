@@ -20,7 +20,7 @@ pub struct TestState {
     pub client: BanksClient,
     pub authority_kp: Keypair,
     pub whitelisted_kp: Keypair,
-    pub non_whitelisted_kp: Keypair,
+    pub someone_kp: Keypair,
 }
 
 fn get_program_whitelist_spec() -> (Pubkey, Option<BuiltinFunctionWithContext>) {
@@ -59,12 +59,12 @@ impl AsyncTestContext for TestState {
             &whitelisted_kp.pubkey(),
         )
         .await;
-        let non_whitelisted_kp = Keypair::new();
+        let someone_kp = Keypair::new();
         transfer_lamports(
             &mut context,
             WALLET_DEFAULT_LAMPORTS,
             &payer_kp,
-            &non_whitelisted_kp.pubkey(),
+            &someone_kp.pubkey(),
         )
         .await;
         TestState {
@@ -72,7 +72,7 @@ impl AsyncTestContext for TestState {
             client,
             authority_kp,
             whitelisted_kp,
-            non_whitelisted_kp,
+            someone_kp,
         }
     }
 }
@@ -90,7 +90,7 @@ pub fn get_whitelist_access_address(user: &Pubkey) -> (Pubkey, u8) {
     (whitelist_access, bump)
 }
 
-fn init_whitelist_data(test_state: &TestState) -> (Pubkey, Transaction) {
+pub fn init_whitelist_data(test_state: &TestState) -> (Pubkey, Transaction) {
     let (whitelist_state, program_id) = get_whitelist_state_address();
 
     let instruction_data = InstructionData::data(&whitelist::instruction::Initialize {});
@@ -115,16 +115,16 @@ fn init_whitelist_data(test_state: &TestState) -> (Pubkey, Transaction) {
 }
 
 pub async fn init_whitelist(test_state: &TestState) -> Pubkey {
-    let (whitelist_state, init_tx) = init_whitelist_data(test_state);
+    let (whitelist_state, tx) = init_whitelist_data(test_state);
     test_state
         .client
-        .process_transaction(init_tx)
+        .process_transaction(tx)
         .await
         .expect_success();
     whitelist_state
 }
 
-fn register_deregister_data(
+pub fn register_deregister_data(
     test_state: &TestState,
     instruction_data: Vec<u8>,
 ) -> (Pubkey, Transaction) {
@@ -155,10 +155,10 @@ pub async fn register(test_state: &TestState) -> Pubkey {
         _user: test_state.whitelisted_kp.pubkey(),
     });
 
-    let (whitelist_access, register_tx) = register_deregister_data(test_state, instruction_data);
+    let (whitelist_access, tx) = register_deregister_data(test_state, instruction_data);
     test_state
         .client
-        .process_transaction(register_tx)
+        .process_transaction(tx)
         .await
         .expect_success();
     whitelist_access
@@ -169,11 +169,44 @@ pub async fn deregister(test_state: &TestState) -> Pubkey {
         _user: test_state.whitelisted_kp.pubkey(),
     });
 
-    let (whitelist_access, register_tx) = register_deregister_data(test_state, instruction_data);
+    let (whitelist_access, tx) = register_deregister_data(test_state, instruction_data);
     test_state
         .client
-        .process_transaction(register_tx)
+        .process_transaction(tx)
         .await
         .expect_success();
     whitelist_access
+}
+
+pub fn set_authority_data(test_state: &TestState) -> (Pubkey, Transaction) {
+    let (whitelist_state, program_id) = get_whitelist_state_address();
+    let instruction_data = InstructionData::data(&whitelist::instruction::SetAuthority {
+        new_authority: test_state.someone_kp.pubkey(),
+    });
+
+    let instruction: Instruction = Instruction {
+        program_id,
+        accounts: vec![
+            AccountMeta::new(test_state.authority_kp.pubkey(), true),
+            AccountMeta::new(whitelist_state, false),
+        ],
+        data: instruction_data,
+    };
+    let transaction = Transaction::new_signed_with_payer(
+        &[instruction],
+        Some(&test_state.authority_kp.pubkey()),
+        &[&test_state.authority_kp],
+        test_state.context.last_blockhash,
+    );
+    (whitelist_state, transaction)
+}
+
+pub async fn set_authority(test_state: &TestState) -> Pubkey {
+    let (whitelist_state, tx) = set_authority_data(test_state);
+    test_state
+        .client
+        .process_transaction(tx)
+        .await
+        .expect_success();
+    whitelist_state
 }
