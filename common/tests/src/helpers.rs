@@ -1,5 +1,3 @@
-use anchor_lang::prelude::AccountMeta;
-use anchor_lang::InstructionData;
 use anchor_spl::associated_token::{
     spl_associated_token_account, spl_associated_token_account::instruction as spl_ata_instruction,
 };
@@ -25,7 +23,6 @@ use solana_program::{
 };
 use solana_program_runtime::invoke_context::BuiltinFunctionWithContext;
 use solana_program_test::{BanksClient, BanksClientError, ProgramTest, ProgramTestContext};
-use solana_sdk::system_program::ID as system_program_id;
 use solana_sdk::{
     signature::Signer,
     signer::keypair::Keypair,
@@ -36,9 +33,6 @@ use solana_sdk::{
 use std::marker::PhantomData;
 use std::time::{SystemTime, UNIX_EPOCH};
 use test_context::AsyncTestContext;
-
-use crate::dst_program::DstProgram;
-use crate::src_program::SrcProgram;
 
 pub const WALLET_DEFAULT_LAMPORTS: u64 = 1000000000;
 pub const WALLET_DEFAULT_TOKENS: u64 = 1000;
@@ -694,160 +688,6 @@ impl Expectation for Result<(), BanksClientError> {
 pub async fn get_min_rent_for_size(client: &mut BanksClient, s: usize) -> u64 {
     let rent = client.get_rent().await.unwrap();
     rent.minimum_balance(s)
-}
-
-pub fn build_withdraw_tx_src<S: TokenVariant>(
-    test_state: &TestStateBase<SrcProgram, S>,
-    escrow: &Pubkey,
-    escrow_ata: &Pubkey,
-    opt_rent_recipient: Option<&Pubkey>,
-) -> Transaction {
-    let instruction_data = InstructionData::data(&cross_chain_escrow_src::instruction::Withdraw {
-        secret: test_state.secret,
-    });
-
-    let rent_recipient_pk: Pubkey = match opt_rent_recipient {
-        Some(pubkey) => *pubkey,
-        None => test_state.creator_wallet.keypair.pubkey(),
-    };
-
-    let instruction: Instruction = Instruction {
-        program_id: cross_chain_escrow_src::id(),
-        accounts: vec![
-            AccountMeta::new_readonly(test_state.recipient_wallet.keypair.pubkey(), true),
-            AccountMeta::new(rent_recipient_pk, false),
-            AccountMeta::new_readonly(test_state.token, false),
-            AccountMeta::new(*escrow, false),
-            AccountMeta::new(*escrow_ata, false),
-            AccountMeta::new(test_state.recipient_wallet.token_account, false),
-            AccountMeta::new_readonly(S::get_token_program_id(), false),
-            AccountMeta::new_readonly(system_program_id, false),
-        ],
-        data: instruction_data,
-    };
-
-    Transaction::new_signed_with_payer(
-        &[instruction],
-        Some(&test_state.payer_kp.pubkey()),
-        &[
-            &test_state.context.payer,
-            &test_state.recipient_wallet.keypair,
-        ],
-        test_state.context.last_blockhash,
-    )
-}
-
-pub fn build_public_withdraw_tx_src<S: TokenVariant>(
-    test_state: &TestStateBase<SrcProgram, S>,
-    escrow: &Pubkey,
-    escrow_ata: &Pubkey,
-    withdrawer: &Keypair,
-    opt_rent_recipient: Option<&Pubkey>,
-) -> Transaction {
-    let instruction_data =
-        InstructionData::data(&cross_chain_escrow_src::instruction::PublicWithdraw {
-            secret: test_state.secret,
-        });
-
-    let rent_recipient_pk: Pubkey = match opt_rent_recipient {
-        Some(pubkey) => *pubkey,
-        None => test_state.creator_wallet.keypair.pubkey(),
-    };
-
-    let instruction: Instruction = Instruction {
-        program_id: cross_chain_escrow_src::id(),
-        accounts: vec![
-            AccountMeta::new_readonly(test_state.recipient_wallet.keypair.pubkey(), false),
-            AccountMeta::new(rent_recipient_pk, false),
-            AccountMeta::new(withdrawer.pubkey(), true),
-            AccountMeta::new_readonly(test_state.token, false),
-            AccountMeta::new(*escrow, false),
-            AccountMeta::new(*escrow_ata, false),
-            AccountMeta::new(test_state.recipient_wallet.token_account, false),
-            AccountMeta::new_readonly(S::get_token_program_id(), false),
-            AccountMeta::new_readonly(system_program_id, false),
-        ],
-        data: instruction_data,
-    };
-
-    Transaction::new_signed_with_payer(
-        &[instruction],
-        Some(&test_state.payer_kp.pubkey()), // so that withdrawer does not incurr transaction
-        // charges and mess up computation of withdrawer's
-        // balance expectation.
-        &[withdrawer, &test_state.payer_kp],
-        test_state.context.last_blockhash,
-    )
-}
-
-pub fn build_withdraw_tx_dst<S: TokenVariant>(
-    test_state: &TestStateBase<DstProgram, S>,
-    escrow: &Pubkey,
-    escrow_ata: &Pubkey,
-) -> Transaction {
-    let instruction_data = InstructionData::data(&cross_chain_escrow_dst::instruction::Withdraw {
-        secret: test_state.secret,
-    });
-
-    let instruction: Instruction = Instruction {
-        program_id: cross_chain_escrow_dst::id(),
-        accounts: vec![
-            AccountMeta::new(test_state.creator_wallet.keypair.pubkey(), true),
-            AccountMeta::new_readonly(test_state.recipient_wallet.keypair.pubkey(), false),
-            AccountMeta::new_readonly(test_state.token, false),
-            AccountMeta::new(*escrow, false),
-            AccountMeta::new(*escrow_ata, false),
-            AccountMeta::new(test_state.recipient_wallet.token_account, false),
-            AccountMeta::new_readonly(S::get_token_program_id(), false),
-            AccountMeta::new_readonly(system_program_id, false),
-        ],
-        data: instruction_data,
-    };
-
-    Transaction::new_signed_with_payer(
-        &[instruction],
-        Some(&test_state.payer_kp.pubkey()),
-        &[
-            &test_state.context.payer,
-            &test_state.creator_wallet.keypair,
-        ],
-        test_state.context.last_blockhash,
-    )
-}
-
-pub fn build_public_withdraw_tx_dst<S: TokenVariant>(
-    test_state: &TestStateBase<DstProgram, S>,
-    escrow: &Pubkey,
-    escrow_ata: &Pubkey,
-    withdrawer: &Keypair,
-) -> Transaction {
-    let instruction_data =
-        InstructionData::data(&cross_chain_escrow_dst::instruction::PublicWithdraw {
-            secret: test_state.secret,
-        });
-
-    let instruction: Instruction = Instruction {
-        program_id: cross_chain_escrow_dst::id(),
-        accounts: vec![
-            AccountMeta::new(test_state.creator_wallet.keypair.pubkey(), false),
-            AccountMeta::new_readonly(test_state.recipient_wallet.keypair.pubkey(), false),
-            AccountMeta::new(withdrawer.pubkey(), true),
-            AccountMeta::new_readonly(test_state.token, false),
-            AccountMeta::new(*escrow, false),
-            AccountMeta::new(*escrow_ata, false),
-            AccountMeta::new(test_state.recipient_wallet.token_account, false),
-            AccountMeta::new_readonly(S::get_token_program_id(), false),
-            AccountMeta::new_readonly(system_program_id, false),
-        ],
-        data: instruction_data,
-    };
-
-    Transaction::new_signed_with_payer(
-        &[instruction],
-        Some(&test_state.payer_kp.pubkey()),
-        &[withdrawer, &test_state.payer_kp],
-        test_state.context.last_blockhash,
-    )
 }
 
 // This wrapper is used to coerce (unsafely so) the entry function generated by
