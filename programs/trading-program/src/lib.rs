@@ -1,9 +1,7 @@
 use anchor_lang::prelude::*;
 use anchor_lang::solana_program::sysvar::instructions::ID as IX_ID;
-use anchor_spl::{
-    associated_token::AssociatedToken,
-    token::{Mint, Token, TokenAccount},
-};
+use anchor_spl::associated_token::AssociatedToken;
+use anchor_spl::token_interface::{Mint, TokenAccount, TokenInterface};
 use borsh::BorshDeserialize;
 
 pub mod constants;
@@ -42,7 +40,7 @@ pub mod trading_program {
                 Create {
                     payer: ctx.accounts.taker.to_account_info(),
                     creator: ctx.accounts.trading_account.to_account_info(),
-                    token: ctx.accounts.token.to_account_info(),
+                    mint: ctx.accounts.token.to_account_info(),
                     creator_ata: Some(ctx.accounts.trading_account_ata.to_account_info()),
                     escrow: ctx.accounts.escrow.to_account_info(),
                     escrow_ata: ctx.accounts.escrow_ata.to_account_info(),
@@ -93,14 +91,15 @@ pub struct InitEscrowSrc<'info> {
         mut,
         associated_token::mint = token,
         associated_token::authority = trading_account,
+        associated_token::token_program = token_program
     )]
-    pub trading_account_ata: Account<'info, TokenAccount>,
+    pub trading_account_ata: Box<InterfaceAccount<'info, TokenAccount>>,
 
     /// CHECK: Verification done by CPI to escrow program
     #[account(mut)]
     pub escrow: UncheckedAccount<'info>,
 
-    pub token: Account<'info, Mint>,
+    pub token: Box<InterfaceAccount<'info, Mint>>,
 
     /// CHECK: Verification done by CPI to escrow program
     #[account(mut)]
@@ -111,7 +110,7 @@ pub struct InitEscrowSrc<'info> {
     pub ix_sysvar: UncheckedAccount<'info>,
 
     pub associated_token_program: Program<'info, AssociatedToken>,
-    pub token_program: Program<'info, Token>,
+    pub token_program: Interface<'info, TokenInterface>,
     pub rent: Sysvar<'info, Rent>,
     pub system_program: Program<'info, System>,
     pub escrow_src_program: Program<'info, CrossChainEscrowSrc>,
