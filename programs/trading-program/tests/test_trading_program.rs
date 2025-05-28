@@ -1,5 +1,6 @@
 use anchor_lang::error::ErrorCode;
 use common_tests::{helpers::*, src_program::SrcProgram};
+use std::marker::PhantomData;
 
 use solana_program::program_error::ProgramError;
 use solana_program_test::tokio;
@@ -7,20 +8,29 @@ use solana_sdk::signature::Signer;
 use test_context::test_context;
 use trading_program::utils::error::TradingProgramError;
 mod utils;
+use common_tests::trading_program_run_for_tokens;
+use solana_sdk::signer::keypair::Keypair;
 use utils::{
     create_escrow_via_trading_program, create_signinig_default_order_ix, init_escrow_src_tx,
     prepare_trading_account, TestStateTrading,
 };
 
+pub async fn deploy_spl_token_<T, S: TokenVariant>(t: &mut TestStateBase<T, S>) -> Keypair {
+    S::deploy_spl_token(&mut t.context).await
+}
+
+trading_program_run_for_tokens!(
+    (TokenSPL, token_spl_tests),
+    (Token2022, token_2022_tests) |
 mod test_trading_program {
     use common_tests::helpers::Expectation;
     use solana_sdk::signature::Keypair;
 
     use super::*;
 
-    #[test_context(TestStateTrading)]
+    #[test_context(TestState)]
     #[tokio::test]
-    async fn test_escrow_creation_via_trading_program(test_state_trading: &mut TestStateTrading) {
+    async fn test_escrow_creation_via_trading_program(test_state_trading: &mut TestState) {
         let test_state = &mut test_state_trading.base;
 
         let (escrow, escrow_ata, _, trading_ata) =
@@ -37,17 +47,17 @@ mod test_trading_program {
         );
         // Check the lamport balance of escrow account is as expected.
         let rent_lamports =
-            get_min_rent_for_size(&mut test_state.client, SrcProgram::get_escrow_data_len()).await;
+            get_min_rent_for_size(&mut test_state.client, <SrcProgram as EscrowVariant<Token2022>>::get_escrow_data_len()).await;
         assert_eq!(
             rent_lamports,
             test_state.client.get_balance(escrow).await.unwrap()
         );
     }
 
-    #[test_context(TestStateTrading)]
+    #[test_context(TestState)]
     #[tokio::test]
     async fn test_escrow_creation_via_trading_program_fail_with_wrong_signer(
-        test_state_trading: &mut TestStateTrading,
+        test_state_trading: &mut TestState,
     ) {
         let test_state = &mut test_state_trading.base;
         let (escrow_pda, escrow_ata, trading_pda, trading_ata) =
@@ -77,10 +87,10 @@ mod test_trading_program {
             ));
     }
 
-    #[test_context(TestStateTrading)]
+    #[test_context(TestState)]
     #[tokio::test]
     async fn test_escrow_creation_via_trading_program_fail_with_wrong_maker(
-        test_state_trading: &mut TestStateTrading,
+        test_state_trading: &mut TestState,
     ) {
         let test_state = &mut test_state_trading.base;
 
@@ -109,10 +119,10 @@ mod test_trading_program {
             .expect_error((1, ProgramError::Custom(ErrorCode::ConstraintSeeds.into())));
     }
 
-    #[test_context(TestStateTrading)]
+    #[test_context(TestState)]
     #[tokio::test]
     async fn test_escrow_creation_via_trading_program_fail_with_wrong_token(
-        test_state_trading: &mut TestStateTrading,
+        test_state_trading: &mut TestState,
     ) {
         let test_state = &mut test_state_trading.base;
 
@@ -121,7 +131,7 @@ mod test_trading_program {
             test_state.creator_wallet.keypair.insecure_clone(),
         );
 
-        test_state.token = deploy_spl_token(&mut test_state.context, 9).await.pubkey(); // Wrong token
+        test_state.token = deploy_spl_token_(test_state).await.pubkey(); // Wrong token
         let (escrow_pda, escrow_ata, trading_pda, trading_ata) =
             prepare_trading_account(test_state).await;
 
@@ -144,10 +154,10 @@ mod test_trading_program {
             ));
     }
 
-    #[test_context(TestStateTrading)]
+    #[test_context(TestState)]
     #[tokio::test]
     async fn test_escrow_creation_via_trading_program_fail_with_wrong_trading_account_ata_seed(
-        test_state_trading: &mut TestStateTrading,
+        test_state_trading: &mut TestState,
     ) {
         let test_state = &mut test_state_trading.base;
 
@@ -159,7 +169,7 @@ mod test_trading_program {
             test_state.creator_wallet.keypair.insecure_clone(),
         );
 
-        test_state.token = deploy_spl_token(&mut test_state.context, 9).await.pubkey(); // Wrong derivation of the trading_account_ata
+        test_state.token = deploy_spl_token_(test_state).await.pubkey(); // Wrong derivation of the trading_account_ata
         let transaction = init_escrow_src_tx(
             test_state,
             escrow_pda,
@@ -179,10 +189,17 @@ mod test_trading_program {
             ));
     }
 
-    #[test_context(TestStateTrading)]
+    pub fn get_token_account_size<S: TokenVariant>(
+        _: PhantomData<TestStateTrading<S>>,
+    ) -> usize {
+        S::get_token_account_size()
+    }
+
+
+    #[test_context(TestState)]
     #[tokio::test]
     async fn test_escrow_withdrawal_via_trading_program_for_resolver(
-        test_state_trading: &mut TestStateTrading,
+        test_state_trading: &mut TestState,
     ) {
         let test_state = &mut test_state_trading.base;
 
@@ -201,7 +218,7 @@ mod test_trading_program {
 
         // Check the lamport balance of escrow account is as expected.
         let escrow_rent_lamports =
-            get_min_rent_for_size(&mut test_state.client, SrcProgram::get_escrow_data_len()).await;
+            get_min_rent_for_size(&mut test_state.client, <SrcProgram as EscrowVariant<Token2022>>::get_escrow_data_len()).await;
         assert_eq!(
             escrow_rent_lamports,
             test_state.client.get_balance(escrow).await.unwrap()
@@ -209,10 +226,10 @@ mod test_trading_program {
 
         // Get the token account rent
         let token_account_rent =
-            get_min_rent_for_size(&mut test_state.client, get_token_account_size()).await;
+            get_min_rent_for_size(&mut test_state.client, get_token_account_size(PhantomData::<TestState>)).await;
 
         // Create the transaction to withdraw from the escrow
-        let transaction = SrcProgram::get_withdraw_tx_opt_rent_recipient(
+        let transaction = build_withdraw_tx_src(
             test_state,
             &escrow,
             &escrow_ata,
@@ -259,10 +276,10 @@ mod test_trading_program {
             .is_none());
     }
 
-    #[test_context(TestStateTrading)]
+    #[test_context(TestState)]
     #[tokio::test]
     async fn test_escrow_public_withdrawal_via_trading_program_for_resolver(
-        test_state_trading: &mut TestStateTrading,
+        test_state_trading: &mut TestState,
     ) {
         let test_state = &mut test_state_trading.base;
 
@@ -281,7 +298,7 @@ mod test_trading_program {
 
         // Check the lamport balance of escrow account is as expected.
         let escrow_rent_lamports =
-            get_min_rent_for_size(&mut test_state.client, SrcProgram::get_escrow_data_len()).await;
+            get_min_rent_for_size(&mut test_state.client, <SrcProgram as EscrowVariant<Token2022>>::get_escrow_data_len()).await;
         assert_eq!(
             escrow_rent_lamports,
             test_state.client.get_balance(escrow).await.unwrap()
@@ -289,11 +306,11 @@ mod test_trading_program {
 
         // Get the token account rent
         let token_account_rent =
-            get_min_rent_for_size(&mut test_state.client, get_token_account_size()).await;
+            get_min_rent_for_size(&mut test_state.client, get_token_account_size(PhantomData::<TestState>)).await;
         let withdrawer = test_state.recipient_wallet.keypair.insecure_clone();
 
         // Create the transaction to withdraw from the escrow
-        let transaction = SrcProgram::get_public_withdraw_tx_opt_rent_recipient(
+        let transaction = build_public_withdraw_tx_src(
             test_state,
             &escrow,
             &escrow_ata,
@@ -343,10 +360,10 @@ mod test_trading_program {
             .is_none());
     }
 
-    #[test_context(TestStateTrading)]
+    #[test_context(TestState)]
     #[tokio::test]
     async fn test_escrow_public_withdrawal_via_trading_program_for_any_account(
-        test_state_trading: &mut TestStateTrading,
+        test_state_trading: &mut TestState,
     ) {
         let test_state = &mut test_state_trading.base;
 
@@ -365,7 +382,7 @@ mod test_trading_program {
 
         // Check the lamport balance of escrow account is as expected.
         let escrow_rent_lamports =
-            get_min_rent_for_size(&mut test_state.client, SrcProgram::get_escrow_data_len()).await;
+            get_min_rent_for_size(&mut test_state.client, <SrcProgram as EscrowVariant<Token2022>>::get_escrow_data_len()).await;
         assert_eq!(
             escrow_rent_lamports,
             test_state.client.get_balance(escrow).await.unwrap()
@@ -373,7 +390,7 @@ mod test_trading_program {
 
         // Get the token account rent
         let token_account_rent =
-            get_min_rent_for_size(&mut test_state.client, get_token_account_size()).await;
+            get_min_rent_for_size(&mut test_state.client, get_token_account_size(PhantomData::<TestState>)).await;
 
         let withdrawer = Keypair::new();
         transfer_lamports(
@@ -385,7 +402,7 @@ mod test_trading_program {
         .await;
 
         // Create the transaction to withdraw from the escrow
-        let transaction = SrcProgram::get_public_withdraw_tx_opt_rent_recipient(
+        let transaction = build_public_withdraw_tx_src(
             test_state,
             &escrow,
             &escrow_ata,
@@ -439,4 +456,4 @@ mod test_trading_program {
             .unwrap()
             .is_none());
     }
-}
+});
