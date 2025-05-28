@@ -185,7 +185,7 @@ pub fn init_escrow_src_tx<S: TokenVariant>(
             AccountMeta::new_readonly(S::get_token_program_id(), false),
             AccountMeta::new_readonly(rent_id, false),
             AccountMeta::new_readonly(system_program_id, false),
-            AccountMeta::new_readonly(cross_chain_escrow_src::id(), false),
+            AccountMeta::new_readonly(cross_chain_order::id(), false),
         ],
         data: InstructionData::data(&trading_program::instruction::InitEscrowSrc {}),
     };

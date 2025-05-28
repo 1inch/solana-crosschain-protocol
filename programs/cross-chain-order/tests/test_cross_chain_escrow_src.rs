@@ -379,10 +379,10 @@ mod local_helpers {
         canceller: &Keypair,
     ) -> Transaction {
         let instruction_data =
-            InstructionData::data(&cross_chain_escrow_src::instruction::PublicCancel {});
+            InstructionData::data(&cross_chain_order::instruction::PublicCancel {});
 
         let instruction: Instruction = Instruction {
-            program_id: cross_chain_escrow_src::id(),
+            program_id: cross_chain_order::id(),
             accounts: vec![
                 AccountMeta::new(test_state.creator_wallet.keypair.pubkey(), false),
                 AccountMeta::new_readonly(test_state.token, false),

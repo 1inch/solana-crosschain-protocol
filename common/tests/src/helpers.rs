@@ -702,7 +702,7 @@ pub fn build_withdraw_tx_src<S: TokenVariant>(
     escrow_ata: &Pubkey,
     opt_rent_recipient: Option<&Pubkey>,
 ) -> Transaction {
-    let instruction_data = InstructionData::data(&cross_chain_escrow_src::instruction::Withdraw {
+    let instruction_data = InstructionData::data(&cross_chain_order::instruction::Withdraw {
         secret: test_state.secret,
     });
 
@@ -712,7 +712,7 @@ pub fn build_withdraw_tx_src<S: TokenVariant>(
     };
 
     let instruction: Instruction = Instruction {
-        program_id: cross_chain_escrow_src::id(),
+        program_id: cross_chain_order::id(),
         accounts: vec![
             AccountMeta::new_readonly(test_state.recipient_wallet.keypair.pubkey(), true),
             AccountMeta::new(rent_recipient_pk, false),
@@ -744,10 +744,9 @@ pub fn build_public_withdraw_tx_src<S: TokenVariant>(
     withdrawer: &Keypair,
     opt_rent_recipient: Option<&Pubkey>,
 ) -> Transaction {
-    let instruction_data =
-        InstructionData::data(&cross_chain_escrow_src::instruction::PublicWithdraw {
-            secret: test_state.secret,
-        });
+    let instruction_data = InstructionData::data(&cross_chain_order::instruction::PublicWithdraw {
+        secret: test_state.secret,
+    });
 
     let rent_recipient_pk: Pubkey = match opt_rent_recipient {
         Some(pubkey) => *pubkey,
@@ -755,7 +754,7 @@ pub fn build_public_withdraw_tx_src<S: TokenVariant>(
     };
 
     let instruction: Instruction = Instruction {
-        program_id: cross_chain_escrow_src::id(),
+        program_id: cross_chain_order::id(),
         accounts: vec![
             AccountMeta::new_readonly(test_state.recipient_wallet.keypair.pubkey(), false),
             AccountMeta::new(rent_recipient_pk, false),

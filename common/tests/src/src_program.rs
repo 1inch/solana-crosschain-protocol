@@ -23,8 +23,8 @@ type TestState<S> = TestStateBase<SrcProgram, S>;
 impl<S: TokenVariant> EscrowVariant<S> for SrcProgram {
     fn get_program_spec() -> (Pubkey, Option<BuiltinFunctionWithContext>) {
         (
-            cross_chain_escrow_src::id(),
-            wrap_entry!(cross_chain_escrow_src::entry),
+            cross_chain_order::id(),
+            wrap_entry!(cross_chain_order::entry),
         )
     }
 
@@ -50,11 +50,10 @@ impl<S: TokenVariant> EscrowVariant<S> for SrcProgram {
         escrow: &Pubkey,
         escrow_ata: &Pubkey,
     ) -> Transaction {
-        let instruction_data =
-            InstructionData::data(&cross_chain_escrow_src::instruction::Cancel {});
+        let instruction_data = InstructionData::data(&cross_chain_order::instruction::Cancel {});
 
         let instruction: Instruction = Instruction {
-            program_id: cross_chain_escrow_src::id(),
+            program_id: cross_chain_order::id(),
             accounts: vec![
                 AccountMeta::new(test_state.creator_wallet.keypair.pubkey(), true),
                 AccountMeta::new_readonly(test_state.token, false),
@@ -83,22 +82,21 @@ impl<S: TokenVariant> EscrowVariant<S> for SrcProgram {
         escrow: &Pubkey,
         escrow_ata: &Pubkey,
     ) -> Transaction {
-        let instruction_data =
-            InstructionData::data(&cross_chain_escrow_src::instruction::Create {
-                amount: test_state.test_arguments.escrow_amount,
-                order_hash: test_state.order_hash.to_bytes(),
-                hashlock: test_state.hashlock.to_bytes(),
-                recipient: test_state.recipient_wallet.keypair.pubkey(),
-                safety_deposit: test_state.test_arguments.safety_deposit,
-                cancellation_duration: test_state.test_arguments.cancellation_duration,
-                finality_duration: test_state.test_arguments.finality_duration,
-                public_withdrawal_duration: test_state.test_arguments.public_withdrawal_duration,
-                withdrawal_duration: test_state.test_arguments.withdrawal_duration,
-                rescue_start: test_state.test_arguments.rescue_start,
-            });
+        let instruction_data = InstructionData::data(&cross_chain_order::instruction::Create {
+            amount: test_state.test_arguments.escrow_amount,
+            order_hash: test_state.order_hash.to_bytes(),
+            hashlock: test_state.hashlock.to_bytes(),
+            recipient: test_state.recipient_wallet.keypair.pubkey(),
+            safety_deposit: test_state.test_arguments.safety_deposit,
+            cancellation_duration: test_state.test_arguments.cancellation_duration,
+            finality_duration: test_state.test_arguments.finality_duration,
+            public_withdrawal_duration: test_state.test_arguments.public_withdrawal_duration,
+            withdrawal_duration: test_state.test_arguments.withdrawal_duration,
+            rescue_start: test_state.test_arguments.rescue_start,
+        });
 
         let instruction: Instruction = Instruction {
-            program_id: cross_chain_escrow_src::id(),
+            program_id: cross_chain_order::id(),
             accounts: vec![
                 AccountMeta::new(test_state.creator_wallet.keypair.pubkey(), true),
                 AccountMeta::new_readonly(test_state.creator_wallet.keypair.pubkey(), true),
@@ -129,7 +127,7 @@ impl<S: TokenVariant> EscrowVariant<S> for SrcProgram {
         recipient_ata: &Pubkey,
     ) -> Transaction {
         let instruction_data =
-            InstructionData::data(&cross_chain_escrow_src::instruction::RescueFunds {
+            InstructionData::data(&cross_chain_order::instruction::RescueFunds {
                 hashlock: test_state.hashlock.to_bytes(),
                 order_hash: test_state.order_hash.to_bytes(),
                 order_creator: test_state.creator_wallet.keypair.pubkey(),
@@ -141,7 +139,7 @@ impl<S: TokenVariant> EscrowVariant<S> for SrcProgram {
             });
 
         let instruction: Instruction = Instruction {
-            program_id: cross_chain_escrow_src::id(),
+            program_id: cross_chain_order::id(),
             accounts: vec![
                 AccountMeta::new(test_state.recipient_wallet.keypair.pubkey(), true),
                 AccountMeta::new_readonly(*token_to_rescue, false),
@@ -166,6 +164,6 @@ impl<S: TokenVariant> EscrowVariant<S> for SrcProgram {
     }
 
     fn get_escrow_data_len() -> usize {
-        cross_chain_escrow_src::constants::DISCRIMINATOR + cross_chain_escrow_src::Order::INIT_SPACE
+        cross_chain_order::constants::DISCRIMINATOR + cross_chain_order::Order::INIT_SPACE
     }
 }

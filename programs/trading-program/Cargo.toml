@@ -19,7 +19,7 @@ idl-build = ["anchor-lang/idl-build", "anchor-spl/idl-build"]
 [dependencies]
 anchor-lang = "0.31.1"
 anchor-spl = "0.31.1"
-cross-chain-escrow-src = { path = "../cross-chain-escrow-src", features = ["cpi"] }
+cross-chain-order = { path = "../cross-chain-order", features = ["cpi"] }
 common = { path = "../../common" }
 
 [dev-dependencies]

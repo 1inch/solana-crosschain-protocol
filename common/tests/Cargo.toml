@@ -14,5 +14,5 @@ solana-sdk = "2.1.0"
 test-context = "0.4.1"
 common = { path = "../" }
 cross-chain-escrow-dst = { path = "../../programs/cross-chain-escrow-dst", features = ["cpi"] }
-cross-chain-escrow-src = { path = "../../programs/cross-chain-escrow-src", features = ["cpi"] }
+cross-chain-order = { path = "../../programs/cross-chain-order", features = ["cpi"] }
 async-trait = "0.1.88"
