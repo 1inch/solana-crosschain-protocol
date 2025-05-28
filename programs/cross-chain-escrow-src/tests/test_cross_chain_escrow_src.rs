@@ -600,6 +600,22 @@ mod test_escrow_native {
             .unwrap()
             .is_none());
     }
+
+    #[test_context(TestState)]
+    #[tokio::test]
+    async fn test_rescue_all_tokens_and_close_ata(test_state: &mut TestState) {
+        test_state.token = NATIVE_MINT;
+        test_state.test_arguments.asset_is_native = true;
+        common_escrow_tests::test_rescue_all_tokens_and_close_ata(test_state).await
+    }
+
+    #[test_context(TestState)]
+    #[tokio::test]
+    async fn test_rescue_part_of_tokens_and_not_close_ata(test_state: &mut TestState) {
+        test_state.token = NATIVE_MINT;
+        test_state.test_arguments.asset_is_native = true;
+        common_escrow_tests::test_rescue_part_of_tokens_and_not_close_ata(test_state).await
+    }
 }
 
 mod test_escrow_wrapped_native {
@@ -777,5 +793,19 @@ mod test_escrow_wrapped_native {
             .await
             .unwrap()
             .is_none());
+    }
+
+    #[test_context(TestState)]
+    #[tokio::test]
+    async fn test_rescue_all_tokens_and_close_ata(test_state: &mut TestState) {
+        test_state.token = NATIVE_MINT;
+        common_escrow_tests::test_rescue_all_tokens_and_close_ata(test_state).await
+    }
+
+    #[test_context(TestState)]
+    #[tokio::test]
+    async fn test_rescue_part_of_tokens_and_not_close_ata(test_state: &mut TestState) {
+        test_state.token = NATIVE_MINT;
+        common_escrow_tests::test_rescue_part_of_tokens_and_not_close_ata(test_state).await
     }
 }

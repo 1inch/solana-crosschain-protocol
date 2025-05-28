@@ -425,6 +425,22 @@ mod test_escrow_native {
         test_state.test_arguments.asset_is_native = true;
         common_escrow_tests::test_cancel_native(test_state).await
     }
+
+    #[test_context(TestState)]
+    #[tokio::test]
+    async fn test_rescue_all_tokens_and_close_ata(test_state: &mut TestState) {
+        test_state.token = NATIVE_MINT;
+        test_state.test_arguments.asset_is_native = true;
+        common_escrow_tests::test_rescue_all_tokens_and_close_ata(test_state).await
+    }
+
+    #[test_context(TestState)]
+    #[tokio::test]
+    async fn test_rescue_part_of_tokens_and_not_close_ata(test_state: &mut TestState) {
+        test_state.token = NATIVE_MINT;
+        test_state.test_arguments.asset_is_native = true;
+        common_escrow_tests::test_rescue_part_of_tokens_and_not_close_ata(test_state).await
+    }
 }
 
 // Tests for wrapped native mint (WSOL)
@@ -478,6 +494,20 @@ mod test_escrow_wrapped_native {
     async fn test_cancel(test_state: &mut TestState) {
         test_state.token = NATIVE_MINT;
         common_escrow_tests::test_cancel(test_state).await
+    }
+
+    #[test_context(TestState)]
+    #[tokio::test]
+    async fn test_rescue_all_tokens_and_close_ata(test_state: &mut TestState) {
+        test_state.token = NATIVE_MINT;
+        common_escrow_tests::test_rescue_all_tokens_and_close_ata(test_state).await
+    }
+
+    #[test_context(TestState)]
+    #[tokio::test]
+    async fn test_rescue_part_of_tokens_and_not_close_ata(test_state: &mut TestState) {
+        test_state.token = NATIVE_MINT;
+        common_escrow_tests::test_rescue_part_of_tokens_and_not_close_ata(test_state).await
     }
 }
 
