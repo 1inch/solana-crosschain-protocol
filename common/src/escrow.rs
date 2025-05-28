@@ -278,7 +278,7 @@ where
     T: EscrowBase + AccountSerialize + AccountDeserialize + Clone,
 {
     if recipient_ata.is_some() {
-        // in case of sol_desination_ata provided, we transfer wSOL from the escrow_ata to recipient_ata (without unwrapping)
+        // in case of recipient_ata provided, we transfer wSOL from the escrow_ata to recipient_ata (without unwrapping)
         uni_transfer(
             &UniTransferParams::TokenTransfer {
                 from: escrow_ata.to_account_info(),
