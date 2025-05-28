@@ -8,9 +8,7 @@ use anchor_lang::InstructionData;
 use solana_program_test::processor;
 
 use anchor_lang::Space;
-use anchor_spl::{
-    associated_token::ID as spl_associated_token_id, token::spl_token::ID as spl_program_id,
-};
+use anchor_spl::associated_token::ID as spl_associated_token_id;
 
 use solana_program::{
     instruction::{AccountMeta, Instruction},
@@ -21,9 +19,8 @@ use solana_program::{
 
 pub struct SrcProgram;
 
-type TestState = TestStateBase<SrcProgram>;
-
-impl EscrowVariant for SrcProgram {
+type TestState<S> = TestStateBase<SrcProgram, S>;
+impl<S: TokenVariant> EscrowVariant<S> for SrcProgram {
     fn get_program_spec() -> (Pubkey, Option<BuiltinFunctionWithContext>) {
         (
             cross_chain_escrow_src::id(),
@@ -31,13 +28,58 @@ impl EscrowVariant for SrcProgram {
         )
     }
 
-    fn get_escrow_data_len() -> usize {
-        cross_chain_escrow_src::constants::DISCRIMINATOR
-            + cross_chain_escrow_src::EscrowSrc::INIT_SPACE
+    fn get_withdraw_tx(
+        test_state: &TestState<S>,
+        escrow: &Pubkey,
+        escrow_ata: &Pubkey,
+    ) -> Transaction {
+        build_withdraw_tx_src(test_state, escrow, escrow_ata, None)
+    }
+
+    fn get_public_withdraw_tx(
+        test_state: &TestState<S>,
+        escrow: &Pubkey,
+        escrow_ata: &Pubkey,
+        withdrawer: &Keypair,
+    ) -> Transaction {
+        build_public_withdraw_tx_src(test_state, escrow, escrow_ata, withdrawer, None)
+    }
+
+    fn get_cancel_tx(
+        test_state: &TestState<S>,
+        escrow: &Pubkey,
+        escrow_ata: &Pubkey,
+    ) -> Transaction {
+        let instruction_data =
+            InstructionData::data(&cross_chain_escrow_src::instruction::Cancel {});
+
+        let instruction: Instruction = Instruction {
+            program_id: cross_chain_escrow_src::id(),
+            accounts: vec![
+                AccountMeta::new(test_state.creator_wallet.keypair.pubkey(), true),
+                AccountMeta::new_readonly(test_state.token, false),
+                AccountMeta::new(*escrow, false),
+                AccountMeta::new(*escrow_ata, false),
+                AccountMeta::new(test_state.creator_wallet.token_account, false),
+                AccountMeta::new_readonly(S::get_token_program_id(), false),
+                AccountMeta::new_readonly(system_program_id, false),
+            ],
+            data: instruction_data,
+        };
+
+        Transaction::new_signed_with_payer(
+            &[instruction],
+            Some(&test_state.payer_kp.pubkey()),
+            &[
+                &test_state.context.payer,
+                &test_state.creator_wallet.keypair,
+            ],
+            test_state.context.last_blockhash,
+        )
     }
 
     fn get_create_tx(
-        test_state: &TestStateBase<SrcProgram>,
+        test_state: &TestState<S>,
         escrow: &Pubkey,
         escrow_ata: &Pubkey,
     ) -> Transaction {
@@ -67,7 +109,7 @@ impl EscrowVariant for SrcProgram {
                 AccountMeta::new(*escrow, false),
                 AccountMeta::new(*escrow_ata, false),
                 AccountMeta::new_readonly(spl_associated_token_id, false),
-                AccountMeta::new_readonly(spl_program_id, false),
+                AccountMeta::new_readonly(S::get_token_program_id(), false),
                 AccountMeta::new_readonly(rent_id, false),
                 AccountMeta::new_readonly(system_program_id, false),
             ],
@@ -81,83 +123,8 @@ impl EscrowVariant for SrcProgram {
         )
     }
 
-    fn get_withdraw_tx(
-        test_state: &TestState,
-        escrow: &Pubkey,
-        escrow_ata: &Pubkey,
-    ) -> Transaction {
-        build_withdraw_tx_src(test_state, escrow, escrow_ata, None)
-    }
-
-    fn get_withdraw_tx_opt_rent_recipient(
-        test_state: &TestStateBase<Self>,
-        escrow: &Pubkey,
-        escrow_ata: &Pubkey,
-        opt_rent_recipient: Option<&Pubkey>,
-    ) -> Transaction {
-        build_withdraw_tx_src(test_state, escrow, escrow_ata, opt_rent_recipient)
-    }
-
-    fn get_public_withdraw_tx(
-        test_state: &TestState,
-        escrow: &Pubkey,
-        escrow_ata: &Pubkey,
-        withdrawer: &Keypair,
-    ) -> Transaction {
-        build_public_withdraw_tx_src(test_state, escrow, escrow_ata, withdrawer, None)
-    }
-
-    fn get_public_withdraw_tx_opt_rent_recipient(
-        test_state: &TestStateBase<Self>,
-        escrow: &Pubkey,
-        escrow_ata: &Pubkey,
-        withdrawer: &Keypair,
-        opt_rent_recipient: Option<&Pubkey>,
-    ) -> Transaction {
-        build_public_withdraw_tx_src(
-            test_state,
-            escrow,
-            escrow_ata,
-            withdrawer,
-            opt_rent_recipient,
-        )
-    }
-
-    fn get_cancel_tx(
-        test_state: &TestStateBase<SrcProgram>,
-        escrow: &Pubkey,
-        escrow_ata: &Pubkey,
-    ) -> Transaction {
-        let instruction_data =
-            InstructionData::data(&cross_chain_escrow_src::instruction::Cancel {});
-
-        let instruction: Instruction = Instruction {
-            program_id: cross_chain_escrow_src::id(),
-            accounts: vec![
-                AccountMeta::new(test_state.creator_wallet.keypair.pubkey(), true),
-                AccountMeta::new_readonly(test_state.token, false),
-                AccountMeta::new(*escrow, false),
-                AccountMeta::new(*escrow_ata, false),
-                AccountMeta::new(test_state.creator_wallet.token_account, false),
-                AccountMeta::new_readonly(spl_program_id, false),
-                AccountMeta::new_readonly(system_program_id, false),
-            ],
-            data: instruction_data,
-        };
-
-        Transaction::new_signed_with_payer(
-            &[instruction],
-            Some(&test_state.payer_kp.pubkey()),
-            &[
-                &test_state.context.payer,
-                &test_state.creator_wallet.keypair,
-            ],
-            test_state.context.last_blockhash,
-        )
-    }
-
     fn get_rescue_funds_tx(
-        test_state: &TestState,
+        test_state: &TestState<S>,
         escrow: &Pubkey,
         token_to_rescue: &Pubkey,
         escrow_ata: &Pubkey,
@@ -183,7 +150,7 @@ impl EscrowVariant for SrcProgram {
                 AccountMeta::new(*escrow, false),
                 AccountMeta::new(*escrow_ata, false),
                 AccountMeta::new(*recipient_ata, false),
-                AccountMeta::new_readonly(spl_program_id, false),
+                AccountMeta::new_readonly(S::get_token_program_id(), false),
                 AccountMeta::new_readonly(system_program_id, false),
             ],
             data: instruction_data,
@@ -198,5 +165,10 @@ impl EscrowVariant for SrcProgram {
             ],
             test_state.context.last_blockhash,
         )
+    }
+
+    fn get_escrow_data_len() -> usize {
+        cross_chain_escrow_src::constants::DISCRIMINATOR
+            + cross_chain_escrow_src::EscrowSrc::INIT_SPACE
     }
 }
