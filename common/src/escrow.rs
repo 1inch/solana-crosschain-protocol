@@ -290,15 +290,13 @@ fn close_and_withdraw_native_ata<'info, T>(
 where
     T: EscrowBase + AccountSerialize + AccountDeserialize + Clone,
 {
-    if recipient_ata.is_some() {
+    if let Some(recipient_ata) = recipient_ata {
         // in case of recipient_ata provided, we transfer wSOL from the escrow_ata to recipient_ata (without unwrapping)
         uni_transfer(
             &UniTransferParams::TokenTransfer {
                 from: escrow_ata.to_account_info(),
                 authority: escrow.to_account_info(),
-                to: recipient_ata
-                    .ok_or(EscrowError::MissingRecipientAta)?
-                    .to_account_info(),
+                to: recipient_ata.to_account_info(),
                 mint: mint.clone(),
                 amount: escrow.amount(),
                 program: token_program.clone(),
