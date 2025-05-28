@@ -388,10 +388,10 @@ mod test_escrow_native {
         test_state.asset_is_native = true;
         let withdrawer = Keypair::new();
         let payer_kp = &test_state.payer_kp;
-        let mut context = &mut test_state.context;
+        let context = &mut test_state.context;
 
         transfer_lamports(
-            &mut context,
+            context,
             WALLET_DEFAULT_LAMPORTS,
             payer_kp,
             &withdrawer.pubkey(),
@@ -443,10 +443,10 @@ mod test_escrow_wrapped_native {
         test_state.token = NATIVE_MINT;
         let withdrawer = Keypair::new();
         let payer_kp = &test_state.payer_kp;
-        let mut context = &mut test_state.context;
+        let context = &mut test_state.context;
 
         transfer_lamports(
-            &mut context,
+            context,
             WALLET_DEFAULT_LAMPORTS,
             payer_kp,
             &withdrawer.pubkey(),
