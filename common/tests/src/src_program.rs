@@ -54,10 +54,10 @@ impl EscrowVariant for SrcProgram {
                 public_withdrawal_duration: test_state.test_arguments.public_withdrawal_duration,
                 withdrawal_duration: test_state.test_arguments.withdrawal_duration,
                 rescue_start: test_state.test_arguments.rescue_start,
-                asset_is_native: test_state.asset_is_native,
+                asset_is_native: test_state.test_arguments.asset_is_native,
             });
 
-        let creator_ata = if test_state.asset_is_native {
+        let creator_ata = if test_state.test_arguments.asset_is_native {
             cross_chain_escrow_src::id()
         } else if test_state.token == NATIVE_MINT {
             test_state.creator_wallet.native_token_account
@@ -139,7 +139,7 @@ impl EscrowVariant for SrcProgram {
         let instruction_data =
             InstructionData::data(&cross_chain_escrow_src::instruction::Cancel {});
 
-        let creator_ata = if test_state.asset_is_native {
+        let creator_ata = if test_state.test_arguments.asset_is_native {
             cross_chain_escrow_src::id()
         } else if test_state.token == NATIVE_MINT {
             test_state.creator_wallet.native_token_account

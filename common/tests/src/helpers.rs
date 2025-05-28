@@ -69,6 +69,7 @@ pub struct TestArgs {
     pub init_timestamp: u32,
     pub rescue_start: u32,
     pub rescue_amount: u64,
+    pub asset_is_native: bool,
 }
 
 pub fn get_default_testargs(nowsecs: u32) -> TestArgs {
@@ -83,6 +84,7 @@ pub fn get_default_testargs(nowsecs: u32) -> TestArgs {
         init_timestamp: nowsecs,
         rescue_start: nowsecs + RESCUE_DELAY + 100,
         rescue_amount: DEFAULT_RESCUE_AMOUNT,
+        asset_is_native: false, // This is set to false by default, will be changed for native tests.
     }
 }
 
@@ -100,7 +102,6 @@ pub struct TestStateBase<T: ?Sized> {
     pub recipient_wallet: Wallet,
     pub test_arguments: TestArgs,
     pub init_timestamp: u32,
-    pub asset_is_native: bool,
     pub pd: PhantomData<T>,
 }
 
@@ -203,7 +204,6 @@ where
             recipient_wallet,
             init_timestamp: timestamp,
             test_arguments: get_default_testargs(timestamp),
-            asset_is_native: false, // This is set to false by default, will be changed for native tests.
             pd: PhantomData,
         }
     }

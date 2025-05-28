@@ -353,14 +353,14 @@ mod test_escrow_native {
     #[tokio::test]
     async fn test_escrow_creation(test_state: &mut TestState) {
         test_state.token = NATIVE_MINT;
-        test_state.asset_is_native = true;
+        test_state.test_arguments.asset_is_native = true;
         common_escrow_tests::test_escrow_creation_native(test_state).await
     }
 
     #[test_context(TestState)]
     #[tokio::test]
     async fn test_escrow_creation_fail_if_token_is_not_native(test_state: &mut TestState) {
-        test_state.asset_is_native = true;
+        test_state.test_arguments.asset_is_native = true;
         common_escrow_tests::test_escrow_creation_fail_if_token_is_not_native(test_state).await
     }
 
@@ -368,7 +368,7 @@ mod test_escrow_native {
     #[tokio::test]
     pub async fn test_withdraw(test_state: &mut TestState) {
         test_state.token = NATIVE_MINT;
-        test_state.asset_is_native = true;
+        test_state.test_arguments.asset_is_native = true;
         common_escrow_tests::test_withdraw(test_state).await
     }
 
@@ -376,7 +376,7 @@ mod test_escrow_native {
     #[tokio::test]
     pub async fn test_public_withdraw_by_resolver(test_state: &mut TestState) {
         test_state.token = NATIVE_MINT;
-        test_state.asset_is_native = true;
+        test_state.test_arguments.asset_is_native = true;
         let withdrawer = test_state.recipient_wallet.keypair.insecure_clone();
         common_escrow_tests::test_public_withdraw_tokens(test_state, withdrawer).await
     }
@@ -385,7 +385,7 @@ mod test_escrow_native {
     #[tokio::test]
     pub async fn test_public_withdraw_by_any_account(test_state: &mut TestState) {
         test_state.token = NATIVE_MINT;
-        test_state.asset_is_native = true;
+        test_state.test_arguments.asset_is_native = true;
         let withdrawer = Keypair::new();
         let payer_kp = &test_state.payer_kp;
         let context = &mut test_state.context;
@@ -404,7 +404,7 @@ mod test_escrow_native {
     #[tokio::test]
     async fn test_cancel(test_state: &mut TestState) {
         test_state.token = NATIVE_MINT;
-        test_state.asset_is_native = true;
+        test_state.test_arguments.asset_is_native = true;
         common_escrow_tests::test_cancel_native(test_state).await
     }
 }
