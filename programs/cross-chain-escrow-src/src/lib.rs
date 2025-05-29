@@ -253,9 +253,7 @@ pub struct Create<'info> {
 
 #[derive(Accounts)]
 pub struct Withdraw<'info> {
-    #[account(
-        mut, // Needed because this account receives unwrapped SOL if the token is native
-        constraint = recipient.key() == escrow.recipient @ EscrowError::InvalidAccount)]
+    #[account(constraint = recipient.key() == escrow.recipient @ EscrowError::InvalidAccount)]
     recipient: Signer<'info>,
     /// CHECK: this account is used only to receive rent and is checked against the one stored in the escrow account
     #[account(
@@ -301,9 +299,7 @@ pub struct Withdraw<'info> {
 pub struct PublicWithdraw<'info> {
     /// CHECK: This account is used to check its pubkey to match the one stored in the escrow account
     /// Or to receive lamports if the token is native
-    #[account(
-        mut, // Needed because this account receives unwrapped SOL if the token is native
-        constraint = recipient.key() == escrow.recipient @ EscrowError::InvalidAccount)]
+    #[account(constraint = recipient.key() == escrow.recipient @ EscrowError::InvalidAccount)]
     recipient: AccountInfo<'info>,
     /// CHECK: this account is used only to receive rent and is checked against the one stored in the escrow account
     #[account(

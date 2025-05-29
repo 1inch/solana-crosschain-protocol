@@ -755,7 +755,7 @@ pub fn build_withdraw_tx_src<S: TokenVariant>(
     let instruction: Instruction = Instruction {
         program_id: cross_chain_escrow_src::id(),
         accounts: vec![
-            AccountMeta::new(test_state.recipient_wallet.keypair.pubkey(), true),
+            AccountMeta::new_readonly(test_state.recipient_wallet.keypair.pubkey(), true),
             AccountMeta::new(rent_recipient_pk, false),
             AccountMeta::new_readonly(test_state.token, false),
             AccountMeta::new(*escrow, false),
@@ -800,7 +800,7 @@ pub fn build_public_withdraw_tx_src<S: TokenVariant>(
     let instruction: Instruction = Instruction {
         program_id: cross_chain_escrow_src::id(),
         accounts: vec![
-            AccountMeta::new(test_state.recipient_wallet.keypair.pubkey(), false),
+            AccountMeta::new_readonly(test_state.recipient_wallet.keypair.pubkey(), false),
             AccountMeta::new(rent_recipient_pk, false),
             AccountMeta::new(withdrawer.pubkey(), true),
             AccountMeta::new_readonly(test_state.token, false),
@@ -818,7 +818,7 @@ pub fn build_public_withdraw_tx_src<S: TokenVariant>(
         Some(&test_state.payer_kp.pubkey()), // so that withdrawer does not incurr transaction
         // charges and mess up computation of withdrawer's
         // balance expectation.
-        &[withdrawer, &test_state.payer_kp],
+        &[&test_state.payer_kp, withdrawer],
         test_state.context.last_blockhash,
     )
 }
