@@ -42,8 +42,8 @@ pub mod trading_program {
                     creator: ctx.accounts.trading_account.to_account_info(),
                     mint: ctx.accounts.token.to_account_info(),
                     creator_ata: Some(ctx.accounts.trading_account_ata.to_account_info()),
-                    escrow: ctx.accounts.escrow.to_account_info(),
-                    escrow_ata: ctx.accounts.escrow_ata.to_account_info(),
+                    order: ctx.accounts.escrow.to_account_info(),
+                    order_ata: ctx.accounts.order_ata.to_account_info(),
                     associated_token_program: ctx
                         .accounts
                         .associated_token_program
@@ -103,7 +103,7 @@ pub struct InitEscrowSrc<'info> {
 
     /// CHECK: Verification done by CPI to escrow program
     #[account(mut)]
-    pub escrow_ata: UncheckedAccount<'info>,
+    pub order_ata: UncheckedAccount<'info>,
 
     /// CHECK: Address verification is done in constraint
     #[account(address = IX_ID)]
