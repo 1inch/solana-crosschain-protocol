@@ -290,7 +290,7 @@ where
     T: EscrowBase + AccountSerialize + AccountDeserialize + Clone,
 {
     if let Some(recipient_ata) = recipient_ata {
-        // in case of recipient_ata provided, we transfer wSOL from the escrow_ata to recipient_ata (without unwrapping)
+        // In case of recipient_ata provided, we transfer wSOL from the escrow_ata to recipient_ata (without unwrapping)
         uni_transfer(
             &UniTransferParams::TokenTransfer {
                 from: escrow_ata.to_account_info(),
@@ -304,7 +304,7 @@ where
         )?;
     }
 
-    // using escrow pda as an intermediate account to transfer native tokens
+    // Using escrow pda as an intermediate account to transfer native tokens
     // in case of recipient_ata provided, escrow pda will only receive the escrow ata rent-exempt lamports
     // which rent_recipient will receive after closing the escrow
     close_account(CpiContext::new_with_signer(

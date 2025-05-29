@@ -1074,7 +1074,7 @@ pub async fn test_escrow_creation_native<T: EscrowVariant<S> + 'static, S: Token
 ) {
     let (escrow, escrow_ata) = create_escrow(test_state).await;
 
-    // Check token balances for the escrow account and creator are as expected.
+    // Check token balance for the escrow account is as expected.
     assert_eq!(
         DEFAULT_ESCROW_AMOUNT,
         get_token_balance(&mut test_state.context, &escrow_ata).await
@@ -1099,6 +1099,7 @@ pub async fn test_escrow_creation_native<T: EscrowVariant<S> + 'static, S: Token
         0
     };
 
+    // Check native balance for the creator is as expected.
     assert_eq!(
         WALLET_DEFAULT_LAMPORTS
             - DEFAULT_ESCROW_AMOUNT
