@@ -98,6 +98,25 @@ mod test_whitelist {
 
     #[test_context(TestState)]
     #[tokio::test]
+    async fn test_register_twice(test_state: &mut TestState) {
+        init_whitelist(test_state).await;
+
+        register(test_state).await;
+        // Update the last blockhash to execute the next identical transaction
+        test_state.context.last_blockhash = test_state.client.get_latest_blockhash().await.unwrap();
+        let instruction_data = InstructionData::data(&whitelist::instruction::Register {
+            _user: test_state.whitelisted_kp.pubkey(),
+        });
+        let (_, tx) = register_deregister_data(test_state, instruction_data);
+        test_state
+            .client
+            .process_transaction(tx)
+            .await
+            .expect_error((0, ProgramError::Custom(0)));
+    }
+
+    #[test_context(TestState)]
+    #[tokio::test]
     async fn test_set_authority(test_state: &mut TestState) {
         init_whitelist(test_state).await;
 
