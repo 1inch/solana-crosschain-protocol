@@ -559,7 +559,6 @@ pub async fn create_wallet<S: TokenVariant>(
 
     let native_ata =
         TokenSPL::initialize_spl_associated_account(ctx, &NATIVE_MINT, &dummy_kp.pubkey()).await;
-    transfer_lamports(ctx, fund_lamports, payer, &dummy_kp.pubkey()).await;
     transfer_lamports(ctx, mint_tokens, payer, &native_ata).await;
     sync_native_ata(ctx, &native_ata).await;
 

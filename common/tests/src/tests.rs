@@ -1112,7 +1112,6 @@ pub async fn test_escrow_creation_native<T: EscrowVariant<S> + 'static, S: Token
             .get_balance(test_state.creator_wallet.keypair.pubkey())
             .await
             .unwrap()
-            - WALLET_DEFAULT_LAMPORTS // Deducting default lamports to avoid wrong assertion with WSOL.
     );
 }
 
