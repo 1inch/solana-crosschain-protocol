@@ -61,7 +61,7 @@ impl<S: TokenVariant> EscrowVariant<S> for DstProgram {
         Transaction::new_signed_with_payer(
             &[instruction],
             Some(&test_state.payer_kp.pubkey()),
-            &[withdrawer, &test_state.payer_kp],
+            &[&test_state.payer_kp, withdrawer],
             test_state.context.last_blockhash,
         )
     }
@@ -164,7 +164,6 @@ impl<S: TokenVariant> EscrowVariant<S> for DstProgram {
         let instruction: Instruction = Instruction {
             program_id: cross_chain_escrow_dst::id(),
             accounts: vec![
-                AccountMeta::new(test_state.creator_wallet.keypair.pubkey(), true),
                 AccountMeta::new(test_state.creator_wallet.keypair.pubkey(), true),
                 AccountMeta::new_readonly(test_state.token, false),
                 AccountMeta::new(creator_ata, false),

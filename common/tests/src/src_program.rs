@@ -100,7 +100,7 @@ impl<S: TokenVariant> EscrowVariant<S> for SrcProgram {
             Some(&test_state.payer_kp.pubkey()), // so that withdrawer does not incurr transaction
             // charges and mess up computation of withdrawer's
             // balance expectation.
-            &[withdrawer, &test_state.payer_kp],
+            &[&test_state.payer_kp, withdrawer],
             test_state.context.last_blockhash,
         )
     }
@@ -166,7 +166,6 @@ impl<S: TokenVariant> EscrowVariant<S> for SrcProgram {
             program_id: cross_chain_escrow_src::id(),
             accounts: vec![
                 AccountMeta::new(test_state.creator_wallet.keypair.pubkey(), true),
-                AccountMeta::new(test_state.creator_wallet.keypair.pubkey(), true),
                 AccountMeta::new_readonly(test_state.token, false),
                 AccountMeta::new(creator_ata, false),
                 AccountMeta::new(*escrow, false),
@@ -180,8 +179,11 @@ impl<S: TokenVariant> EscrowVariant<S> for SrcProgram {
         };
         Transaction::new_signed_with_payer(
             &[instruction],
-            Some(&test_state.creator_wallet.keypair.pubkey()),
-            &[&test_state.creator_wallet.keypair],
+            Some(&test_state.payer_kp.pubkey()),
+            &[
+                &test_state.context.payer,
+                &test_state.creator_wallet.keypair,
+            ],
             test_state.context.last_blockhash,
         )
     }
