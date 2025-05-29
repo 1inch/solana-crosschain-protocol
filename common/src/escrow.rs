@@ -1,12 +1,17 @@
-use crate::constants::RESCUE_DELAY;
-use crate::error::EscrowError;
-use crate::utils;
 use anchor_lang::prelude::*;
 use anchor_lang::solana_program::keccak::hash;
+use anchor_lang::system_program;
+
+use anchor_spl::token::spl_token::native_mint::ID as NATIVE_MINT;
+
 use anchor_spl::token_interface::{
     close_account, transfer_checked, CloseAccount, Mint, TokenAccount, TokenInterface,
     TransferChecked,
 };
+
+use crate::constants::RESCUE_DELAY;
+use crate::error::EscrowError;
+use crate::utils;
 
 pub trait EscrowBase {
     fn order_hash(&self) -> &[u8; 32];
@@ -32,15 +37,19 @@ pub trait EscrowBase {
     fn rescue_start(&self) -> u32;
 
     fn rent_recipient(&self) -> &Pubkey;
+
+    fn asset_is_native(&self) -> bool;
 }
 
 pub fn create<'info>(
     escrow_size: usize,
     creator: &AccountInfo<'info>,
+    asset_is_native: bool,
     escrow_ata: &InterfaceAccount<'info, TokenAccount>,
-    creator_ata: &InterfaceAccount<'info, TokenAccount>,
+    creator_ata: Option<&InterfaceAccount<'info, TokenAccount>>,
     mint: &InterfaceAccount<'info, Mint>,
     token_program: &Interface<'info, TokenInterface>,
+    sys_program: &Program<'info, System>,
     amount: u64,
     safety_deposit: u64,
     rescue_start: u32,
@@ -64,20 +73,47 @@ pub fn create<'info>(
         EscrowError::SafetyDepositTooLarge
     );
 
-    // Transfer tokens from creator to escrow
-    transfer_checked(
-        CpiContext::new(
-            token_program.to_account_info(),
-            TransferChecked {
-                from: creator_ata.to_account_info(),
+    require!(
+        mint.key() == NATIVE_MINT || !asset_is_native,
+        EscrowError::InconsistentNativeTrait
+    );
+
+    // Check if token is native (WSOL) and is expected to be wrapped
+    if asset_is_native {
+        // Transfer native tokens from creator to escrow_ata and wrap
+        uni_transfer(
+            &UniTransferParams::NativeTransfer {
+                from: creator.to_account_info(),
                 to: escrow_ata.to_account_info(),
-                authority: creator.to_account_info(),
-                mint: mint.to_account_info(),
+                amount,
+                program: sys_program.clone(),
             },
-        ),
-        amount,
-        mint.decimals,
-    )?;
+            None,
+        )?;
+
+        anchor_spl::token::sync_native(CpiContext::new(
+            token_program.to_account_info(),
+            anchor_spl::token::SyncNative {
+                account: escrow_ata.to_account_info(),
+            },
+        ))?;
+    } else {
+        // Do SPL token transfer
+        uni_transfer(
+            &UniTransferParams::TokenTransfer {
+                from: creator_ata
+                    .ok_or(EscrowError::MissingCreatorAta)?
+                    .to_account_info(),
+                authority: creator.to_account_info(),
+                to: escrow_ata.to_account_info(),
+                mint: mint.clone(),
+                amount,
+                program: token_program.clone(),
+            },
+            None,
+        )?;
+    }
+
     Ok(())
 }
 
@@ -115,19 +151,16 @@ where
     ];
 
     // Transfer tokens from escrow to recipient
-    transfer_checked(
-        CpiContext::new_with_signer(
-            token_program.to_account_info(),
-            TransferChecked {
-                from: escrow_ata.to_account_info(),
-                to: recipient_ata.to_account_info(),
-                authority: escrow.to_account_info(),
-                mint: mint.to_account_info(),
-            },
-            &[&seeds],
-        ),
-        escrow.amount(),
-        mint.decimals,
+    uni_transfer(
+        &UniTransferParams::TokenTransfer {
+            from: escrow_ata.to_account_info(),
+            authority: escrow.to_account_info(),
+            to: recipient_ata.to_account_info(),
+            mint: mint.clone(),
+            amount: escrow.amount(),
+            program: token_program.clone(),
+        },
+        Some(&[&seeds]),
     )?;
 
     // Close the escrow_ata account
@@ -151,7 +184,7 @@ pub fn cancel<'info, T>(
     escrow: &Account<'info, T>,
     escrow_bump: u8,
     escrow_ata: &InterfaceAccount<'info, TokenAccount>,
-    creator_ata: &InterfaceAccount<'info, TokenAccount>,
+    creator_ata: Option<&InterfaceAccount<'info, TokenAccount>>,
     mint: &InterfaceAccount<'info, Mint>,
     token_program: &Interface<'info, TokenInterface>,
     creator: &AccountInfo<'info>,
@@ -173,33 +206,44 @@ where
         &[escrow_bump],
     ];
 
-    // Return tokens to creator
-    transfer_checked(
-        CpiContext::new_with_signer(
-            token_program.to_account_info(),
-            TransferChecked {
+    if !escrow.asset_is_native() {
+        // Return tokens to creator
+        uni_transfer(
+            &UniTransferParams::TokenTransfer {
                 from: escrow_ata.to_account_info(),
-                to: creator_ata.to_account_info(),
                 authority: escrow.to_account_info(),
-                mint: mint.to_account_info(),
+                to: creator_ata
+                    .ok_or(EscrowError::MissingCreatorAta)?
+                    .to_account_info(),
+                mint: mint.clone(),
+                amount: escrow.amount(),
+                program: token_program.clone(),
+            },
+            Some(&[&seeds]),
+        )?;
+
+        // Close the escrow_ata account
+        close_account(CpiContext::new_with_signer(
+            token_program.to_account_info(),
+            CloseAccount {
+                account: escrow_ata.to_account_info(),
+                destination: creator.to_account_info(),
+                authority: escrow.to_account_info(),
             },
             &[&seeds],
-        ),
-        escrow.amount(),
-        mint.decimals,
-    )?;
-
-    // Close the escrow_ata account
-    close_account(CpiContext::new_with_signer(
-        token_program.to_account_info(),
-        CloseAccount {
-            account: escrow_ata.to_account_info(),
-            destination: creator.to_account_info(),
-            authority: escrow.to_account_info(),
-        },
-        &[&seeds],
-    ))?;
-
+        ))?;
+    } else {
+        // Handle native token (WSOL) withdrawal and ata closure
+        close_and_withdraw_native_ata(
+            escrow,
+            escrow_ata,
+            creator,
+            creator_ata,
+            token_program,
+            mint,
+            seeds,
+        )?;
+    }
     // Close the escrow account
     close_escrow_account(escrow, safety_deposit_recipient, creator)?;
 
@@ -223,6 +267,55 @@ where
 
     // Close escrow account and transfer remaining lamports to rent_recipient
     escrow.close(rent_recipient.to_account_info())?;
+
+    Ok(())
+}
+
+fn close_and_withdraw_native_ata<'info, T>(
+    escrow: &Account<'info, T>,
+    escrow_ata: &InterfaceAccount<'info, TokenAccount>,
+    recipient: &AccountInfo<'info>,
+    recipient_ata: Option<&InterfaceAccount<'info, TokenAccount>>,
+    token_program: &Interface<'info, TokenInterface>,
+    mint: &InterfaceAccount<'info, Mint>,
+    seeds: [&[u8]; 10],
+) -> Result<()>
+where
+    T: EscrowBase + AccountSerialize + AccountDeserialize + Clone,
+{
+    if let Some(recipient_ata) = recipient_ata {
+        // In case of recipient_ata provided, we transfer wSOL from the escrow_ata to recipient_ata (without unwrapping)
+        uni_transfer(
+            &UniTransferParams::TokenTransfer {
+                from: escrow_ata.to_account_info(),
+                authority: escrow.to_account_info(),
+                to: recipient_ata.to_account_info(),
+                mint: mint.clone(),
+                amount: escrow.amount(),
+                program: token_program.clone(),
+            },
+            Some(&[&seeds]),
+        )?;
+    }
+
+    // Using escrow pda as an intermediate account to transfer native tokens
+    // in case of recipient_ata provided, escrow pda will only receive the escrow ata rent-exempt lamports
+    // which rent_recipient will receive after closing the escrow
+    close_account(CpiContext::new_with_signer(
+        token_program.to_account_info(),
+        CloseAccount {
+            account: escrow_ata.to_account_info(),
+            destination: escrow.to_account_info(),
+            authority: escrow.to_account_info(),
+        },
+        &[&seeds],
+    ))?;
+
+    if recipient_ata.is_none() {
+        // Transfer the native tokens from escrow pda to recipient
+        escrow.sub_lamports(escrow.amount())?;
+        recipient.add_lamports(escrow.amount())?;
+    }
 
     Ok(())
 }
@@ -264,19 +357,16 @@ pub fn rescue_funds<'info>(
     ];
 
     // Transfer tokens from escrow to recipient
-    transfer_checked(
-        CpiContext::new_with_signer(
-            token_program.to_account_info(),
-            TransferChecked {
-                from: escrow_ata.to_account_info(),
-                to: recipient_ata.to_account_info(),
-                authority: escrow.to_account_info(),
-                mint: mint.to_account_info(),
-            },
-            &[&seeds],
-        ),
-        rescue_amount,
-        mint.decimals,
+    uni_transfer(
+        &UniTransferParams::TokenTransfer {
+            from: escrow_ata.to_account_info(),
+            to: recipient_ata.to_account_info(),
+            authority: escrow.to_account_info(),
+            mint: mint.clone(),
+            amount: rescue_amount,
+            program: token_program.clone(),
+        },
+        Some(&[&seeds]),
     )?;
 
     if rescue_amount == escrow_ata.amount {
@@ -293,4 +383,68 @@ pub fn rescue_funds<'info>(
     }
 
     Ok(())
+}
+
+enum UniTransferParams<'info> {
+    NativeTransfer {
+        from: AccountInfo<'info>,
+        to: AccountInfo<'info>,
+        amount: u64,
+        program: Program<'info, System>,
+    },
+
+    TokenTransfer {
+        from: AccountInfo<'info>,
+        authority: AccountInfo<'info>,
+        to: AccountInfo<'info>,
+        mint: InterfaceAccount<'info, Mint>,
+        amount: u64,
+        program: Interface<'info, TokenInterface>,
+    },
+}
+
+fn uni_transfer(params: &UniTransferParams<'_>, signer_seeds: Option<&[&[&[u8]]]>) -> Result<()> {
+    match params {
+        UniTransferParams::NativeTransfer {
+            from,
+            to,
+            amount,
+            program,
+        } => {
+            let ctx = system_program::Transfer {
+                from: from.to_account_info(),
+                to: to.to_account_info(),
+            };
+
+            let cpi_ctx = match signer_seeds {
+                Some(seeds) => CpiContext::new_with_signer(program.to_account_info(), ctx, seeds),
+                None => CpiContext::new(program.to_account_info(), ctx),
+            };
+
+            system_program::transfer(cpi_ctx, *amount)
+        }
+
+        UniTransferParams::TokenTransfer {
+            from,
+            authority,
+            to,
+            mint,
+            amount,
+            program,
+        } => {
+            let ctx = TransferChecked {
+                from: from.to_account_info(),
+                mint: mint.to_account_info(),
+                to: to.to_account_info(),
+                authority: authority.to_account_info(),
+            };
+
+            let cpi_ctx = match signer_seeds {
+                Some(seeds) => CpiContext::new_with_signer(program.to_account_info(), ctx, seeds),
+                None => CpiContext::new(program.to_account_info(), ctx),
+            };
+
+            transfer_checked(cpi_ctx, *amount, mint.decimals)
+        }
+    }
 }

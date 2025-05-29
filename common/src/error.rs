@@ -16,4 +16,10 @@ pub enum EscrowError {
     InvalidTime,
     #[msg("Invalid rescue start")]
     InvalidRescueStart,
+    #[msg("Missing creator ata")]
+    MissingCreatorAta,
+    #[msg("Missing recipient ata")]
+    MissingRecipientAta,
+    #[msg("Inconsistent native trait")]
+    InconsistentNativeTrait,
 }

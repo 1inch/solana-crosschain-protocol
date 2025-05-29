@@ -95,21 +95,19 @@ run_for_tokens!(
 
             #[test_context(TestState)]
             #[tokio::test]
-            pub async fn test_withdraw(test_state: &mut TestState) {
+            async fn test_withdraw(test_state: &mut TestState) {
                 common_escrow_tests::test_withdraw(test_state).await
             }
 
             #[test_context(TestState)]
             #[tokio::test]
-            pub async fn test_withdraw_does_not_work_with_wrong_secret(test_state: &mut TestState) {
+            async fn test_withdraw_does_not_work_with_wrong_secret(test_state: &mut TestState) {
                 common_escrow_tests::test_withdraw_does_not_work_with_wrong_secret(test_state).await
             }
 
             #[test_context(TestState)]
             #[tokio::test]
-            pub async fn test_withdraw_does_not_work_with_non_recipient(
-                test_state: &mut TestState,
-            ) {
+            async fn test_withdraw_does_not_work_with_non_recipient(test_state: &mut TestState) {
                 common_escrow_tests::test_withdraw_does_not_work_with_non_recipient(test_state)
                     .await
             }
@@ -356,15 +354,167 @@ run_for_tokens!(
                     .await
             }
         }
-
-        mod test_escrow_creation_cost {
-            use super::*;
-
-            #[test_context(TestState)]
-            #[tokio::test]
-            async fn test_escrow_creation_tx_cost(test_state: &mut TestState) {
-                common_escrow_tests::test_escrow_creation_tx_cost(test_state).await
-            }
-        }
     }
 );
+
+// Native Mint (wrapped SOL) is always owned by the SPL Token program
+type TestState = TestStateBase<DstProgram, TokenSPL>;
+// Tests for native token (SOL)
+mod test_escrow_native {
+    use anchor_spl::token::spl_token::native_mint::ID as NATIVE_MINT;
+
+    use super::*;
+
+    #[test_context(TestState)]
+    #[tokio::test]
+    async fn test_escrow_creation(test_state: &mut TestState) {
+        test_state.token = NATIVE_MINT;
+        test_state.test_arguments.asset_is_native = true;
+        common_escrow_tests::test_escrow_creation_native(test_state).await
+    }
+
+    #[test_context(TestState)]
+    #[tokio::test]
+    async fn test_escrow_creation_fail_if_token_is_not_native(test_state: &mut TestState) {
+        test_state.test_arguments.asset_is_native = true;
+        common_escrow_tests::test_escrow_creation_fail_if_token_is_not_native(test_state).await
+    }
+
+    #[test_context(TestState)]
+    #[tokio::test]
+    async fn test_withdraw(test_state: &mut TestState) {
+        test_state.token = NATIVE_MINT;
+        test_state.test_arguments.asset_is_native = true;
+        common_escrow_tests::test_withdraw(test_state).await
+    }
+
+    #[test_context(TestState)]
+    #[tokio::test]
+    async fn test_public_withdraw_by_resolver(test_state: &mut TestState) {
+        test_state.token = NATIVE_MINT;
+        test_state.test_arguments.asset_is_native = true;
+        let withdrawer = test_state.recipient_wallet.keypair.insecure_clone();
+        common_escrow_tests::test_public_withdraw_tokens(test_state, withdrawer).await
+    }
+
+    #[test_context(TestState)]
+    #[tokio::test]
+    async fn test_public_withdraw_by_any_account(test_state: &mut TestState) {
+        test_state.token = NATIVE_MINT;
+        test_state.test_arguments.asset_is_native = true;
+        let withdrawer = Keypair::new();
+        let payer_kp = &test_state.payer_kp;
+        let context = &mut test_state.context;
+
+        transfer_lamports(
+            context,
+            WALLET_DEFAULT_LAMPORTS,
+            payer_kp,
+            &withdrawer.pubkey(),
+        )
+        .await;
+        common_escrow_tests::test_public_withdraw_tokens(test_state, withdrawer).await
+    }
+
+    #[test_context(TestState)]
+    #[tokio::test]
+    async fn test_cancel(test_state: &mut TestState) {
+        test_state.token = NATIVE_MINT;
+        test_state.test_arguments.asset_is_native = true;
+        common_escrow_tests::test_cancel_native(test_state).await
+    }
+
+    #[test_context(TestState)]
+    #[tokio::test]
+    async fn test_rescue_all_tokens_and_close_ata(test_state: &mut TestState) {
+        test_state.token = NATIVE_MINT;
+        test_state.test_arguments.asset_is_native = true;
+        common_escrow_tests::test_rescue_all_tokens_and_close_ata(test_state).await
+    }
+
+    #[test_context(TestState)]
+    #[tokio::test]
+    async fn test_rescue_part_of_tokens_and_not_close_ata(test_state: &mut TestState) {
+        test_state.token = NATIVE_MINT;
+        test_state.test_arguments.asset_is_native = true;
+        common_escrow_tests::test_rescue_part_of_tokens_and_not_close_ata(test_state).await
+    }
+}
+
+// Tests for wrapped native mint (WSOL)
+mod test_escrow_wrapped_native {
+    use anchor_spl::token::spl_token::native_mint::ID as NATIVE_MINT;
+
+    use super::*;
+
+    #[test_context(TestState)]
+    #[tokio::test]
+    async fn test_escrow_creation(test_state: &mut TestState) {
+        test_state.token = NATIVE_MINT;
+        common_escrow_tests::test_escrow_creation(test_state).await
+    }
+
+    #[test_context(TestState)]
+    #[tokio::test]
+    async fn test_withdraw(test_state: &mut TestState) {
+        test_state.token = NATIVE_MINT;
+        common_escrow_tests::test_withdraw(test_state).await
+    }
+
+    #[test_context(TestState)]
+    #[tokio::test]
+    async fn test_public_withdraw_by_resolver(test_state: &mut TestState) {
+        test_state.token = NATIVE_MINT;
+        let withdrawer = test_state.recipient_wallet.keypair.insecure_clone();
+        common_escrow_tests::test_public_withdraw_tokens(test_state, withdrawer).await
+    }
+
+    #[test_context(TestState)]
+    #[tokio::test]
+    async fn test_public_withdraw_by_any_account(test_state: &mut TestState) {
+        test_state.token = NATIVE_MINT;
+        let withdrawer = Keypair::new();
+        let payer_kp = &test_state.payer_kp;
+        let context = &mut test_state.context;
+
+        transfer_lamports(
+            context,
+            WALLET_DEFAULT_LAMPORTS,
+            payer_kp,
+            &withdrawer.pubkey(),
+        )
+        .await;
+        common_escrow_tests::test_public_withdraw_tokens(test_state, withdrawer).await
+    }
+
+    #[test_context(TestState)]
+    #[tokio::test]
+    async fn test_cancel(test_state: &mut TestState) {
+        test_state.token = NATIVE_MINT;
+        common_escrow_tests::test_cancel(test_state).await
+    }
+
+    #[test_context(TestState)]
+    #[tokio::test]
+    async fn test_rescue_all_tokens_and_close_ata(test_state: &mut TestState) {
+        test_state.token = NATIVE_MINT;
+        common_escrow_tests::test_rescue_all_tokens_and_close_ata(test_state).await
+    }
+
+    #[test_context(TestState)]
+    #[tokio::test]
+    async fn test_rescue_part_of_tokens_and_not_close_ata(test_state: &mut TestState) {
+        test_state.token = NATIVE_MINT;
+        common_escrow_tests::test_rescue_part_of_tokens_and_not_close_ata(test_state).await
+    }
+}
+
+mod test_escrow_creation_cost {
+    use super::*;
+
+    #[test_context(TestState)]
+    #[tokio::test]
+    async fn test_escrow_creation_tx_cost(test_state: &mut TestState) {
+        common_escrow_tests::test_escrow_creation_tx_cost(test_state).await
+    }
+}
