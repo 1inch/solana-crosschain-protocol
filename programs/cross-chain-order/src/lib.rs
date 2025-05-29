@@ -75,10 +75,11 @@ pub mod cross_chain_order {
 
     pub fn withdraw(ctx: Context<Withdraw>, secret: [u8; 32]) -> Result<()> {
         let now = utils::get_current_timestamp()?;
-        if now < ctx.accounts.order.withdrawal_start || now >= ctx.accounts.order.cancellation_start
-        {
-            return err!(EscrowError::InvalidTime);
-        }
+        require!(
+            now >= ctx.accounts.order.withdrawal_start
+                && now < ctx.accounts.order.cancellation_start,
+            EscrowError::InvalidTime
+        );
 
         // In a standard withdrawal, the rent recipient receives the entire rent amount, including the safety deposit,
         // because they initially covered the entire rent during order creation.
@@ -98,11 +99,11 @@ pub mod cross_chain_order {
 
     pub fn public_withdraw(ctx: Context<PublicWithdraw>, secret: [u8; 32]) -> Result<()> {
         let now = utils::get_current_timestamp()?;
-        if now < ctx.accounts.order.public_withdrawal_start
-            || now >= ctx.accounts.order.cancellation_start
-        {
-            return err!(EscrowError::InvalidTime);
-        }
+        require!(
+            now >= ctx.accounts.order.public_withdrawal_start
+                && now < ctx.accounts.order.cancellation_start,
+            EscrowError::InvalidTime
+        );
 
         // In a public withdrawal, the rent recipient receives the rent minus the safety deposit
         // while the safety deposit is awarded to the payer who executed the public withdrawal
@@ -122,9 +123,10 @@ pub mod cross_chain_order {
 
     pub fn cancel(ctx: Context<Cancel>) -> Result<()> {
         let now = utils::get_current_timestamp()?;
-        if now < ctx.accounts.order.cancellation_start {
-            return err!(EscrowError::InvalidTime);
-        }
+        require!(
+            now >= ctx.accounts.order.cancellation_start,
+            EscrowError::InvalidTime
+        );
 
         common::escrow::cancel(
             &ctx.accounts.order,
@@ -140,9 +142,10 @@ pub mod cross_chain_order {
 
     pub fn public_cancel(ctx: Context<PublicCancel>) -> Result<()> {
         let now = utils::get_current_timestamp()?;
-        if now < ctx.accounts.order.public_cancellation_start {
-            return err!(EscrowError::InvalidTime);
-        }
+        require!(
+            now >= ctx.accounts.order.public_cancellation_start,
+            EscrowError::InvalidTime
+        );
 
         common::escrow::cancel(
             &ctx.accounts.order,
