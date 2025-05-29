@@ -53,6 +53,8 @@ impl<S: TokenVariant> EscrowVariant<S> for SrcProgram {
         let instruction_data =
             InstructionData::data(&cross_chain_escrow_src::instruction::Cancel {});
 
+        let (creator_ata, _) = find_user_ata(test_state);
+
         let instruction: Instruction = Instruction {
             program_id: cross_chain_escrow_src::id(),
             accounts: vec![
@@ -60,7 +62,7 @@ impl<S: TokenVariant> EscrowVariant<S> for SrcProgram {
                 AccountMeta::new_readonly(test_state.token, false),
                 AccountMeta::new(*escrow, false),
                 AccountMeta::new(*escrow_ata, false),
-                AccountMeta::new(test_state.creator_wallet.token_account, false),
+                AccountMeta::new(creator_ata, false),
                 AccountMeta::new_readonly(S::get_token_program_id(), false),
                 AccountMeta::new_readonly(system_program_id, false),
             ],
@@ -95,15 +97,18 @@ impl<S: TokenVariant> EscrowVariant<S> for SrcProgram {
                 public_withdrawal_duration: test_state.test_arguments.public_withdrawal_duration,
                 withdrawal_duration: test_state.test_arguments.withdrawal_duration,
                 rescue_start: test_state.test_arguments.rescue_start,
+                asset_is_native: test_state.test_arguments.asset_is_native,
             });
+
+        let (creator_ata, _) = find_user_ata(test_state);
 
         let instruction: Instruction = Instruction {
             program_id: cross_chain_escrow_src::id(),
             accounts: vec![
                 AccountMeta::new(test_state.creator_wallet.keypair.pubkey(), true),
-                AccountMeta::new_readonly(test_state.creator_wallet.keypair.pubkey(), true),
+                AccountMeta::new(test_state.creator_wallet.keypair.pubkey(), true),
                 AccountMeta::new_readonly(test_state.token, false),
-                AccountMeta::new(test_state.creator_wallet.token_account, false),
+                AccountMeta::new(creator_ata, false),
                 AccountMeta::new(*escrow, false),
                 AccountMeta::new(*escrow_ata, false),
                 AccountMeta::new_readonly(spl_associated_token_id, false),
