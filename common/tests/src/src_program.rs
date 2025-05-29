@@ -166,6 +166,7 @@ impl<S: TokenVariant> EscrowVariant<S> for SrcProgram {
     }
 
     fn get_escrow_data_len() -> usize {
-        cross_chain_escrow_src::constants::DISCRIMINATOR_BYTES + cross_chain_escrow_src::Order::INIT_SPACE
+        cross_chain_escrow_src::constants::DISCRIMINATOR_BYTES
+            + cross_chain_escrow_src::Order::INIT_SPACE
     }
 }

@@ -198,8 +198,7 @@ pub struct Create<'info> {
     payer: Signer<'info>,
     /// Puts tokens into order
     creator: Signer<'info>,
-    /// CHECK: check is not necessary as token is only used as a constraint to creator_ata and
-    /// order
+    /// CHECK: check is not necessary as token is only used as a constraint to creator_ata and order
     mint: Box<InterfaceAccount<'info, Mint>>,
     #[account(
         mut,
