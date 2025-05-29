@@ -182,7 +182,7 @@ pub mod cross_chain_escrow_dst {
 pub struct Create<'info> {
     /// Puts tokens into escrow
     #[account(
-        mut, // Needed because this account transfers lamports if the token is native and to pay for the escrow creation
+        mut, // Needed because this account transfers lamports if the token is native and to pay for the order creation
     )]
     creator: Signer<'info>,
     /// CHECK: check is not necessary as token is only used as a constraint to creator_ata and escrow_ata

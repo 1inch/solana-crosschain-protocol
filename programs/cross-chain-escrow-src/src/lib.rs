@@ -201,7 +201,7 @@ pub mod cross_chain_escrow_src {
 #[instruction(order_hash: [u8; 32], hashlock: [u8; 32], amount: u64, safety_deposit: u64, recipient: Pubkey, finality_duration: u32, withdrawal_duration: u32, public_withdrawal_duration: u32, cancellation_duration: u32, rescue_start: u32)]
 pub struct Create<'info> {
     #[account(
-        mut, // Needed because this account transfers lamports if the token is native and to pay for the escrow creation
+        mut, // Needed because this account transfers lamports if the token is native and to pay for the order creation
     )]
     creator: Signer<'info>,
     /// CHECK: check is not necessary as token is only used as a constraint to creator_ata and order
