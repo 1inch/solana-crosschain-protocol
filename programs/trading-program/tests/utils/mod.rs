@@ -136,7 +136,6 @@ pub async fn prepare_trading_account<S: TokenVariant>(
         test_state.test_arguments.escrow_amount,
     )
     .await;
-
     (escrow_pda, escrow_ata, trading_pda, trading_ata)
 }
 
@@ -177,7 +176,7 @@ pub fn init_escrow_src_tx<S: TokenVariant>(
         program_id: trading_program::id(),
         accounts: vec![
             AccountMeta::new(test_state.recipient_wallet.keypair.pubkey(), true), // taker
-            AccountMeta::new_readonly(trading_pda, false),                        // trading_account
+            AccountMeta::new(trading_pda, false),                                 // trading_account
             AccountMeta::new(trading_ata, false), // trading_account_ata
             AccountMeta::new(escrow_pda, false),  // escrow
             AccountMeta::new_readonly(test_state.token, false), // token

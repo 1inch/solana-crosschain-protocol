@@ -54,6 +54,8 @@ impl<S: TokenVariant> EscrowVariant<S> for DstProgram {
         let instruction_data =
             InstructionData::data(&cross_chain_escrow_dst::instruction::Cancel {});
 
+        let (creator_ata, _) = find_user_ata(test_state);
+
         let instruction: Instruction = Instruction {
             program_id: cross_chain_escrow_dst::id(),
             accounts: vec![
@@ -61,7 +63,7 @@ impl<S: TokenVariant> EscrowVariant<S> for DstProgram {
                 AccountMeta::new_readonly(test_state.token, false),
                 AccountMeta::new(*escrow, false),
                 AccountMeta::new(*escrow_ata, false),
-                AccountMeta::new(test_state.creator_wallet.token_account, false),
+                AccountMeta::new(creator_ata, false),
                 AccountMeta::new_readonly(S::get_token_program_id(), false),
                 AccountMeta::new_readonly(system_program_id, false),
             ],
@@ -96,15 +98,18 @@ impl<S: TokenVariant> EscrowVariant<S> for DstProgram {
                 withdrawal_duration: test_state.test_arguments.withdrawal_duration,
                 src_cancellation_timestamp: test_state.test_arguments.src_cancellation_timestamp,
                 rescue_start: test_state.test_arguments.rescue_start,
+                asset_is_native: test_state.test_arguments.asset_is_native,
             });
+
+        let (creator_ata, _) = find_user_ata(test_state);
 
         let instruction: Instruction = Instruction {
             program_id: cross_chain_escrow_dst::id(),
             accounts: vec![
                 AccountMeta::new(test_state.creator_wallet.keypair.pubkey(), true),
-                AccountMeta::new_readonly(test_state.creator_wallet.keypair.pubkey(), true),
+                AccountMeta::new(test_state.creator_wallet.keypair.pubkey(), true),
                 AccountMeta::new_readonly(test_state.token, false),
-                AccountMeta::new(test_state.creator_wallet.token_account, false),
+                AccountMeta::new(creator_ata, false),
                 AccountMeta::new(*escrow, false),
                 AccountMeta::new(*escrow_ata, false),
                 AccountMeta::new_readonly(spl_associated_token_id, false),
@@ -170,7 +175,7 @@ impl<S: TokenVariant> EscrowVariant<S> for DstProgram {
     }
 
     fn get_escrow_data_len() -> usize {
-        cross_chain_escrow_dst::constants::DISCRIMINATOR
+        cross_chain_escrow_dst::constants::DISCRIMINATOR_BYTES
             + cross_chain_escrow_dst::EscrowDst::INIT_SPACE
     }
 }
