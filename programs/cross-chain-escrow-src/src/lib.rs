@@ -501,7 +501,7 @@ pub struct EscrowSrc {
     rescue_start: u32,
     rent_recipient: Pubkey,
     asset_is_native: bool,
-    pub dst_amount: u64,
+    dst_amount: u64,
 }
 
 impl EscrowBase for EscrowSrc {
