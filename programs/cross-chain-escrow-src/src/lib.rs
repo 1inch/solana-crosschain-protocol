@@ -41,7 +41,7 @@ pub mod cross_chain_escrow_src {
             .ok_or(ProgramError::ArithmeticOverflow)?;
 
         common::escrow::create(
-            Order::INIT_SPACE + constants::DISCRIMINATOR,
+            Order::INIT_SPACE + constants::DISCRIMINATOR_BYTES,
             &ctx.accounts.creator,
             &ctx.accounts.order_ata,
             &ctx.accounts.creator_ata,
@@ -213,7 +213,7 @@ pub struct Create<'info> {
     #[account(
         init,
         payer = payer,
-        space = constants::DISCRIMINATOR + Order::INIT_SPACE,
+        space = constants::DISCRIMINATOR_BYTES + Order::INIT_SPACE,
         seeds = [
             "escrow".as_bytes(),
             order_hash.as_ref(),
