@@ -38,6 +38,8 @@ impl<S: TokenVariant> EscrowVariant<S> for SrcProgram {
                 secret: test_state.secret,
             });
 
+        let (_, recipient_ata) = find_user_ata(test_state);
+
         let instruction: Instruction = Instruction {
             program_id: cross_chain_escrow_src::id(),
             accounts: vec![
@@ -46,7 +48,7 @@ impl<S: TokenVariant> EscrowVariant<S> for SrcProgram {
                 AccountMeta::new_readonly(test_state.token, false),
                 AccountMeta::new(*escrow, false),
                 AccountMeta::new(*escrow_ata, false),
-                AccountMeta::new(test_state.recipient_wallet.token_account, false),
+                AccountMeta::new(recipient_ata, false),
                 AccountMeta::new_readonly(S::get_token_program_id(), false),
                 AccountMeta::new_readonly(system_program_id, false),
             ],
@@ -75,6 +77,8 @@ impl<S: TokenVariant> EscrowVariant<S> for SrcProgram {
                 secret: test_state.secret,
             });
 
+        let (_, recipient_ata) = find_user_ata(test_state);
+
         let instruction: Instruction = Instruction {
             program_id: cross_chain_escrow_src::id(),
             accounts: vec![
@@ -84,7 +88,7 @@ impl<S: TokenVariant> EscrowVariant<S> for SrcProgram {
                 AccountMeta::new_readonly(test_state.token, false),
                 AccountMeta::new(*escrow, false),
                 AccountMeta::new(*escrow_ata, false),
-                AccountMeta::new(test_state.recipient_wallet.token_account, false),
+                AccountMeta::new(recipient_ata, false),
                 AccountMeta::new_readonly(S::get_token_program_id(), false),
                 AccountMeta::new_readonly(system_program_id, false),
             ],
