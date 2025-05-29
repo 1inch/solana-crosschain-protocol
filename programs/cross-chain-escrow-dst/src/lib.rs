@@ -25,6 +25,7 @@ pub mod cross_chain_escrow_dst {
         public_withdrawal_duration: u32,
         src_cancellation_timestamp: u32,
         rescue_start: u32,
+        asset_is_native: bool,
     ) -> Result<()> {
         let now = utils::get_current_timestamp()?;
 
@@ -38,17 +39,20 @@ pub mod cross_chain_escrow_dst {
             .checked_add(public_withdrawal_duration)
             .ok_or(ProgramError::ArithmeticOverflow)?;
 
-        if cancellation_start > src_cancellation_timestamp {
-            return err!(EscrowError::InvalidCreationTime);
-        }
+        require!(
+            cancellation_start <= src_cancellation_timestamp,
+            EscrowError::InvalidCreationTime
+        );
 
         common::escrow::create(
-            EscrowDst::INIT_SPACE + constants::DISCRIMINATOR,
+            EscrowDst::INIT_SPACE + constants::DISCRIMINATOR_BYTES,
             &ctx.accounts.creator,
+            asset_is_native,
             &ctx.accounts.escrow_ata,
-            &ctx.accounts.creator_ata,
+            ctx.accounts.creator_ata.as_deref(),
             &ctx.accounts.mint,
             &ctx.accounts.token_program,
+            &ctx.accounts.system_program,
             amount,
             safety_deposit,
             rescue_start,
@@ -69,6 +73,7 @@ pub mod cross_chain_escrow_dst {
             public_withdrawal_start,
             cancellation_start,
             rescue_start,
+            asset_is_native,
         });
 
         Ok(())
@@ -76,11 +81,11 @@ pub mod cross_chain_escrow_dst {
 
     pub fn withdraw(ctx: Context<Withdraw>, secret: [u8; 32]) -> Result<()> {
         let now = utils::get_current_timestamp()?;
-        if now < ctx.accounts.escrow.withdrawal_start
-            || now >= ctx.accounts.escrow.cancellation_start
-        {
-            return err!(EscrowError::InvalidTime);
-        }
+        require!(
+            now >= ctx.accounts.escrow.withdrawal_start
+                && now < ctx.accounts.escrow.cancellation_start,
+            EscrowError::InvalidTime
+        );
 
         // In a standard withdrawal, the creator receives the entire rent amount, including the safety deposit,
         // because they initially covered the entire rent during escrow creation.
@@ -100,11 +105,11 @@ pub mod cross_chain_escrow_dst {
 
     pub fn public_withdraw(ctx: Context<PublicWithdraw>, secret: [u8; 32]) -> Result<()> {
         let now = utils::get_current_timestamp()?;
-        if now < ctx.accounts.escrow.public_withdrawal_start
-            || now >= ctx.accounts.escrow.cancellation_start
-        {
-            return err!(EscrowError::InvalidTime);
-        }
+        require!(
+            now >= ctx.accounts.escrow.public_withdrawal_start
+                && now < ctx.accounts.escrow.cancellation_start,
+            EscrowError::InvalidTime
+        );
 
         // In a public withdrawal, the creator receives the rent minus the safety deposit
         // while the safety deposit is awarded to the payer who executed the public withdrawal
@@ -124,15 +129,16 @@ pub mod cross_chain_escrow_dst {
 
     pub fn cancel(ctx: Context<Cancel>) -> Result<()> {
         let now = utils::get_current_timestamp()?;
-        if now < ctx.accounts.escrow.cancellation_start {
-            return err!(EscrowError::InvalidTime);
-        }
+        require!(
+            now >= ctx.accounts.escrow.cancellation_start,
+            EscrowError::InvalidTime
+        );
 
         common::escrow::cancel(
             &ctx.accounts.escrow,
             ctx.bumps.escrow,
             &ctx.accounts.escrow_ata,
-            &ctx.accounts.creator_ata,
+            ctx.accounts.creator_ata.as_deref(),
             &ctx.accounts.mint,
             &ctx.accounts.token_program,
             &ctx.accounts.creator,
@@ -178,6 +184,9 @@ pub struct Create<'info> {
     #[account(mut)]
     payer: Signer<'info>,
     /// Puts tokens into escrow
+    #[account(
+        mut, // Needed because this account transfers lamports if the token is native
+    )]
     creator: Signer<'info>,
     /// CHECK: check is not necessary as token is only used as a constraint to creator_ata and escrow_ata
     mint: Box<InterfaceAccount<'info, Mint>>,
@@ -187,13 +196,13 @@ pub struct Create<'info> {
         associated_token::authority = creator,
         associated_token::token_program = token_program
     )]
-    /// Account to store creator's tokens
-    creator_ata: Box<InterfaceAccount<'info, TokenAccount>>,
+    /// Account to store creator's tokens (Optional if the token is native)
+    creator_ata: Option<Box<InterfaceAccount<'info, TokenAccount>>>,
     /// Account to store escrow details
     #[account(
         init,
         payer = payer,
-        space = constants::DISCRIMINATOR + EscrowDst::INIT_SPACE,
+        space = constants::DISCRIMINATOR_BYTES + EscrowDst::INIT_SPACE,
         seeds = [
             "escrow".as_bytes(),
             order_hash.as_ref(),
@@ -355,7 +364,8 @@ pub struct Cancel<'info> {
         associated_token::authority = creator,
         associated_token::token_program = token_program
     )]
-    creator_ata: Box<InterfaceAccount<'info, TokenAccount>>,
+    // Optional if the token is native
+    creator_ata: Option<Box<InterfaceAccount<'info, TokenAccount>>>,
     token_program: Interface<'info, TokenInterface>,
     system_program: Program<'info, System>,
 }
@@ -410,6 +420,7 @@ pub struct EscrowDst {
     creator: Pubkey,
     recipient: Pubkey,
     token: Pubkey,
+    asset_is_native: bool,
     amount: u64,
     safety_deposit: u64,
     withdrawal_start: u32,
@@ -465,5 +476,9 @@ impl EscrowBase for EscrowDst {
 
     fn rent_recipient(&self) -> &Pubkey {
         &self.creator
+    }
+
+    fn asset_is_native(&self) -> bool {
+        self.asset_is_native
     }
 }

@@ -24,6 +24,7 @@ pub mod cross_chain_escrow_src {
         public_withdrawal_duration: u32,
         cancellation_duration: u32,
         rescue_start: u32,
+        asset_is_native: bool,
     ) -> Result<()> {
         let now = utils::get_current_timestamp()?;
 
@@ -41,12 +42,14 @@ pub mod cross_chain_escrow_src {
             .ok_or(ProgramError::ArithmeticOverflow)?;
 
         common::escrow::create(
-            EscrowSrc::INIT_SPACE + constants::DISCRIMINATOR,
+            EscrowSrc::INIT_SPACE + constants::DISCRIMINATOR_BYTES,
             &ctx.accounts.creator,
+            asset_is_native,
             &ctx.accounts.escrow_ata,
-            &ctx.accounts.creator_ata,
+            ctx.accounts.creator_ata.as_deref(),
             &ctx.accounts.mint,
             &ctx.accounts.token_program,
+            &ctx.accounts.system_program,
             amount,
             safety_deposit,
             rescue_start,
@@ -68,6 +71,7 @@ pub mod cross_chain_escrow_src {
             public_cancellation_start,
             rescue_start,
             rent_recipient: ctx.accounts.payer.key(),
+            asset_is_native,
         });
 
         Ok(())
@@ -75,11 +79,11 @@ pub mod cross_chain_escrow_src {
 
     pub fn withdraw(ctx: Context<Withdraw>, secret: [u8; 32]) -> Result<()> {
         let now = utils::get_current_timestamp()?;
-        if now < ctx.accounts.escrow.withdrawal_start
-            || now >= ctx.accounts.escrow.cancellation_start
-        {
-            return err!(EscrowError::InvalidTime);
-        }
+        require!(
+            now >= ctx.accounts.escrow.withdrawal_start
+                && now < ctx.accounts.escrow.cancellation_start,
+            EscrowError::InvalidTime
+        );
 
         // In a standard withdrawal, the rent recipient receives the entire rent amount, including the safety deposit,
         // because they initially covered the entire rent during escrow creation.
@@ -99,11 +103,11 @@ pub mod cross_chain_escrow_src {
 
     pub fn public_withdraw(ctx: Context<PublicWithdraw>, secret: [u8; 32]) -> Result<()> {
         let now = utils::get_current_timestamp()?;
-        if now < ctx.accounts.escrow.public_withdrawal_start
-            || now >= ctx.accounts.escrow.cancellation_start
-        {
-            return err!(EscrowError::InvalidTime);
-        }
+        require!(
+            now >= ctx.accounts.escrow.public_withdrawal_start
+                && now < ctx.accounts.escrow.cancellation_start,
+            EscrowError::InvalidTime
+        );
 
         // In a public withdrawal, the rent recipient receives the rent minus the safety deposit
         // while the safety deposit is awarded to the payer who executed the public withdrawal
@@ -123,15 +127,19 @@ pub mod cross_chain_escrow_src {
 
     pub fn cancel(ctx: Context<Cancel>) -> Result<()> {
         let now = utils::get_current_timestamp()?;
-        if now < ctx.accounts.escrow.cancellation_start {
-            return err!(EscrowError::InvalidTime);
-        }
+        require!(
+            now >= ctx.accounts.escrow.cancellation_start,
+            EscrowError::InvalidTime
+        );
+
+        // In a standard cancel, the rent recipient receives the entire rent amount, including the safety deposit,
+        // because they initially covered the entire rent during escrow creation.
 
         common::escrow::cancel(
             &ctx.accounts.escrow,
             ctx.bumps.escrow,
             &ctx.accounts.escrow_ata,
-            &ctx.accounts.creator_ata,
+            ctx.accounts.creator_ata.as_deref(),
             &ctx.accounts.mint,
             &ctx.accounts.token_program,
             &ctx.accounts.creator,
@@ -141,15 +149,16 @@ pub mod cross_chain_escrow_src {
 
     pub fn public_cancel(ctx: Context<PublicCancel>) -> Result<()> {
         let now = utils::get_current_timestamp()?;
-        if now < ctx.accounts.escrow.public_cancellation_start {
-            return err!(EscrowError::InvalidTime);
-        }
+        require!(
+            now >= ctx.accounts.escrow.public_cancellation_start,
+            EscrowError::InvalidTime
+        );
 
         common::escrow::cancel(
             &ctx.accounts.escrow,
             ctx.bumps.escrow,
             &ctx.accounts.escrow_ata,
-            &ctx.accounts.creator_ata,
+            ctx.accounts.creator_ata.as_deref(),
             &ctx.accounts.mint,
             &ctx.accounts.token_program,
             &ctx.accounts.creator,
@@ -194,7 +203,9 @@ pub struct Create<'info> {
     /// Pays for the creation of escrow account
     #[account(mut)]
     payer: Signer<'info>,
-    /// Puts tokens into escrow
+    #[account(
+        mut, // Needed because this account transfers lamports if the token is native
+    )]
     creator: Signer<'info>,
     /// CHECK: check is not necessary as token is only used as a constraint to creator_ata and escrow_ata
     mint: Box<InterfaceAccount<'info, Mint>>,
@@ -204,13 +215,13 @@ pub struct Create<'info> {
         associated_token::authority = creator,
         associated_token::token_program = token_program
     )]
-    /// Account to store creator's tokens
-    creator_ata: Box<InterfaceAccount<'info, TokenAccount>>,
+    /// Account to store creator's tokens (Optional if the token is native)
+    creator_ata: Option<Box<InterfaceAccount<'info, TokenAccount>>>,
     /// Account to store escrow details
     #[account(
         init,
         payer = payer,
-        space = constants::DISCRIMINATOR + EscrowSrc::INIT_SPACE,
+        space = constants::DISCRIMINATOR_BYTES + EscrowSrc::INIT_SPACE,
         seeds = [
             "escrow".as_bytes(),
             order_hash.as_ref(),
@@ -246,6 +257,7 @@ pub struct Create<'info> {
 pub struct Withdraw<'info> {
     #[account(constraint = recipient.key() == escrow.recipient @ EscrowError::InvalidAccount)]
     recipient: Signer<'info>,
+    /// CHECK: this account is used only to receive rent and is checked against the one stored in the escrow account
     #[account(
         mut, // Needed because this account receives lamports (safety deposit and rent from closed accounts)
         constraint = rent_recipient.key() == escrow.rent_recipient @ EscrowError::InvalidAccount)]
@@ -288,8 +300,10 @@ pub struct Withdraw<'info> {
 #[derive(Accounts)]
 pub struct PublicWithdraw<'info> {
     /// CHECK: This account is used to check its pubkey to match the one stored in the escrow account
+    /// Or to receive lamports if the token is native
     #[account(constraint = recipient.key() == escrow.recipient @ EscrowError::InvalidAccount)]
     recipient: AccountInfo<'info>,
+    /// CHECK: this account is used only to receive rent and is checked against the one stored in the escrow account
     #[account(
         mut, // Needed because this account receives lamports (safety deposit and from closed accounts)
         constraint = rent_recipient.key() == escrow.rent_recipient @ EscrowError::InvalidAccount)]
@@ -333,11 +347,11 @@ pub struct PublicWithdraw<'info> {
 
 #[derive(Accounts)]
 pub struct Cancel<'info> {
+    /// CHECK: Currently only used for the token-authority check and to receive lamports if the token is native
     #[account(
-        mut, // Needed because this account receives lamports (safety deposit and from closed accounts)
+        mut, // Needed because this account receives lamports if the token is native
         constraint = creator.key() == escrow.creator @ EscrowError::InvalidAccount
     )]
-    // TODO: change signer after adding gasless creation
     creator: Signer<'info>,
     mint: Box<InterfaceAccount<'info, Mint>>,
     #[account(
@@ -369,14 +383,15 @@ pub struct Cancel<'info> {
         associated_token::authority = creator,
         associated_token::token_program = token_program
     )]
-    creator_ata: Box<InterfaceAccount<'info, TokenAccount>>,
+    // Optional if the token is native
+    creator_ata: Option<Box<InterfaceAccount<'info, TokenAccount>>>,
     token_program: Interface<'info, TokenInterface>,
     system_program: Program<'info, System>,
 }
 
 #[derive(Accounts)]
 pub struct PublicCancel<'info> {
-    /// CHECK: this account is used only to receive lampotrs and to check its pubkey to match the one stored in the escrow account
+    /// CHECK: this account is used only to receive lamports and to check its pubkey to match the one stored in the escrow account
     #[account(
         mut, // Needed because this account receives lamports (safety deposit and from closed accounts)
         constraint = creator.key() == escrow.creator @ EscrowError::InvalidAccount
@@ -414,7 +429,8 @@ pub struct PublicCancel<'info> {
         associated_token::authority = creator,
         associated_token::token_program = token_program
     )]
-    creator_ata: Box<InterfaceAccount<'info, TokenAccount>>,
+    // Optional if the token is native
+    creator_ata: Option<Box<InterfaceAccount<'info, TokenAccount>>>,
     token_program: Interface<'info, TokenInterface>,
     system_program: Program<'info, System>,
 }
@@ -477,6 +493,7 @@ pub struct EscrowSrc {
     public_cancellation_start: u32,
     rescue_start: u32,
     rent_recipient: Pubkey,
+    asset_is_native: bool,
 }
 
 impl EscrowBase for EscrowSrc {
@@ -526,5 +543,9 @@ impl EscrowBase for EscrowSrc {
 
     fn rent_recipient(&self) -> &Pubkey {
         &self.rent_recipient
+    }
+
+    fn asset_is_native(&self) -> bool {
+        self.asset_is_native
     }
 }

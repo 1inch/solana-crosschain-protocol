@@ -2,9 +2,9 @@ use anchor_lang::error_code;
 
 #[error_code]
 pub enum EscrowError {
-    #[msg("ZeroAmountOrDeposit")]
+    #[msg("Zero amount or deposit")]
     ZeroAmountOrDeposit,
-    #[msg("SafetyDepositTooLarge")]
+    #[msg("Safety deposit too large")]
     SafetyDepositTooLarge,
     #[msg("Invalid secret")]
     InvalidSecret,
@@ -16,4 +16,10 @@ pub enum EscrowError {
     InvalidTime,
     #[msg("Invalid rescue start")]
     InvalidRescueStart,
+    #[msg("Missing creator ata")]
+    MissingCreatorAta,
+    #[msg("Missing recipient ata")]
+    MissingRecipientAta,
+    #[msg("Inconsistent native trait")]
+    InconsistentNativeTrait,
 }
