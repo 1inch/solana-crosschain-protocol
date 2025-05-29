@@ -142,8 +142,7 @@ pub mod cross_chain_escrow_src {
             &ctx.accounts.mint,
             &ctx.accounts.token_program,
             &ctx.accounts.creator,
-            &ctx.accounts.rent_recipient,
-            &ctx.accounts.rent_recipient,
+            &ctx.accounts.creator,
         )
     }
 
@@ -161,7 +160,6 @@ pub mod cross_chain_escrow_src {
             &ctx.accounts.mint,
             &ctx.accounts.token_program,
             &ctx.accounts.creator,
-            &ctx.accounts.rent_recipient,
             &ctx.accounts.payer,
         )
     }
@@ -389,9 +387,6 @@ pub struct Cancel<'info> {
     )]
     // Optional if the token is native
     creator_ata: Option<Box<InterfaceAccount<'info, TokenAccount>>>,
-    /// CHECK: this account is used only to receive rent and is checked against the one stored in the escrow account
-    #[account(mut, constraint = rent_recipient.key() == escrow.rent_recipient @ EscrowError::InvalidAccount)]
-    rent_recipient: AccountInfo<'info>,
     token_program: Interface<'info, TokenInterface>,
     system_program: Program<'info, System>,
 }
@@ -438,9 +433,6 @@ pub struct PublicCancel<'info> {
     )]
     // Optional if the token is native
     creator_ata: Option<Box<InterfaceAccount<'info, TokenAccount>>>,
-    /// CHECK: this account is used only to receive rent and is checked against the one stored in the escrow account
-    #[account(mut, constraint = rent_recipient.key() == escrow.rent_recipient @ EscrowError::InvalidAccount)]
-    rent_recipient: AccountInfo<'info>,
     token_program: Interface<'info, TokenInterface>,
     system_program: Program<'info, System>,
 }

@@ -190,7 +190,6 @@ pub fn cancel<'info, T>(
     mint: &InterfaceAccount<'info, Mint>,
     token_program: &Interface<'info, TokenInterface>,
     creator: &AccountInfo<'info>,
-    rent_recipient: &AccountInfo<'info>,
     safety_deposit_recipient: &AccountInfo<'info>,
 ) -> Result<()>
 where
@@ -252,7 +251,7 @@ where
         )?;
     }
     // Close the escrow account
-    close_escrow_account(escrow, safety_deposit_recipient, rent_recipient)?;
+    close_escrow_account(escrow, safety_deposit_recipient, creator)?;
 
     Ok(())
 }
