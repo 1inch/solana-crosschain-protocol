@@ -49,11 +49,7 @@ pub async fn test_escrow_creation<T: EscrowVariant<S>, S: TokenVariant>(
 ) {
     let (escrow, escrow_ata) = create_escrow(test_state).await;
 
-    let creator_ata = if test_state.token == NATIVE_MINT {
-        test_state.creator_wallet.native_token_account
-    } else {
-        test_state.creator_wallet.token_account
-    };
+    let (creator_ata, _) = find_user_ata(test_state);
 
     // Check token balances for the escrow account and creator are as expected.
     assert_eq!(
@@ -250,11 +246,7 @@ pub async fn test_withdraw<T: EscrowVariant<S>, S: TokenVariant>(
         test_state.init_timestamp + DEFAULT_PERIOD_DURATION * PeriodType::Withdrawal as u32,
     );
 
-    let recipient_ata = if test_state.token == NATIVE_MINT {
-        test_state.recipient_wallet.native_token_account
-    } else {
-        test_state.recipient_wallet.token_account
-    };
+    let (_, recipient_ata) = find_user_ata(test_state);
 
     test_state
         .expect_balance_change(
@@ -456,11 +448,7 @@ pub async fn test_public_withdraw_tokens<T: EscrowVariant<S>, S: TokenVariant>(
         test_state.client.get_balance(escrow).await.unwrap()
     );
 
-    let recipient_ata = if test_state.token == NATIVE_MINT {
-        test_state.recipient_wallet.native_token_account
-    } else {
-        test_state.recipient_wallet.token_account
-    };
+    let (_, recipient_ata) = find_user_ata(test_state);
 
     test_state
         .expect_balance_change(
@@ -634,11 +622,7 @@ pub async fn test_cancel<T: EscrowVariant<S>, S: TokenVariant>(
         get_min_rent_for_size(&mut test_state.client, S::get_token_account_size()).await;
     let escrow_rent = get_min_rent_for_size(&mut test_state.client, T::get_escrow_data_len()).await;
 
-    let creator_ata = if test_state.token == NATIVE_MINT {
-        test_state.creator_wallet.native_token_account
-    } else {
-        test_state.creator_wallet.token_account
-    };
+    let (creator_ata, _) = find_user_ata(test_state);
 
     test_state
         .expect_balance_change(

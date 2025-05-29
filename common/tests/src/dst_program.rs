@@ -1,6 +1,5 @@
 use crate::helpers::*;
 use anchor_lang::prelude::AccountInfo;
-use anchor_spl::token::spl_token::native_mint::ID as NATIVE_MINT;
 use solana_program_runtime::invoke_context::BuiltinFunctionWithContext;
 use solana_sdk::{signature::Signer, signer::keypair::Keypair, transaction::Transaction};
 
@@ -55,13 +54,7 @@ impl<S: TokenVariant> EscrowVariant<S> for DstProgram {
         let instruction_data =
             InstructionData::data(&cross_chain_escrow_dst::instruction::Cancel {});
 
-        let creator_ata = if test_state.test_arguments.asset_is_native {
-            cross_chain_escrow_dst::id()
-        } else if test_state.token == NATIVE_MINT {
-            test_state.creator_wallet.native_token_account
-        } else {
-            test_state.creator_wallet.token_account
-        };
+        let (creator_ata, _) = find_user_ata(test_state);
 
         let instruction: Instruction = Instruction {
             program_id: cross_chain_escrow_dst::id(),
@@ -108,13 +101,7 @@ impl<S: TokenVariant> EscrowVariant<S> for DstProgram {
                 asset_is_native: test_state.test_arguments.asset_is_native,
             });
 
-        let creator_ata = if test_state.test_arguments.asset_is_native {
-            cross_chain_escrow_dst::id()
-        } else if test_state.token == NATIVE_MINT {
-            test_state.creator_wallet.native_token_account
-        } else {
-            test_state.creator_wallet.token_account
-        };
+        let (creator_ata, _) = find_user_ata(test_state);
 
         let instruction: Instruction = Instruction {
             program_id: cross_chain_escrow_dst::id(),

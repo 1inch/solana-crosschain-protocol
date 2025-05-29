@@ -381,13 +381,7 @@ mod local_helpers {
         let instruction_data =
             InstructionData::data(&cross_chain_escrow_src::instruction::PublicCancel {});
 
-        let creator_ata = if test_state.test_arguments.asset_is_native {
-            cross_chain_escrow_src::id()
-        } else if test_state.token == NATIVE_MINT {
-            test_state.creator_wallet.native_token_account
-        } else {
-            test_state.creator_wallet.token_account
-        };
+        let (creator_ata, _) = find_user_ata(test_state);
 
         let instruction: Instruction = Instruction {
             program_id: cross_chain_escrow_src::id(),
