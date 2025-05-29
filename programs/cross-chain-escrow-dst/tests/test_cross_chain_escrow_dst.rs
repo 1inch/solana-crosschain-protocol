@@ -95,21 +95,19 @@ run_for_tokens!(
 
             #[test_context(TestState)]
             #[tokio::test]
-            pub async fn test_withdraw(test_state: &mut TestState) {
+            async fn test_withdraw(test_state: &mut TestState) {
                 common_escrow_tests::test_withdraw(test_state).await
             }
 
             #[test_context(TestState)]
             #[tokio::test]
-            pub async fn test_withdraw_does_not_work_with_wrong_secret(test_state: &mut TestState) {
+            async fn test_withdraw_does_not_work_with_wrong_secret(test_state: &mut TestState) {
                 common_escrow_tests::test_withdraw_does_not_work_with_wrong_secret(test_state).await
             }
 
             #[test_context(TestState)]
             #[tokio::test]
-            pub async fn test_withdraw_does_not_work_with_non_recipient(
-                test_state: &mut TestState,
-            ) {
+            async fn test_withdraw_does_not_work_with_non_recipient(test_state: &mut TestState) {
                 common_escrow_tests::test_withdraw_does_not_work_with_non_recipient(test_state)
                     .await
             }
@@ -384,7 +382,7 @@ mod test_escrow_native {
 
     #[test_context(TestState)]
     #[tokio::test]
-    pub async fn test_withdraw(test_state: &mut TestState) {
+    async fn test_withdraw(test_state: &mut TestState) {
         test_state.token = NATIVE_MINT;
         test_state.test_arguments.asset_is_native = true;
         common_escrow_tests::test_withdraw(test_state).await
@@ -392,7 +390,7 @@ mod test_escrow_native {
 
     #[test_context(TestState)]
     #[tokio::test]
-    pub async fn test_public_withdraw_by_resolver(test_state: &mut TestState) {
+    async fn test_public_withdraw_by_resolver(test_state: &mut TestState) {
         test_state.token = NATIVE_MINT;
         test_state.test_arguments.asset_is_native = true;
         let withdrawer = test_state.recipient_wallet.keypair.insecure_clone();
@@ -401,7 +399,7 @@ mod test_escrow_native {
 
     #[test_context(TestState)]
     #[tokio::test]
-    pub async fn test_public_withdraw_by_any_account(test_state: &mut TestState) {
+    async fn test_public_withdraw_by_any_account(test_state: &mut TestState) {
         test_state.token = NATIVE_MINT;
         test_state.test_arguments.asset_is_native = true;
         let withdrawer = Keypair::new();
@@ -458,14 +456,14 @@ mod test_escrow_wrapped_native {
 
     #[test_context(TestState)]
     #[tokio::test]
-    pub async fn test_withdraw(test_state: &mut TestState) {
+    async fn test_withdraw(test_state: &mut TestState) {
         test_state.token = NATIVE_MINT;
         common_escrow_tests::test_withdraw(test_state).await
     }
 
     #[test_context(TestState)]
     #[tokio::test]
-    pub async fn test_public_withdraw_by_resolver(test_state: &mut TestState) {
+    async fn test_public_withdraw_by_resolver(test_state: &mut TestState) {
         test_state.token = NATIVE_MINT;
         let withdrawer = test_state.recipient_wallet.keypair.insecure_clone();
         common_escrow_tests::test_public_withdraw_tokens(test_state, withdrawer).await
@@ -473,7 +471,7 @@ mod test_escrow_wrapped_native {
 
     #[test_context(TestState)]
     #[tokio::test]
-    pub async fn test_public_withdraw_by_any_account(test_state: &mut TestState) {
+    async fn test_public_withdraw_by_any_account(test_state: &mut TestState) {
         test_state.token = NATIVE_MINT;
         let withdrawer = Keypair::new();
         let payer_kp = &test_state.payer_kp;
