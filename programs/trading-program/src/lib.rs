@@ -6,9 +6,9 @@ use borsh::BorshDeserialize;
 
 pub mod constants;
 pub mod utils;
-use cross_chain_order::{
+use cross_chain_escrow_src::{
     cpi::{accounts::Create, create},
-    program::CrossChainOrder,
+    program::CrossChainEscrowSrc,
 };
 use utils::{assert_pda, error::TradingProgramError, verify_order_signature};
 
@@ -108,5 +108,5 @@ pub struct InitEscrowSrc<'info> {
     pub token_program: Interface<'info, TokenInterface>,
     pub rent: Sysvar<'info, Rent>,
     pub system_program: Program<'info, System>,
-    pub escrow_src_program: Program<'info, CrossChainOrder>,
+    pub escrow_src_program: Program<'info, CrossChainEscrowSrc>,
 }
