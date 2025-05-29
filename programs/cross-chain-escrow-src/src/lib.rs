@@ -9,7 +9,7 @@ use common::utils;
 declare_id!("6NwMYeUmigiMDjhYeYpbxC6Kc63NzZy1dfGd7fGcdkVS");
 
 #[program]
-pub mod cross_chain_order {
+pub mod cross_chain_escrow_src {
     use super::*;
 
     pub fn create(

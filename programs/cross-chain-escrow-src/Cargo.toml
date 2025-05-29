@@ -1,12 +1,12 @@
 [package]
-name = "cross-chain-order"
+name = "cross-chain-escrow-src"
 version = "0.1.0"
 description = "Created with Anchor"
 edition = "2021"
 
 [lib]
 crate-type = ["cdylib", "lib"]
-name = "cross_chain_order"
+name = "cross_chain_escrow_src"
 
 [features]
 default = []
