@@ -1,10 +1,14 @@
 use anchor_lang::prelude::*;
 use anchor_spl::associated_token::{AssociatedToken, ID as ASSOCIATED_TOKEN_PROGRAM_ID};
 use anchor_spl::token_interface::{Mint, TokenAccount, TokenInterface};
+pub use auction::{calculate_rate_bump, AuctionData};
 pub use common::constants;
 use common::error::EscrowError;
 use common::escrow::EscrowBase;
 use common::utils;
+use muldiv::MulDiv;
+
+pub mod auction;
 
 declare_id!("6NwMYeUmigiMDjhYeYpbxC6Kc63NzZy1dfGd7fGcdkVS");
 
@@ -25,6 +29,8 @@ pub mod cross_chain_escrow_src {
         cancellation_duration: u32,
         rescue_start: u32,
         asset_is_native: bool,
+        dst_amount: u64,
+        dutch_auction_data: AuctionData,
     ) -> Result<()> {
         let now = utils::get_current_timestamp()?;
 
@@ -72,6 +78,7 @@ pub mod cross_chain_escrow_src {
             rescue_start,
             rent_recipient: ctx.accounts.creator.key(),
             asset_is_native,
+            dst_amount: get_dst_amount(dst_amount, &dutch_auction_data)?,
         });
 
         Ok(())
@@ -491,6 +498,7 @@ pub struct Order {
     rescue_start: u32,
     rent_recipient: Pubkey,
     asset_is_native: bool,
+    dst_amount: u64,
 }
 
 impl EscrowBase for Order {
@@ -545,4 +553,12 @@ impl EscrowBase for Order {
     fn asset_is_native(&self) -> bool {
         self.asset_is_native
     }
+}
+
+fn get_dst_amount(dst_amount: u64, data: &AuctionData) -> Result<u64> {
+    let rate_bump = calculate_rate_bump(Clock::get()?.unix_timestamp as u64, data);
+    let result = dst_amount
+        .mul_div_ceil(constants::BASE_1E5 + rate_bump, constants::BASE_1E5)
+        .ok_or(ProgramError::ArithmeticOverflow)?;
+    Ok(result)
 }

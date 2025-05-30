@@ -56,10 +56,10 @@ pub enum PeriodType {
 }
 
 pub const DEFAULT_ESCROW_AMOUNT: u64 = 100000;
+pub const DEFAULT_DST_ESCROW_AMOUNT: u64 = 1000;
 pub const DEFAULT_RESCUE_AMOUNT: u64 = 100;
 pub const DEFAULT_SAFETY_DEPOSIT: u64 = 25;
 
-#[derive(Debug)]
 pub struct TestArgs {
     pub escrow_amount: u64,
     pub safety_deposit: u64,
@@ -72,6 +72,8 @@ pub struct TestArgs {
     pub rescue_start: u32,
     pub rescue_amount: u64,
     pub asset_is_native: bool,
+    pub dst_amount: u64,
+    pub dutch_auction_data: cross_chain_escrow_src::AuctionData,
 }
 
 pub fn get_default_testargs(nowsecs: u32) -> TestArgs {
@@ -87,6 +89,13 @@ pub fn get_default_testargs(nowsecs: u32) -> TestArgs {
         rescue_start: nowsecs + RESCUE_DELAY + 100,
         rescue_amount: DEFAULT_RESCUE_AMOUNT,
         asset_is_native: false, // This is set to false by default, will be changed for native tests.
+        dst_amount: DEFAULT_DST_ESCROW_AMOUNT,
+        dutch_auction_data: cross_chain_escrow_src::AuctionData {
+            start_time: nowsecs,
+            duration: DEFAULT_PERIOD_DURATION,
+            initial_rate_bump: 0,
+            points_and_time_deltas: vec![],
+        },
     }
 }
 
