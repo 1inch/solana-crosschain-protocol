@@ -62,7 +62,6 @@ pub mod trading_program {
             order.hashlock,
             order.amount,
             order.safety_deposit,
-            ctx.accounts.taker.key(),
             order.finality_duration,
             order.withdrawal_duration,
             order.public_withdrawal_duration,

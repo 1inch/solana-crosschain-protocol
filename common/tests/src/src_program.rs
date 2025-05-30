@@ -90,7 +90,6 @@ impl<S: TokenVariant> EscrowVariant<S> for SrcProgram {
                 amount: test_state.test_arguments.escrow_amount,
                 order_hash: test_state.order_hash.to_bytes(),
                 hashlock: test_state.hashlock.to_bytes(),
-                recipient: test_state.recipient_wallet.keypair.pubkey(),
                 safety_deposit: test_state.test_arguments.safety_deposit,
                 cancellation_duration: test_state.test_arguments.cancellation_duration,
                 finality_duration: test_state.test_arguments.finality_duration,

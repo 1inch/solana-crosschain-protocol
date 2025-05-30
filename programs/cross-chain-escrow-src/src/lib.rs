@@ -20,7 +20,6 @@ pub mod cross_chain_escrow_src {
         hashlock: [u8; 32],
         amount: u64,
         safety_deposit: u64,
-        recipient: Pubkey,
         finality_duration: u32,
         withdrawal_duration: u32,
         public_withdrawal_duration: u32,
@@ -63,7 +62,6 @@ pub mod cross_chain_escrow_src {
             order_hash,
             hashlock,
             creator: ctx.accounts.creator.key(),
-            recipient,
             token: ctx.accounts.mint.key(),
             amount,
             safety_deposit,
@@ -72,7 +70,6 @@ pub mod cross_chain_escrow_src {
             cancellation_start,
             public_cancellation_start,
             rescue_start,
-            rent_recipient: ctx.accounts.payer.key(),
             asset_is_native,
         });
 
@@ -88,7 +85,6 @@ pub mod cross_chain_escrow_src {
             order.order_hash(),
             order.hashlock(),
             order.creator().as_ref(),
-            order.recipient().as_ref(),
             order.token().as_ref(),
             &order.amount().to_be_bytes(),
             &order.safety_deposit().to_be_bytes(),
@@ -112,7 +108,7 @@ pub mod cross_chain_escrow_src {
             order_hash: order.order_hash,
             hashlock: order.hashlock,
             creator: order.creator,
-            recipient: order.recipient,
+            recipient: ctx.accounts.recipient.key(),
             token: order.token,
             amount: order.amount,
             safety_deposit: order.safety_deposit,
@@ -121,7 +117,6 @@ pub mod cross_chain_escrow_src {
             cancellation_start: order.cancellation_start,
             public_cancellation_start: order.public_cancellation_start,
             rescue_start: order.rescue_start,
-            rent_recipient: order.rent_recipient,
             asset_is_native: order.asset_is_native,
         });
 
@@ -263,7 +258,7 @@ pub mod cross_chain_escrow_src {
 }
 
 #[derive(Accounts)]
-#[instruction(order_hash: [u8; 32], hashlock: [u8; 32], amount: u64, safety_deposit: u64, recipient: Pubkey, finality_duration: u32, withdrawal_duration: u32, public_withdrawal_duration: u32, cancellation_duration: u32, rescue_start: u32)]
+#[instruction(order_hash: [u8; 32], hashlock: [u8; 32], amount: u64, safety_deposit: u64, finality_duration: u32, withdrawal_duration: u32, public_withdrawal_duration: u32, cancellation_duration: u32, rescue_start: u32)]
 pub struct Create<'info> {
     /// Pays for the creation of order account
     #[account(mut)]
@@ -293,7 +288,6 @@ pub struct Create<'info> {
             order_hash.as_ref(),
             hashlock.as_ref(),
             creator.key().as_ref(),
-            recipient.as_ref(),
             mint.key().as_ref(),
             amount.to_be_bytes().as_ref(),
             safety_deposit.to_be_bytes().as_ref(),
@@ -337,7 +331,6 @@ pub struct CreateEscrow<'info> {
             order.order_hash.as_ref(),
             order.hashlock.as_ref(),
             order.creator.as_ref(),
-            order.recipient.key().as_ref(),
             order.token.key().as_ref(),
             order.amount.to_be_bytes().as_ref(),
             order.safety_deposit.to_be_bytes().as_ref(),
@@ -364,7 +357,7 @@ pub struct CreateEscrow<'info> {
             order.order_hash.as_ref(),
             order.hashlock.as_ref(),
             order.creator.as_ref(),
-            order.recipient.key().as_ref(),
+            recipient.key().as_ref(),
             order.token.key().as_ref(),
             order.amount.to_be_bytes().as_ref(),
             order.safety_deposit.to_be_bytes().as_ref(),
@@ -392,12 +385,13 @@ pub struct CreateEscrow<'info> {
 
 #[derive(Accounts)]
 pub struct Withdraw<'info> {
-    #[account(constraint = recipient.key() == order.recipient @ EscrowError::InvalidAccount)]
+    // #[account(constraint = recipient.key() == order.recipient @ EscrowError::InvalidAccount)] // TODO: return it
     recipient: Signer<'info>,
     /// CHECK: this account is used only to receive rent and is checked against the one stored in the escrow account
     #[account(
         mut, // Needed because this account receives lamports (safety deposit and rent from closed accounts)
-        constraint = rent_recipient.key() == order.rent_recipient @ EscrowError::InvalidAccount)]
+    )]
+    //  constraint = rent_recipient.key() == order.rent_recipient @ EscrowError::InvalidAccount)] // TODO: return it
     rent_recipient: AccountInfo<'info>,
     mint: Box<InterfaceAccount<'info, Mint>>,
     #[account(
@@ -407,7 +401,6 @@ pub struct Withdraw<'info> {
             order.order_hash.as_ref(),
             order.hashlock.as_ref(),
             order.creator.as_ref(),
-            order.recipient.key().as_ref(),
             mint.key().as_ref(),
             order.amount.to_be_bytes().as_ref(),
             order.safety_deposit.to_be_bytes().as_ref(),
@@ -438,12 +431,13 @@ pub struct Withdraw<'info> {
 pub struct PublicWithdraw<'info> {
     /// CHECK: This account is used to check its pubkey to match the one stored in the escrow account
     /// Or to receive lamports if the token is native
-    #[account(constraint = recipient.key() == order.recipient @ EscrowError::InvalidAccount)]
+    // #[account(constraint = recipient.key() == order.recipient @ EscrowError::InvalidAccount)] // TODO: return it
     recipient: AccountInfo<'info>,
     /// CHECK: this account is used only to receive rent and is checked against the one stored in the escrow account
     #[account(
         mut, // Needed because this account receives lamports (safety deposit and from closed accounts)
-        constraint = rent_recipient.key() == order.rent_recipient @ EscrowError::InvalidAccount)]
+    )]
+    // constraint = rent_recipient.key() == order.rent_recipient @ EscrowError::InvalidAccount)] // TODO: return it
     rent_recipient: AccountInfo<'info>,
     #[account(mut)]
     payer: Signer<'info>,
@@ -455,7 +449,6 @@ pub struct PublicWithdraw<'info> {
             order.order_hash.as_ref(),
             order.hashlock.as_ref(),
             order.creator.as_ref(),
-            order.recipient.key().as_ref(),
             mint.key().as_ref(),
             order.amount.to_be_bytes().as_ref(),
             order.safety_deposit.to_be_bytes().as_ref(),
@@ -498,7 +491,6 @@ pub struct Cancel<'info> {
             order.order_hash.as_ref(),
             order.hashlock.as_ref(),
             order.creator.as_ref(),
-            order.recipient.key().as_ref(),
             mint.key().as_ref(),
             order.amount.to_be_bytes().as_ref(),
             order.safety_deposit.to_be_bytes().as_ref(),
@@ -544,7 +536,6 @@ pub struct PublicCancel<'info> {
             order.order_hash.as_ref(),
             order.hashlock.as_ref(),
             order.creator.as_ref(),
-            order.recipient.key().as_ref(),
             mint.key().as_ref(),
             order.amount.to_be_bytes().as_ref(),
             order.safety_deposit.to_be_bytes().as_ref(),
@@ -587,7 +578,6 @@ pub struct RescueFunds<'info> {
             order_hash.as_ref(),
             hashlock.as_ref(),
             order_creator.as_ref(),
-            recipient.key().as_ref(),
             order_mint.as_ref(),
             order_amount.to_be_bytes().as_ref(),
             safety_deposit.to_be_bytes().as_ref(),
@@ -620,7 +610,6 @@ pub struct Order {
     order_hash: [u8; 32],
     hashlock: [u8; 32],
     creator: Pubkey,
-    recipient: Pubkey,
     token: Pubkey,
     amount: u64,
     safety_deposit: u64,
@@ -629,7 +618,6 @@ pub struct Order {
     cancellation_start: u32,
     public_cancellation_start: u32,
     rescue_start: u32,
-    rent_recipient: Pubkey,
     asset_is_native: bool,
 }
 
@@ -648,7 +636,6 @@ pub struct EscrowSrc {
     cancellation_start: u32,
     public_cancellation_start: u32,
     rescue_start: u32,
-    rent_recipient: Pubkey,
     asset_is_native: bool,
 }
 
@@ -666,7 +653,7 @@ impl EscrowBase for Order {
     }
 
     fn recipient(&self) -> &Pubkey {
-        &self.recipient
+        &self.creator // TODO: check this
     }
 
     fn token(&self) -> &Pubkey {
@@ -698,7 +685,7 @@ impl EscrowBase for Order {
     }
 
     fn rent_recipient(&self) -> &Pubkey {
-        &self.rent_recipient
+        &self.creator // TODO: check this
     }
 
     fn asset_is_native(&self) -> bool {
@@ -752,7 +739,7 @@ impl EscrowBase for EscrowSrc {
     }
 
     fn rent_recipient(&self) -> &Pubkey {
-        &self.rent_recipient
+        &self.recipient
     }
 
     fn asset_is_native(&self) -> bool {
