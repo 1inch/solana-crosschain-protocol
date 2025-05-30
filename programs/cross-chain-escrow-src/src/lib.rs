@@ -43,7 +43,7 @@ pub mod cross_chain_escrow_src {
             .ok_or(ProgramError::ArithmeticOverflow)?;
 
         common::escrow::create(
-            Order::INIT_SPACE + constants::DISCRIMINATOR_BYTES,
+            EscrowSrc::INIT_SPACE + constants::DISCRIMINATOR_BYTES,
             &ctx.accounts.creator,
             asset_is_native,
             &ctx.accounts.order_ata,
@@ -101,13 +101,13 @@ pub mod cross_chain_escrow_src {
 
         let seeds = [
             "escrow".as_bytes(),
-            order.order_hash(),
-            order.hashlock(),
-            order.creator().as_ref(),
-            order.token().as_ref(),
-            &order.amount().to_be_bytes(),
-            &order.safety_deposit().to_be_bytes(),
-            &order.rescue_start().to_be_bytes(),
+            &order.order_hash,
+            &order.hashlock,
+            &order.creator.as_ref(),
+            &order.token.as_ref(),
+            &order.amount.to_be_bytes(),
+            &order.safety_deposit.to_be_bytes(),
+            &order.rescue_start.to_be_bytes(),
             &[ctx.bumps.order],
         ];
 
@@ -117,7 +117,7 @@ pub mod cross_chain_escrow_src {
                 authority: order.to_account_info(),
                 to: ctx.accounts.escrow_ata.to_account_info(),
                 mint: *ctx.accounts.mint.clone(),
-                amount: order.amount(),
+                amount: order.amount,
                 program: ctx.accounts.token_program.clone(),
             },
             Some(&[&seeds]),
@@ -157,6 +157,8 @@ pub mod cross_chain_escrow_src {
         Ok(())
     }
 
+    // TODO! Fix withdrawal and cancellation logic in SOL-120, SOL-121, SOL-122
+
     pub fn withdraw(ctx: Context<Withdraw>, secret: [u8; 32]) -> Result<()> {
         // let now = utils::get_current_timestamp()?;
         // require!(
@@ -168,17 +170,19 @@ pub mod cross_chain_escrow_src {
         // In a standard withdrawal, the rent recipient receives the entire rent amount, including the safety deposit,
         // because they initially covered the entire rent during order creation.
 
-        common::escrow::withdraw(
-            &ctx.accounts.order,
-            ctx.bumps.order,
-            &ctx.accounts.order_ata,
-            &ctx.accounts.recipient_ata,
-            &ctx.accounts.mint,
-            &ctx.accounts.token_program,
-            &ctx.accounts.rent_recipient,
-            &ctx.accounts.rent_recipient,
-            secret,
-        )
+        // common::escrow::withdraw(
+        //     &ctx.accounts.order,
+        //     ctx.bumps.order,
+        //     &ctx.accounts.order_ata,
+        //     &ctx.accounts.recipient_ata,
+        //     &ctx.accounts.mint,
+        //     &ctx.accounts.token_program,
+        //     &ctx.accounts.rent_recipient,
+        //     &ctx.accounts.rent_recipient,
+        //     secret,
+        // )
+
+        Ok(())
     }
 
     pub fn public_withdraw(ctx: Context<PublicWithdraw>, secret: [u8; 32]) -> Result<()> {
@@ -192,17 +196,19 @@ pub mod cross_chain_escrow_src {
         // In a public withdrawal, the rent recipient receives the rent minus the safety deposit
         // while the safety deposit is awarded to the payer who executed the public withdrawal
 
-        common::escrow::withdraw(
-            &ctx.accounts.order,
-            ctx.bumps.order,
-            &ctx.accounts.order_ata,
-            &ctx.accounts.recipient_ata,
-            &ctx.accounts.mint,
-            &ctx.accounts.token_program,
-            &ctx.accounts.rent_recipient,
-            &ctx.accounts.payer,
-            secret,
-        )
+        // common::escrow::withdraw(
+        //     &ctx.accounts.order,
+        //     ctx.bumps.order,
+        //     &ctx.accounts.order_ata,
+        //     &ctx.accounts.recipient_ata,
+        //     &ctx.accounts.mint,
+        //     &ctx.accounts.token_program,
+        //     &ctx.accounts.rent_recipient,
+        //     &ctx.accounts.payer,
+        //     secret,
+        // )
+
+        Ok(())
     }
 
     pub fn cancel(ctx: Context<Cancel>) -> Result<()> {
@@ -215,16 +221,18 @@ pub mod cross_chain_escrow_src {
         // In a standard cancel, the rent recipient receives the entire rent amount, including the safety deposit,
         // because they initially covered the entire rent during escrow creation.
 
-        common::escrow::cancel(
-            &ctx.accounts.order,
-            ctx.bumps.order,
-            &ctx.accounts.order_ata,
-            ctx.accounts.creator_ata.as_deref(),
-            &ctx.accounts.mint,
-            &ctx.accounts.token_program,
-            &ctx.accounts.creator,
-            &ctx.accounts.creator,
-        )
+        // common::escrow::cancel(
+        //     &ctx.accounts.order,
+        //     ctx.bumps.order,
+        //     &ctx.accounts.order_ata,
+        //     ctx.accounts.creator_ata.as_deref(),
+        //     &ctx.accounts.mint,
+        //     &ctx.accounts.token_program,
+        //     &ctx.accounts.creator,
+        //     &ctx.accounts.creator,
+        // )
+
+        Ok(())
     }
 
     pub fn public_cancel(ctx: Context<PublicCancel>) -> Result<()> {
@@ -234,16 +242,18 @@ pub mod cross_chain_escrow_src {
         // //     EscrowError::InvalidTime
         // // );
 
-        common::escrow::cancel(
-            &ctx.accounts.order,
-            ctx.bumps.order,
-            &ctx.accounts.order_ata,
-            ctx.accounts.creator_ata.as_deref(),
-            &ctx.accounts.mint,
-            &ctx.accounts.token_program,
-            &ctx.accounts.creator,
-            &ctx.accounts.payer,
-        )
+        // common::escrow::cancel(
+        //     &ctx.accounts.order,
+        //     ctx.bumps.order,
+        //     &ctx.accounts.order_ata,
+        //     ctx.accounts.creator_ata.as_deref(),
+        //     &ctx.accounts.mint,
+        //     &ctx.accounts.token_program,
+        //     &ctx.accounts.creator,
+        //     &ctx.accounts.payer,
+        // )
+
+        Ok(())
     }
 
     pub fn rescue_funds(
@@ -658,60 +668,6 @@ pub struct EscrowSrc {
     rescue_start: u32,
     asset_is_native: bool,
     dst_amount: u64,
-}
-
-impl EscrowBase for Order {
-    fn order_hash(&self) -> &[u8; 32] {
-        &self.order_hash
-    }
-
-    fn hashlock(&self) -> &[u8; 32] {
-        &self.hashlock
-    }
-
-    fn creator(&self) -> &Pubkey {
-        &self.creator
-    }
-
-    fn recipient(&self) -> &Pubkey {
-        &self.creator // TODO: check this
-    }
-
-    fn token(&self) -> &Pubkey {
-        &self.token
-    }
-
-    fn amount(&self) -> u64 {
-        self.amount
-    }
-
-    fn safety_deposit(&self) -> u64 {
-        self.safety_deposit
-    }
-
-    fn withdrawal_start(&self) -> u32 {
-        self.withdrawal_duration
-    }
-
-    fn public_withdrawal_start(&self) -> u32 {
-        self.public_withdrawal_duration
-    }
-
-    fn cancellation_start(&self) -> u32 {
-        self.cancellation_duration
-    }
-
-    fn rescue_start(&self) -> u32 {
-        self.rescue_start
-    }
-
-    fn rent_recipient(&self) -> &Pubkey {
-        &self.creator // TODO: check this
-    }
-
-    fn asset_is_native(&self) -> bool {
-        self.asset_is_native
-    }
 }
 
 impl EscrowBase for EscrowSrc {
