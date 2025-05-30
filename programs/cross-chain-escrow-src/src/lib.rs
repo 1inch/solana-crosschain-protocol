@@ -108,20 +108,6 @@ pub mod cross_chain_escrow_src {
             Some(&[&seeds]),
         )?;
 
-        // Close the order_ata account
-        close_account(CpiContext::new_with_signer(
-            ctx.accounts.token_program.to_account_info(),
-            CloseAccount {
-                account: ctx.accounts.order_ata.to_account_info(),
-                destination: ctx.accounts.creator.to_account_info(),
-                authority: order.to_account_info(),
-            },
-            &[&seeds],
-        ))?;
-
-        // Close the order account
-        order.close(ctx.accounts.creator.to_account_info())?;
-
         escrow.set_inner(EscrowSrc {
             order_hash: order.order_hash,
             hashlock: order.hashlock,
@@ -138,6 +124,20 @@ pub mod cross_chain_escrow_src {
             rent_recipient: order.rent_recipient,
             asset_is_native: order.asset_is_native,
         });
+
+        // Close the order_ata account
+        close_account(CpiContext::new_with_signer(
+            ctx.accounts.token_program.to_account_info(),
+            CloseAccount {
+                account: ctx.accounts.order_ata.to_account_info(),
+                destination: ctx.accounts.creator.to_account_info(),
+                authority: order.to_account_info(),
+            },
+            &[&seeds],
+        ))?;
+
+        // Close the order account
+        order.close(ctx.accounts.creator.to_account_info())?;
 
         Ok(())
     }
