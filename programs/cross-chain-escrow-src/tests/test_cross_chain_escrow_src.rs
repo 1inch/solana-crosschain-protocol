@@ -1,4 +1,4 @@
-use anchor_lang::{prelude::ProgramError, error::ErrorCode};
+use anchor_lang::{error::ErrorCode, prelude::ProgramError};
 use anchor_spl::associated_token::{spl_associated_token_account, ID as spl_associated_token_id};
 use anchor_spl::token::spl_token::native_mint::ID as NATIVE_MINT;
 use anchor_spl::token::spl_token::state::Account as SplTokenAccount;
@@ -142,13 +142,16 @@ run_for_tokens!(
                 create_escrow(test_state).await;
 
                 test_state.token = solana_sdk::pubkey::Pubkey::new_unique();
-                let (escrow, escrow_ata, tx)  = local_helpers::create_taker_escrow_data(test_state);
+                let (escrow, escrow_ata, tx) = local_helpers::create_taker_escrow_data(test_state);
 
                 test_state
                     .client
                     .process_transaction(tx)
                     .await
-                    .expect_error((0, ProgramError::Custom(ErrorCode::AccountNotInitialized.into())));
+                    .expect_error((
+                        0,
+                        ProgramError::Custom(ErrorCode::AccountNotInitialized.into()),
+                    ));
 
                 // Check that the order accounts have not been created.
                 let acc_lookup_result = test_state.client.get_account(escrow).await.unwrap();
@@ -170,7 +173,10 @@ run_for_tokens!(
                     .client
                     .process_transaction(tx)
                     .await
-                    .expect_error((0, ProgramError::Custom(ErrorCode::AccountNotInitialized.into())));
+                    .expect_error((
+                        0,
+                        ProgramError::Custom(ErrorCode::AccountNotInitialized.into()),
+                    ));
 
                 // Check that the order accounts have not been created.
                 let acc_lookup_result = test_state.client.get_account(escrow).await.unwrap();
