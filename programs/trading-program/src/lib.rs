@@ -69,6 +69,8 @@ pub mod trading_program {
             order.cancellation_duration,
             order.rescue_start,
             false, // hardcoded to pass CI checks, as trading program will be removed in SOL-117
+            order.dst_amount,
+            order.dutch_auction_data.clone(),
         )?;
 
         Ok(())

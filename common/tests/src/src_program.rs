@@ -98,6 +98,8 @@ impl<S: TokenVariant> EscrowVariant<S> for SrcProgram {
                 withdrawal_duration: test_state.test_arguments.withdrawal_duration,
                 rescue_start: test_state.test_arguments.rescue_start,
                 asset_is_native: test_state.test_arguments.asset_is_native,
+                dst_amount: test_state.test_arguments.dst_amount,
+                dutch_auction_data: test_state.test_arguments.dutch_auction_data.clone(),
             });
 
         let (creator_ata, _) = find_user_ata(test_state);

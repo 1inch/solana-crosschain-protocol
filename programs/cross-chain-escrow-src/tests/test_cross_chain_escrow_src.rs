@@ -20,10 +20,70 @@ run_for_tokens!(
 
         mod test_order_creation {
             use super::*;
+
+            const AUCTION_START_OFFSET: u32 = 250;
+            const AUCTION_DURATION: u32 = 1000;
+            const INITIAL_RATE_BUMP: u16 = 10_000; // 10%
+            const INTERMEDIATE_RATE_BUMP: u16 = 9_000; // 9%
+            const INTERMEDIATE_TIME_DELTA: u16 = 500;
+            const EXPECTED_MULTIPLIER_NUMERATOR: u64 = 1095;
+            const EXPECTED_MULTIPLIER_DENOMINATOR: u64 = 1000;
+
             #[test_context(TestState)]
             #[tokio::test]
             async fn test_order_creation(test_state: &mut TestState) {
                 common_escrow_tests::test_escrow_creation(test_state).await
+            }
+
+            #[test_context(TestState)]
+            #[tokio::test]
+            async fn test_escrow_creation_with_dutch_auction_params(test_state: &mut TestState) {
+                test_state.test_arguments.dutch_auction_data =
+                    cross_chain_escrow_src::AuctionData {
+                        start_time: test_state.init_timestamp - AUCTION_START_OFFSET,
+                        duration: AUCTION_DURATION,
+                        initial_rate_bump: INITIAL_RATE_BUMP,
+                        points_and_time_deltas: vec![
+                            cross_chain_escrow_src::auction::PointAndTimeDelta {
+                                rate_bump: INTERMEDIATE_RATE_BUMP,
+                                time_delta: INTERMEDIATE_TIME_DELTA,
+                            },
+                        ],
+                    };
+                common_escrow_tests::test_escrow_creation(test_state).await
+            }
+
+            #[test_context(TestState)]
+            #[tokio::test]
+            async fn test_calculation_of_dutch_auction_params(test_state: &mut TestState) {
+                test_state.test_arguments.dutch_auction_data =
+                    cross_chain_escrow_src::AuctionData {
+                        start_time: test_state.init_timestamp - AUCTION_START_OFFSET,
+                        duration: AUCTION_DURATION,
+                        initial_rate_bump: INITIAL_RATE_BUMP,
+                        points_and_time_deltas: vec![
+                            cross_chain_escrow_src::auction::PointAndTimeDelta {
+                                rate_bump: INTERMEDIATE_RATE_BUMP, // 9%
+                                time_delta: INTERMEDIATE_TIME_DELTA,
+                            },
+                        ],
+                    };
+                let (escrow, _) = create_escrow(test_state).await;
+                let escrow_account_data = test_state
+                    .client
+                    .get_account(escrow)
+                    .await
+                    .unwrap()
+                    .unwrap()
+                    .data;
+                let dst_amount = local_helpers::get_dst_amount(&escrow_account_data)
+                    .expect("Failed to read dst_amount from escrow account data");
+
+                assert_eq!(
+                    dst_amount,
+                    test_state.test_arguments.dst_amount * EXPECTED_MULTIPLIER_NUMERATOR
+                        / EXPECTED_MULTIPLIER_DENOMINATOR,
+                );
             }
 
             #[test_context(TestState)]
@@ -368,6 +428,10 @@ mod local_helpers {
     use solana_sdk::signature::Signer;
     use solana_sdk::transaction::Transaction;
 
+    /// Byte offset in the escrow account data where the `dst_amount` field is located
+    const DST_AMOUNT_OFFSET: usize = 237;
+    const U64_SIZE: usize = size_of::<u64>();
+
     pub fn create_public_cancel_tx<S: TokenVariant>(
         test_state: &TestStateBase<SrcProgram, S>,
         order: &Pubkey,
@@ -400,6 +464,15 @@ mod local_helpers {
             &[&test_state.payer_kp, canceller],
             test_state.context.last_blockhash,
         )
+    }
+
+    /// Reads the `dst_amount` field (u64) directly from the raw account data.
+    pub fn get_dst_amount(data: &[u8]) -> Option<u64> {
+        let end = DST_AMOUNT_OFFSET + U64_SIZE;
+        let slice = data.get(DST_AMOUNT_OFFSET..end)?;
+        let mut arr = [0u8; U64_SIZE];
+        arr.copy_from_slice(slice);
+        Some(u64::from_le_bytes(arr))
     }
 }
 

@@ -1158,6 +1158,7 @@ dependencies = [
  "anchor-spl",
  "common",
  "common_tests",
+ "muldiv",
  "solana-program",
  "solana-program-pack",
  "solana-program-runtime",
@@ -2678,6 +2679,12 @@ dependencies = [
  "quote",
  "syn 1.0.109",
 ]
+
+[[package]]
+name = "muldiv"
+version = "1.0.1"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "956787520e75e9bd233246045d19f42fb73242759cc57fba9611d940ae96d4b0"
 
 [[package]]
 name = "nix"
