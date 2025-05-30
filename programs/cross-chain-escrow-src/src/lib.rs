@@ -29,11 +29,18 @@ pub mod cross_chain_escrow_src {
         public_withdrawal_duration: u32,
         cancellation_duration: u32,
         rescue_start: u32,
+        expiration_duration: u32,
         asset_is_native: bool,
         dst_amount: u64,
         dutch_auction_data: AuctionData,
     ) -> Result<()> {
         let now = utils::get_current_timestamp()?;
+
+        require!(expiration_duration != 0, EscrowError::InvalidTime);
+
+        let expiration_time = now
+            .checked_add(expiration_duration)
+            .ok_or(ProgramError::ArithmeticOverflow)?;
 
         common::escrow::create(
             Order::INIT_SPACE + constants::DISCRIMINATOR_BYTES,
@@ -63,6 +70,7 @@ pub mod cross_chain_escrow_src {
             public_withdrawal_duration,
             cancellation_duration,
             rescue_start,
+            expiration_time,
             asset_is_native,
             dst_amount: get_dst_amount(dst_amount, &dutch_auction_data)?,
         });
@@ -75,6 +83,8 @@ pub mod cross_chain_escrow_src {
         let escrow = &mut ctx.accounts.escrow;
 
         let now = utils::get_current_timestamp()?;
+
+        require!(now < order.expiration_time, EscrowError::OrderHasExpired);
 
         let withdrawal_start = now
             .checked_add(order.finality_duration)
@@ -148,12 +158,12 @@ pub mod cross_chain_escrow_src {
     }
 
     pub fn withdraw(ctx: Context<Withdraw>, secret: [u8; 32]) -> Result<()> {
-        let now = utils::get_current_timestamp()?;
-        require!(
-            now >= ctx.accounts.order.withdrawal_start()
-                && now < ctx.accounts.order.cancellation_start(),
-            EscrowError::InvalidTime
-        );
+        // let now = utils::get_current_timestamp()?;
+        // require!(
+        //     now >= ctx.accounts.order.withdrawal_start()
+        //         && now < ctx.accounts.order.cancellation_start(),
+        //     EscrowError::InvalidTime
+        // );
 
         // In a standard withdrawal, the rent recipient receives the entire rent amount, including the safety deposit,
         // because they initially covered the entire rent during order creation.
@@ -172,12 +182,12 @@ pub mod cross_chain_escrow_src {
     }
 
     pub fn public_withdraw(ctx: Context<PublicWithdraw>, secret: [u8; 32]) -> Result<()> {
-        let now = utils::get_current_timestamp()?;
-        require!(
-            now >= ctx.accounts.order.public_withdrawal_start()
-                && now < ctx.accounts.order.cancellation_start(),
-            EscrowError::InvalidTime
-        );
+        // let now = utils::get_current_timestamp()?;
+        // require!(
+        //     now >= ctx.accounts.order.public_withdrawal_start()
+        //         && now < ctx.accounts.order.cancellation_start(),
+        //     EscrowError::InvalidTime
+        // );
 
         // In a public withdrawal, the rent recipient receives the rent minus the safety deposit
         // while the safety deposit is awarded to the payer who executed the public withdrawal
@@ -196,11 +206,11 @@ pub mod cross_chain_escrow_src {
     }
 
     pub fn cancel(ctx: Context<Cancel>) -> Result<()> {
-        let now = utils::get_current_timestamp()?;
-        require!(
-            now >= ctx.accounts.order.cancellation_start(),
-            EscrowError::InvalidTime
-        );
+        // let now = utils::get_current_timestamp()?;
+        // require!(
+        //     now >= ctx.accounts.order.cancellation_start(),
+        //     EscrowError::InvalidTime
+        // );
 
         // In a standard cancel, the rent recipient receives the entire rent amount, including the safety deposit,
         // because they initially covered the entire rent during escrow creation.
@@ -218,11 +228,11 @@ pub mod cross_chain_escrow_src {
     }
 
     pub fn public_cancel(ctx: Context<PublicCancel>) -> Result<()> {
-        let now = utils::get_current_timestamp()?;
-        // require!(
-        //     now >= ctx.accounts.order.public_cancellation_start(),
-        //     EscrowError::InvalidTime
-        // );
+        // let now = utils::get_current_timestamp()?;
+        // // require!(
+        // //     now >= ctx.accounts.order.public_cancellation_start(),
+        // //     EscrowError::InvalidTime
+        // // );
 
         common::escrow::cancel(
             &ctx.accounts.order,
@@ -626,6 +636,7 @@ pub struct Order {
     public_withdrawal_duration: u32,
     cancellation_duration: u32,
     rescue_start: u32,
+    expiration_time: u32,
     asset_is_native: bool,
     dst_amount: u64,
 }

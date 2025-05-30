@@ -156,6 +156,7 @@ impl<S: TokenVariant> EscrowVariant<S> for SrcProgram {
                 public_withdrawal_duration: test_state.test_arguments.public_withdrawal_duration,
                 withdrawal_duration: test_state.test_arguments.withdrawal_duration,
                 rescue_start: test_state.test_arguments.rescue_start,
+                expiration_duration: test_state.test_arguments.expiration_duration,
                 asset_is_native: test_state.test_arguments.asset_is_native,
                 dst_amount: test_state.test_arguments.dst_amount,
                 dutch_auction_data: test_state.test_arguments.dutch_auction_data.clone(),
