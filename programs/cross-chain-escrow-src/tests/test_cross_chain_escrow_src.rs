@@ -1,4 +1,4 @@
-use anchor_lang::prelude::ProgramError;
+use anchor_lang::{prelude::ProgramError, error::ErrorCode};
 use anchor_spl::associated_token::{spl_associated_token_account, ID as spl_associated_token_id};
 use anchor_spl::token::spl_token::native_mint::ID as NATIVE_MINT;
 use anchor_spl::token::spl_token::state::Account as SplTokenAccount;
@@ -133,6 +133,50 @@ run_for_tokens!(
                 assert!(acc_lookup_result.is_none());
 
                 let acc_lookup_result = test_state.client.get_account(order_ata).await.unwrap();
+                assert!(acc_lookup_result.is_none());
+            }
+
+            #[test_context(TestState)]
+            #[tokio::test]
+            async fn test_escrow_creation_fail_with_wrong_token(test_state: &mut TestState) {
+                create_escrow(test_state).await;
+
+                test_state.token = solana_sdk::pubkey::Pubkey::new_unique();
+                let (escrow, escrow_ata, tx)  = local_helpers::create_taker_escrow_data(test_state);
+
+                test_state
+                    .client
+                    .process_transaction(tx)
+                    .await
+                    .expect_error((0, ProgramError::Custom(ErrorCode::AccountNotInitialized.into())));
+
+                // Check that the order accounts have not been created.
+                let acc_lookup_result = test_state.client.get_account(escrow).await.unwrap();
+                assert!(acc_lookup_result.is_none());
+
+                let acc_lookup_result = test_state.client.get_account(escrow_ata).await.unwrap();
+                assert!(acc_lookup_result.is_none());
+            }
+
+            #[test_context(TestState)]
+            #[tokio::test]
+            async fn test_escrow_creation_fail_with_empty_order_account(
+                test_state: &mut TestState,
+            ) {
+                // Create an escrow account without existing order account.
+                let (escrow, escrow_ata, tx) = local_helpers::create_taker_escrow_data(test_state);
+
+                test_state
+                    .client
+                    .process_transaction(tx)
+                    .await
+                    .expect_error((0, ProgramError::Custom(ErrorCode::AccountNotInitialized.into())));
+
+                // Check that the order accounts have not been created.
+                let acc_lookup_result = test_state.client.get_account(escrow).await.unwrap();
+                assert!(acc_lookup_result.is_none());
+
+                let acc_lookup_result = test_state.client.get_account(escrow_ata).await.unwrap();
                 assert!(acc_lookup_result.is_none());
             }
         }
