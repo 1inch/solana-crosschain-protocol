@@ -354,6 +354,7 @@ pub struct CreateEscrow<'info> {
 
     /// Account to store order details
     #[account(
+        mut,
         seeds = [
             "escrow".as_bytes(),
             order.order_hash.as_ref(),
@@ -369,6 +370,7 @@ pub struct CreateEscrow<'info> {
     order: Box<Account<'info, Order>>,
     /// Account to store orders tokens
     #[account(
+        mut,
         associated_token::mint = mint,
         associated_token::authority = order,
         associated_token::token_program = token_program
