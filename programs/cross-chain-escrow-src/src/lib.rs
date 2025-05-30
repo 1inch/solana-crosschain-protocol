@@ -107,8 +107,8 @@ pub mod cross_chain_escrow_src {
         escrow.set_inner(EscrowSrc {
             order_hash: order.order_hash,
             hashlock: order.hashlock,
-            creator: order.creator,
-            recipient: ctx.accounts.recipient.key(),
+            maker: order.creator,
+            taker: ctx.accounts.taker.key(),
             token: order.token,
             amount: order.amount,
             safety_deposit: order.safety_deposit,
@@ -125,14 +125,14 @@ pub mod cross_chain_escrow_src {
             ctx.accounts.token_program.to_account_info(),
             CloseAccount {
                 account: ctx.accounts.order_ata.to_account_info(),
-                destination: ctx.accounts.creator.to_account_info(),
+                destination: ctx.accounts.maker.to_account_info(),
                 authority: order.to_account_info(),
             },
             &[&seeds],
         ))?;
 
         // Close the order account
-        order.close(ctx.accounts.creator.to_account_info())?;
+        order.close(ctx.accounts.maker.to_account_info())?;
 
         Ok(())
     }
@@ -316,11 +316,11 @@ pub struct Create<'info> {
 #[derive(Accounts)]
 pub struct CreateEscrow<'info> {
     #[account(mut)]
-    recipient: Signer<'info>,
+    taker: Signer<'info>,
     #[account(
         mut, // Necessary because lamports will be transferred to this account when the order accounts are closed.
     )]
-    creator: AccountInfo<'info>,
+    maker: AccountInfo<'info>,
     /// CHECK: check is not necessary as token is only used as a constraint to creator_ata and order
     mint: Box<InterfaceAccount<'info, Mint>>,
 
@@ -350,14 +350,14 @@ pub struct CreateEscrow<'info> {
     /// Account to store escrow details
     #[account(
         init,
-        payer = recipient,
+        payer = taker,
         space = constants::DISCRIMINATOR_BYTES + EscrowSrc::INIT_SPACE,
         seeds = [
             "takerescrow".as_bytes(),
             order.order_hash.as_ref(),
             order.hashlock.as_ref(),
             order.creator.as_ref(),
-            recipient.key().as_ref(),
+            taker.key().as_ref(),
             order.token.key().as_ref(),
             order.amount.to_be_bytes().as_ref(),
             order.safety_deposit.to_be_bytes().as_ref(),
@@ -369,7 +369,7 @@ pub struct CreateEscrow<'info> {
     /// Account to store escrowed tokens
     #[account(
         init,
-        payer = recipient,
+        payer = taker,
         associated_token::mint = mint,
         associated_token::authority = escrow,
         associated_token::token_program = token_program
@@ -626,8 +626,8 @@ pub struct Order {
 pub struct EscrowSrc {
     order_hash: [u8; 32],
     hashlock: [u8; 32],
-    creator: Pubkey,
-    recipient: Pubkey,
+    maker: Pubkey,
+    taker: Pubkey,
     token: Pubkey,
     amount: u64,
     safety_deposit: u64,
@@ -703,11 +703,11 @@ impl EscrowBase for EscrowSrc {
     }
 
     fn creator(&self) -> &Pubkey {
-        &self.creator
+        &self.maker
     }
 
     fn recipient(&self) -> &Pubkey {
-        &self.recipient
+        &self.taker
     }
 
     fn token(&self) -> &Pubkey {
@@ -739,7 +739,7 @@ impl EscrowBase for EscrowSrc {
     }
 
     fn rent_recipient(&self) -> &Pubkey {
-        &self.recipient
+        &self.taker
     }
 
     fn asset_is_native(&self) -> bool {
