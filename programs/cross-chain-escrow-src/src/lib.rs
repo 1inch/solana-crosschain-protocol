@@ -322,7 +322,7 @@ pub struct Create<'info> {
 #[derive(Accounts)]
 pub struct CreateEscrow<'info> {
     #[account(mut)]
-    taker: Signer<'info>,
+    recipient: Signer<'info>,
     #[account(
         mut, // Necessary because lamports will be transferred to this account when the order accounts are closed.
     )]
@@ -357,7 +357,7 @@ pub struct CreateEscrow<'info> {
     /// Account to store escrow details
     #[account(
         init,
-        payer = taker,
+        payer = recipient,
         space = constants::DISCRIMINATOR_BYTES + EscrowSrc::INIT_SPACE,
         seeds = [
             "takerescrow".as_bytes(),
@@ -376,7 +376,7 @@ pub struct CreateEscrow<'info> {
     /// Account to store escrowed tokens
     #[account(
         init,
-        payer = taker,
+        payer = recipient,
         associated_token::mint = mint,
         associated_token::authority = escrow,
         associated_token::token_program = token_program
