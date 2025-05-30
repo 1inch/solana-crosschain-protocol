@@ -329,7 +329,9 @@ pub fn get_create_order_tx<T: EscrowVariant<S>, S: TokenVariant>(
     )
 }
 
-pub async fn create_order<S: TokenVariant>(test_state: &TestStateBase<SrcProgram, S>) {
+pub async fn create_order<S: TokenVariant>(
+    test_state: &TestStateBase<SrcProgram, S>,
+) -> (Pubkey, Pubkey) {
     let (order_pda, order_ata) = get_order_addresses(test_state);
     let transaction: Transaction = get_create_order_tx(test_state, &order_pda, &order_ata);
 
@@ -338,4 +340,6 @@ pub async fn create_order<S: TokenVariant>(test_state: &TestStateBase<SrcProgram
         .process_transaction(transaction)
         .await
         .expect_success();
+
+    (order_pda, order_ata)
 }
