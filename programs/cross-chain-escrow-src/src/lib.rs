@@ -79,7 +79,7 @@ pub mod cross_chain_escrow_src {
         Ok(())
     }
 
-    pub fn create_escrow(ctx: Context<CreateEscrow>, order_bump: u8) -> Result<()> {
+    pub fn create_escrow(ctx: Context<CreateEscrow>) -> Result<()> {
         let order = &ctx.accounts.order;
         let escrow = &mut ctx.accounts.escrow;
 
@@ -93,7 +93,7 @@ pub mod cross_chain_escrow_src {
             &order.amount().to_be_bytes(),
             &order.safety_deposit().to_be_bytes(),
             &order.rescue_start().to_be_bytes(),
-            &[order_bump],
+            &[ctx.bumps.order],
         ];
 
         uni_transfer(
@@ -326,7 +326,7 @@ pub struct CreateEscrow<'info> {
     #[account(
         mut, // Necessary because lamports will be transferred to this account when the order accounts are closed.
     )]
-    creator: Signer<'info>,
+    creator: AccountInfo<'info>,
     /// CHECK: check is not necessary as token is only used as a constraint to creator_ata and order
     mint: Box<InterfaceAccount<'info, Mint>>,
 
@@ -360,7 +360,7 @@ pub struct CreateEscrow<'info> {
         payer = taker,
         space = constants::DISCRIMINATOR_BYTES + EscrowSrc::INIT_SPACE,
         seeds = [
-            "takerEscrow".as_bytes(),
+            "takerescrow".as_bytes(),
             order.order_hash.as_ref(),
             order.hashlock.as_ref(),
             order.creator.as_ref(),
@@ -385,9 +385,9 @@ pub struct CreateEscrow<'info> {
 
     #[account(address = ASSOCIATED_TOKEN_PROGRAM_ID)]
     associated_token_program: Program<'info, AssociatedToken>,
+    token_program: Interface<'info, TokenInterface>,
     /// System program required for account initialization
     system_program: Program<'info, System>,
-    token_program: Interface<'info, TokenInterface>,
 }
 
 #[derive(Accounts)]

@@ -1,4 +1,5 @@
 use anchor_lang::prelude::ProgramError;
+use anchor_spl::associated_token::{spl_associated_token_account, ID as spl_associated_token_id};
 use anchor_spl::token::spl_token::native_mint::ID as NATIVE_MINT;
 use anchor_spl::token::spl_token::state::Account as SplTokenAccount;
 use common::error::EscrowError;
@@ -99,6 +100,40 @@ run_for_tokens!(
                     .process_transaction(transaction)
                     .await
                     .expect_error((0, ProgramError::ArithmeticOverflow));
+            }
+        }
+
+        mod test_escrow_creation {
+            use super::*;
+            #[test_context(TestState)]
+            #[tokio::test]
+            async fn test_escrow_creation(test_state: &mut TestState) {
+                let (order, order_ata) = create_escrow(test_state).await;
+                let (escrow, escrow_ata) = local_helpers::create_taker_escrow(test_state).await;
+
+                // Check token balances for the escrow account and creator are as expected.
+                assert_eq!(
+                    DEFAULT_ESCROW_AMOUNT,
+                    get_token_balance(&mut test_state.context, &escrow_ata).await
+                );
+
+                // Check the lamport balance of escrow account is as expected.
+                let escrow_data_len =
+                    <SrcProgram as EscrowVariant<TokenSPL>>::get_escrow_data_len();
+                let rent_lamports =
+                    get_min_rent_for_size(&mut test_state.client, escrow_data_len).await;
+
+                assert_eq!(
+                    rent_lamports,
+                    test_state.client.get_balance(escrow).await.unwrap()
+                );
+
+                // Check that orders accounts have been closed.
+                let acc_lookup_result = test_state.client.get_account(order).await.unwrap();
+                assert!(acc_lookup_result.is_none());
+
+                let acc_lookup_result = test_state.client.get_account(order_ata).await.unwrap();
+                assert!(acc_lookup_result.is_none());
             }
         }
 
@@ -400,6 +435,93 @@ mod local_helpers {
             &[&test_state.payer_kp, canceller],
             test_state.context.last_blockhash,
         )
+    }
+
+    pub fn get_taker_escrow_addresses<S: TokenVariant>(
+        test_state: &TestStateBase<SrcProgram, S>,
+        creator: Pubkey,
+    ) -> (Pubkey, Pubkey) {
+        let (program_id, _) = <SrcProgram as EscrowVariant<TokenSPL>>::get_program_spec();
+        let (escrow_pda, _) = Pubkey::find_program_address(
+            &[
+                b"takerescrow",
+                test_state.order_hash.as_ref(),
+                test_state.hashlock.as_ref(),
+                creator.as_ref(),
+                test_state.recipient_wallet.keypair.pubkey().as_ref(),
+                test_state.token.as_ref(),
+                test_state
+                    .test_arguments
+                    .escrow_amount
+                    .to_be_bytes()
+                    .as_ref(),
+                test_state
+                    .test_arguments
+                    .safety_deposit
+                    .to_be_bytes()
+                    .as_ref(),
+                test_state
+                    .test_arguments
+                    .rescue_start
+                    .to_be_bytes()
+                    .as_ref(),
+            ],
+            &program_id,
+        );
+        let escrow_ata = spl_associated_token_account::get_associated_token_address_with_program_id(
+            &escrow_pda,
+            &test_state.token,
+            &S::get_token_program_id(),
+        );
+
+        (escrow_pda, escrow_ata)
+    }
+
+    pub fn create_taker_escrow_data<S: TokenVariant>(
+        test_state: &TestStateBase<SrcProgram, S>,
+    ) -> (Pubkey, Pubkey, Transaction) {
+        let (order_pda, order_ata) =
+            get_escrow_addresses(test_state, test_state.creator_wallet.keypair.pubkey());
+        let (escrow_pda, escrow_ata) =
+            get_taker_escrow_addresses(test_state, test_state.creator_wallet.keypair.pubkey());
+        let instruction_data =
+            InstructionData::data(&cross_chain_escrow_src::instruction::CreateEscrow {});
+
+        let instruction: Instruction = Instruction {
+            program_id: cross_chain_escrow_src::id(),
+            accounts: vec![
+                AccountMeta::new(test_state.recipient_wallet.keypair.pubkey(), true),
+                AccountMeta::new(test_state.creator_wallet.keypair.pubkey(), false),
+                AccountMeta::new_readonly(test_state.token, false),
+                AccountMeta::new(order_pda, false),
+                AccountMeta::new(order_ata, false),
+                AccountMeta::new(escrow_pda, false),
+                AccountMeta::new(escrow_ata, false),
+                AccountMeta::new_readonly(spl_associated_token_id, false),
+                AccountMeta::new_readonly(S::get_token_program_id(), false),
+                AccountMeta::new_readonly(system_program_id, false),
+            ],
+            data: instruction_data,
+        };
+        let transaction = Transaction::new_signed_with_payer(
+            &[instruction],
+            Some(&test_state.payer_kp.pubkey()),
+            &[&test_state.payer_kp, &test_state.recipient_wallet.keypair],
+            test_state.context.last_blockhash,
+        );
+        (escrow_pda, escrow_ata, transaction)
+    }
+
+    pub async fn create_taker_escrow<S: TokenVariant>(
+        test_state: &mut TestStateBase<SrcProgram, S>,
+    ) -> (Pubkey, Pubkey) {
+        let (escrow, escrow_ata, tx) = create_taker_escrow_data(test_state);
+        test_state
+            .client
+            .process_transaction(tx)
+            .await
+            .expect_success();
+        (escrow, escrow_ata)
     }
 }
 
