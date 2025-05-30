@@ -30,7 +30,7 @@ impl<S: TokenVariant> EscrowVariant<S> for DstProgram {
     }
 
     fn get_public_withdraw_tx(
-        test_state: &TestStateBase<DstProgram, S>,
+        test_state: &TestState<S>,
         escrow: &Pubkey,
         escrow_ata: &Pubkey,
         withdrawer: &Keypair,
@@ -67,7 +67,7 @@ impl<S: TokenVariant> EscrowVariant<S> for DstProgram {
     }
 
     fn get_withdraw_tx(
-        test_state: &TestStateBase<DstProgram, S>,
+        test_state: &TestState<S>,
         escrow: &Pubkey,
         escrow_ata: &Pubkey,
     ) -> Transaction {
