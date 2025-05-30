@@ -1,9 +1,11 @@
 use anchor_lang::prelude::*;
 use anchor_spl::associated_token::{AssociatedToken, ID as ASSOCIATED_TOKEN_PROGRAM_ID};
-use anchor_spl::token_interface::{Mint, TokenAccount, TokenInterface};
+use anchor_spl::token_interface::{
+    close_account, CloseAccount, Mint, TokenAccount, TokenInterface,
+};
 pub use common::constants;
 use common::error::EscrowError;
-use common::escrow::EscrowBase;
+use common::escrow::{uni_transfer, EscrowBase, UniTransferParams};
 use common::utils;
 
 declare_id!("6NwMYeUmigiMDjhYeYpbxC6Kc63NzZy1dfGd7fGcdkVS");
@@ -72,6 +74,69 @@ pub mod cross_chain_escrow_src {
             rescue_start,
             rent_recipient: ctx.accounts.payer.key(),
             asset_is_native,
+        });
+
+        Ok(())
+    }
+
+    pub fn create_escrow(ctx: Context<CreateEscrow>, order_bump: u8) -> Result<()> {
+        let order = &ctx.accounts.order;
+        let escrow = &mut ctx.accounts.escrow;
+
+        let seeds = [
+            "escrow".as_bytes(),
+            order.order_hash(),
+            order.hashlock(),
+            order.creator().as_ref(),
+            order.recipient().as_ref(),
+            order.token().as_ref(),
+            &order.amount().to_be_bytes(),
+            &order.safety_deposit().to_be_bytes(),
+            &order.rescue_start().to_be_bytes(),
+            &[order_bump],
+        ];
+
+        uni_transfer(
+            &UniTransferParams::TokenTransfer {
+                from: ctx.accounts.order_ata.to_account_info(),
+                authority: order.to_account_info(),
+                to: ctx.accounts.escrow_ata.to_account_info(),
+                mint: *ctx.accounts.mint.clone(),
+                amount: order.amount(),
+                program: ctx.accounts.token_program.clone(),
+            },
+            Some(&[&seeds]),
+        )?;
+
+        // Close the order_ata account
+        close_account(CpiContext::new_with_signer(
+            ctx.accounts.token_program.to_account_info(),
+            CloseAccount {
+                account: ctx.accounts.order_ata.to_account_info(),
+                destination: ctx.accounts.creator.to_account_info(),
+                authority: order.to_account_info(),
+            },
+            &[&seeds],
+        ))?;
+
+        // Close the order account
+        order.close(ctx.accounts.creator.to_account_info())?;
+
+        escrow.set_inner(EscrowSrc {
+            order_hash: order.order_hash,
+            hashlock: order.hashlock,
+            creator: order.creator,
+            recipient: order.recipient,
+            token: order.token,
+            amount: order.amount,
+            safety_deposit: order.safety_deposit,
+            withdrawal_start: order.withdrawal_start,
+            public_withdrawal_start: order.public_withdrawal_start,
+            cancellation_start: order.cancellation_start,
+            public_cancellation_start: order.public_cancellation_start,
+            rescue_start: order.rescue_start,
+            rent_recipient: order.rent_recipient,
+            asset_is_native: order.asset_is_native,
         });
 
         Ok(())
@@ -252,6 +317,77 @@ pub struct Create<'info> {
     token_program: Interface<'info, TokenInterface>,
     rent: Sysvar<'info, Rent>,
     system_program: Program<'info, System>,
+}
+
+#[derive(Accounts)]
+pub struct CreateEscrow<'info> {
+    #[account(mut)]
+    taker: Signer<'info>,
+    #[account(
+        mut, // Necessary because lamports will be transferred to this account when the order accounts are closed.
+    )]
+    creator: Signer<'info>,
+    /// CHECK: check is not necessary as token is only used as a constraint to creator_ata and order
+    mint: Box<InterfaceAccount<'info, Mint>>,
+
+    /// Account to store order details
+    #[account(
+        seeds = [
+            "escrow".as_bytes(),
+            order.order_hash.as_ref(),
+            order.hashlock.as_ref(),
+            order.creator.as_ref(),
+            order.recipient.key().as_ref(),
+            order.token.key().as_ref(),
+            order.amount.to_be_bytes().as_ref(),
+            order.safety_deposit.to_be_bytes().as_ref(),
+            order.rescue_start.to_be_bytes().as_ref(),
+        ],
+        bump,
+    )]
+    order: Box<Account<'info, Order>>,
+    /// Account to store escrowed tokens
+    #[account(
+        associated_token::mint = mint,
+        associated_token::authority = order,
+        associated_token::token_program = token_program
+    )]
+    order_ata: Box<InterfaceAccount<'info, TokenAccount>>,
+
+    /// Account to store order details
+    #[account(
+        init,
+        payer = taker,
+        space = constants::DISCRIMINATOR_BYTES + EscrowSrc::INIT_SPACE,
+        seeds = [
+            "takerEscrow".as_bytes(),
+            order.order_hash.as_ref(),
+            order.hashlock.as_ref(),
+            order.creator.as_ref(),
+            order.recipient.key().as_ref(),
+            order.token.key().as_ref(),
+            order.amount.to_be_bytes().as_ref(),
+            order.safety_deposit.to_be_bytes().as_ref(),
+            order.rescue_start.to_be_bytes().as_ref(),
+        ],
+        bump,
+    )]
+    escrow: Box<Account<'info, EscrowSrc>>,
+    /// Account to store escrowed tokens
+    #[account(
+        init,
+        payer = taker,
+        associated_token::mint = mint,
+        associated_token::authority = escrow,
+        associated_token::token_program = token_program
+    )]
+    escrow_ata: Box<InterfaceAccount<'info, TokenAccount>>,
+
+    #[account(address = ASSOCIATED_TOKEN_PROGRAM_ID)]
+    associated_token_program: Program<'info, AssociatedToken>,
+    /// System program required for account initialization
+    system_program: Program<'info, System>,
+    token_program: Interface<'info, TokenInterface>,
 }
 
 #[derive(Accounts)]
@@ -497,7 +633,80 @@ pub struct Order {
     asset_is_native: bool,
 }
 
+#[account]
+#[derive(InitSpace)]
+pub struct EscrowSrc {
+    order_hash: [u8; 32],
+    hashlock: [u8; 32],
+    creator: Pubkey,
+    recipient: Pubkey,
+    token: Pubkey,
+    amount: u64,
+    safety_deposit: u64,
+    withdrawal_start: u32,
+    public_withdrawal_start: u32,
+    cancellation_start: u32,
+    public_cancellation_start: u32,
+    rescue_start: u32,
+    rent_recipient: Pubkey,
+    asset_is_native: bool,
+}
+
 impl EscrowBase for Order {
+    fn order_hash(&self) -> &[u8; 32] {
+        &self.order_hash
+    }
+
+    fn hashlock(&self) -> &[u8; 32] {
+        &self.hashlock
+    }
+
+    fn creator(&self) -> &Pubkey {
+        &self.creator
+    }
+
+    fn recipient(&self) -> &Pubkey {
+        &self.recipient
+    }
+
+    fn token(&self) -> &Pubkey {
+        &self.token
+    }
+
+    fn amount(&self) -> u64 {
+        self.amount
+    }
+
+    fn safety_deposit(&self) -> u64 {
+        self.safety_deposit
+    }
+
+    fn withdrawal_start(&self) -> u32 {
+        self.withdrawal_start
+    }
+
+    fn public_withdrawal_start(&self) -> u32 {
+        self.public_withdrawal_start
+    }
+
+    fn cancellation_start(&self) -> u32 {
+        self.cancellation_start
+    }
+
+    fn rescue_start(&self) -> u32 {
+        self.rescue_start
+    }
+
+    fn rent_recipient(&self) -> &Pubkey {
+        &self.rent_recipient
+    }
+
+    fn asset_is_native(&self) -> bool {
+        self.asset_is_native
+    }
+}
+
+impl EscrowBase for EscrowSrc {
     fn order_hash(&self) -> &[u8; 32] {
         &self.order_hash
     }
