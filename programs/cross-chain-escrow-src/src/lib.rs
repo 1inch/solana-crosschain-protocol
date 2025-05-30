@@ -383,7 +383,7 @@ pub struct CreateEscrow<'info> {
         payer = taker,
         space = constants::DISCRIMINATOR_BYTES + EscrowSrc::INIT_SPACE,
         seeds = [
-            "takerescrow".as_bytes(),
+            "escrow".as_bytes(),
             order.order_hash.as_ref(),
             order.hashlock.as_ref(),
             order.creator.as_ref(),
