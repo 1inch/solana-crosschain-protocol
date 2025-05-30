@@ -125,6 +125,7 @@ pub mod cross_chain_escrow_src {
             public_cancellation_start: order.public_cancellation_start,
             rescue_start: order.rescue_start,
             asset_is_native: order.asset_is_native,
+            dst_amount: order.dst_amount,
         });
 
         // Close the order_ata account
@@ -322,7 +323,9 @@ pub struct CreateEscrow<'info> {
     taker: Signer<'info>,
     #[account(
         mut, // Necessary because lamports will be transferred to this account when the order accounts are closed.
+        constraint = maker.key() == order.creator @ EscrowError::InvalidAccount
     )]
+    /// CHECK: this account is used only to receive rent for order and order_ata accounts
     maker: AccountInfo<'info>,
     /// CHECK: check is not necessary as token is only used as a constraint to creator_ata and order
     mint: Box<InterfaceAccount<'info, Mint>>,
