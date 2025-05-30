@@ -19,7 +19,6 @@ run_for_tokens!(
         use super::*;
 
         mod test_escrow_creation {
-            use anchor_lang::AccountDeserialize;
 
             use super::*;
             #[test_context(TestState)]
@@ -69,13 +68,11 @@ run_for_tokens!(
                     .unwrap()
                     .unwrap()
                     .data;
-                let escrow: cross_chain_escrow_src::EscrowSrc =
-                    cross_chain_escrow_src::EscrowSrc::try_deserialize(
-                        &mut escrow_account_data.as_slice(),
-                    )
-                    .unwrap();
+                let dst_amount = local_helpers::get_dst_amount(&escrow_account_data)
+                    .expect("Failed to read dst_amount from escrow account data");
+
                 assert_eq!(
-                    escrow.dst_amount,
+                    dst_amount,
                     test_state.test_arguments.dst_amount * 1095 / 1000,
                 );
             }
@@ -426,6 +423,10 @@ mod local_helpers {
     use solana_sdk::signature::Signer;
     use solana_sdk::transaction::Transaction;
 
+    /// Byte offset in the escrow account data where the `dst_amount` field is located
+    const DST_AMOUNT_OFFSET: usize = 237;
+    const U64_SIZE: usize = size_of::<u64>();
+
     pub fn create_public_cancel_tx<S: TokenVariant>(
         test_state: &TestStateBase<SrcProgram, S>,
         escrow: &Pubkey,
@@ -458,6 +459,15 @@ mod local_helpers {
             &[&test_state.payer_kp, canceller],
             test_state.context.last_blockhash,
         )
+    }
+
+    /// Reads the `dst_amount` field (u64) directly from the raw account data.
+    pub fn get_dst_amount(data: &[u8]) -> Option<u64> {
+        let end = DST_AMOUNT_OFFSET + U64_SIZE;
+        let slice = data.get(DST_AMOUNT_OFFSET..end)?;
+        let mut arr = [0u8; U64_SIZE];
+        arr.copy_from_slice(slice);
+        Some(u64::from_le_bytes(arr))
     }
 }
 
