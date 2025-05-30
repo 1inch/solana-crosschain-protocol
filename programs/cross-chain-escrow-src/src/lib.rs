@@ -346,7 +346,7 @@ pub struct CreateEscrow<'info> {
         bump,
     )]
     order: Box<Account<'info, Order>>,
-    /// Account to store escrowed tokens
+    /// Account to store orders tokens
     #[account(
         associated_token::mint = mint,
         associated_token::authority = order,
@@ -354,7 +354,7 @@ pub struct CreateEscrow<'info> {
     )]
     order_ata: Box<InterfaceAccount<'info, TokenAccount>>,
 
-    /// Account to store order details
+    /// Account to store escrow details
     #[account(
         init,
         payer = taker,
