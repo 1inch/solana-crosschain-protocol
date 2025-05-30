@@ -43,7 +43,7 @@ pub mod cross_chain_escrow_src {
             .ok_or(ProgramError::ArithmeticOverflow)?;
 
         common::escrow::create(
-            Order::INIT_SPACE + constants::DISCRIMINATOR_BYTES,
+            EscrowSrc::INIT_SPACE + constants::DISCRIMINATOR_BYTES,
             &ctx.accounts.creator,
             asset_is_native,
             &ctx.accounts.order_ata,
