@@ -1,6 +1,4 @@
-use std::any::TypeId;
-
-use crate::{helpers::*, src_program::SrcProgram};
+use crate::helpers::*;
 use anchor_lang::error::ErrorCode;
 use anchor_spl::token::spl_token::{error::TokenError, native_mint::ID as NATIVE_MINT};
 use common::{constants::RESCUE_DELAY, error::EscrowError};
@@ -1091,21 +1089,9 @@ pub async fn test_escrow_creation_native<T: EscrowVariant<S> + 'static, S: Token
     let token_account_rent =
         get_min_rent_for_size(&mut test_state.client, TokenSPL::get_token_account_size()).await;
 
-    // In Src tests we expect the creator to also pay for the signature lamports.
-    let signature_lamports = if TypeId::of::<T>() == TypeId::of::<SrcProgram>() {
-        DEFAULT_FEE_PER_SIGNATURE_LAMPORTS
-    } else {
-        // logic for other types
-        0
-    };
-
     // Check native balance for the creator is as expected.
     assert_eq!(
-        WALLET_DEFAULT_LAMPORTS
-            - DEFAULT_ESCROW_AMOUNT
-            - token_account_rent
-            - rent_lamports
-            - signature_lamports,
+        WALLET_DEFAULT_LAMPORTS - DEFAULT_ESCROW_AMOUNT - token_account_rent - rent_lamports,
         // The pure lamport balance of the creator wallet after the transaction.
         test_state
             .client
