@@ -3,10 +3,14 @@ use anchor_spl::associated_token::{AssociatedToken, ID as ASSOCIATED_TOKEN_PROGR
 use anchor_spl::token_interface::{
     close_account, CloseAccount, Mint, TokenAccount, TokenInterface,
 };
+pub use auction::{calculate_rate_bump, AuctionData};
 pub use common::constants;
 use common::error::EscrowError;
 use common::escrow::{uni_transfer, EscrowBase, UniTransferParams};
 use common::utils;
+use muldiv::MulDiv;
+
+pub mod auction;
 
 declare_id!("6NwMYeUmigiMDjhYeYpbxC6Kc63NzZy1dfGd7fGcdkVS");
 
@@ -26,6 +30,8 @@ pub mod cross_chain_escrow_src {
         cancellation_duration: u32,
         rescue_start: u32,
         asset_is_native: bool,
+        dst_amount: u64,
+        dutch_auction_data: AuctionData,
     ) -> Result<()> {
         let now = utils::get_current_timestamp()?;
 
@@ -71,6 +77,7 @@ pub mod cross_chain_escrow_src {
             public_cancellation_start,
             rescue_start,
             asset_is_native,
+            dst_amount: get_dst_amount(dst_amount, &dutch_auction_data)?,
         });
 
         Ok(())
@@ -260,12 +267,8 @@ pub mod cross_chain_escrow_src {
 #[derive(Accounts)]
 #[instruction(order_hash: [u8; 32], hashlock: [u8; 32], amount: u64, safety_deposit: u64, finality_duration: u32, withdrawal_duration: u32, public_withdrawal_duration: u32, cancellation_duration: u32, rescue_start: u32)]
 pub struct Create<'info> {
-    /// Pays for the creation of order account
-    #[account(mut)]
-    payer: Signer<'info>,
-    /// Puts tokens into order
     #[account(
-        mut, // Needed because this account transfers lamports if the token is native
+        mut, // Needed because this account transfers lamports if the token is native and to pay for the order creation
     )]
     creator: Signer<'info>,
     /// CHECK: check is not necessary as token is only used as a constraint to creator_ata and order
@@ -281,7 +284,7 @@ pub struct Create<'info> {
     /// Account to store order details
     #[account(
         init,
-        payer = payer,
+        payer = creator,
         space = constants::DISCRIMINATOR_BYTES + Order::INIT_SPACE,
         seeds = [
             "escrow".as_bytes(),
@@ -299,7 +302,7 @@ pub struct Create<'info> {
     /// Account to store escrowed tokens
     #[account(
         init,
-        payer = payer,
+        payer = creator,
         associated_token::mint = mint,
         associated_token::authority = order,
         associated_token::token_program = token_program
@@ -619,6 +622,7 @@ pub struct Order {
     public_cancellation_start: u32,
     rescue_start: u32,
     asset_is_native: bool,
+    dst_amount: u64,
 }
 
 #[account]
@@ -637,6 +641,7 @@ pub struct EscrowSrc {
     public_cancellation_start: u32,
     rescue_start: u32,
     asset_is_native: bool,
+    dst_amount: u64,
 }
 
 impl EscrowBase for Order {
@@ -745,4 +750,12 @@ impl EscrowBase for EscrowSrc {
     fn asset_is_native(&self) -> bool {
         self.asset_is_native
     }
+}
+
+fn get_dst_amount(dst_amount: u64, data: &AuctionData) -> Result<u64> {
+    let rate_bump = calculate_rate_bump(Clock::get()?.unix_timestamp as u64, data);
+    let result = dst_amount
+        .mul_div_ceil(constants::BASE_1E5 + rate_bump, constants::BASE_1E5)
+        .ok_or(ProgramError::ArithmeticOverflow)?;
+    Ok(result)
 }
