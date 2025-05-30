@@ -608,7 +608,9 @@ mod local_helpers {
         let (escrow_pda, escrow_ata) =
             get_taker_escrow_addresses(test_state, test_state.creator_wallet.keypair.pubkey());
         let instruction_data =
-            InstructionData::data(&cross_chain_escrow_src::instruction::CreateEscrow {});
+            InstructionData::data(&cross_chain_escrow_src::instruction::CreateEscrow {
+                rescue_start: test_state.test_arguments.rescue_start,
+            });
 
         let instruction: Instruction = Instruction {
             program_id: cross_chain_escrow_src::id(),

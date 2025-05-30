@@ -35,19 +35,6 @@ pub mod cross_chain_escrow_src {
     ) -> Result<()> {
         let now = utils::get_current_timestamp()?;
 
-        let withdrawal_start = now
-            .checked_add(finality_duration)
-            .ok_or(ProgramError::ArithmeticOverflow)?;
-        let public_withdrawal_start = withdrawal_start
-            .checked_add(withdrawal_duration)
-            .ok_or(ProgramError::ArithmeticOverflow)?;
-        let cancellation_start = public_withdrawal_start
-            .checked_add(public_withdrawal_duration)
-            .ok_or(ProgramError::ArithmeticOverflow)?;
-        let public_cancellation_start = cancellation_start
-            .checked_add(cancellation_duration)
-            .ok_or(ProgramError::ArithmeticOverflow)?;
-
         common::escrow::create(
             Order::INIT_SPACE + constants::DISCRIMINATOR_BYTES,
             &ctx.accounts.creator,
@@ -71,10 +58,10 @@ pub mod cross_chain_escrow_src {
             token: ctx.accounts.mint.key(),
             amount,
             safety_deposit,
-            withdrawal_start,
-            public_withdrawal_start,
-            cancellation_start,
-            public_cancellation_start,
+            finality_duration,
+            withdrawal_duration,
+            public_withdrawal_duration,
+            cancellation_duration,
             rescue_start,
             asset_is_native,
             dst_amount: get_dst_amount(dst_amount, &dutch_auction_data)?,
@@ -83,9 +70,24 @@ pub mod cross_chain_escrow_src {
         Ok(())
     }
 
-    pub fn create_escrow(ctx: Context<CreateEscrow>) -> Result<()> {
+    pub fn create_escrow(ctx: Context<CreateEscrow>, rescue_start: u32) -> Result<()> {
         let order = &ctx.accounts.order;
         let escrow = &mut ctx.accounts.escrow;
+
+        let now = utils::get_current_timestamp()?;
+
+        let withdrawal_start = now
+            .checked_add(order.finality_duration)
+            .ok_or(ProgramError::ArithmeticOverflow)?;
+        let public_withdrawal_start = withdrawal_start
+            .checked_add(order.withdrawal_duration)
+            .ok_or(ProgramError::ArithmeticOverflow)?;
+        let cancellation_start = public_withdrawal_start
+            .checked_add(order.public_withdrawal_duration)
+            .ok_or(ProgramError::ArithmeticOverflow)?;
+        let public_cancellation_start = cancellation_start
+            .checked_add(order.cancellation_duration)
+            .ok_or(ProgramError::ArithmeticOverflow)?;
 
         let seeds = [
             "escrow".as_bytes(),
@@ -119,11 +121,11 @@ pub mod cross_chain_escrow_src {
             token: order.token,
             amount: order.amount,
             safety_deposit: order.safety_deposit,
-            withdrawal_start: order.withdrawal_start,
-            public_withdrawal_start: order.public_withdrawal_start,
-            cancellation_start: order.cancellation_start,
-            public_cancellation_start: order.public_cancellation_start,
-            rescue_start: order.rescue_start,
+            withdrawal_start,
+            public_withdrawal_start,
+            cancellation_start,
+            public_cancellation_start,
+            rescue_start,
             asset_is_native: order.asset_is_native,
             dst_amount: order.dst_amount,
         });
@@ -148,8 +150,8 @@ pub mod cross_chain_escrow_src {
     pub fn withdraw(ctx: Context<Withdraw>, secret: [u8; 32]) -> Result<()> {
         let now = utils::get_current_timestamp()?;
         require!(
-            now >= ctx.accounts.order.withdrawal_start
-                && now < ctx.accounts.order.cancellation_start,
+            now >= ctx.accounts.order.withdrawal_start()
+                && now < ctx.accounts.order.cancellation_start(),
             EscrowError::InvalidTime
         );
 
@@ -172,8 +174,8 @@ pub mod cross_chain_escrow_src {
     pub fn public_withdraw(ctx: Context<PublicWithdraw>, secret: [u8; 32]) -> Result<()> {
         let now = utils::get_current_timestamp()?;
         require!(
-            now >= ctx.accounts.order.public_withdrawal_start
-                && now < ctx.accounts.order.cancellation_start,
+            now >= ctx.accounts.order.public_withdrawal_start()
+                && now < ctx.accounts.order.cancellation_start(),
             EscrowError::InvalidTime
         );
 
@@ -196,7 +198,7 @@ pub mod cross_chain_escrow_src {
     pub fn cancel(ctx: Context<Cancel>) -> Result<()> {
         let now = utils::get_current_timestamp()?;
         require!(
-            now >= ctx.accounts.order.cancellation_start,
+            now >= ctx.accounts.order.cancellation_start(),
             EscrowError::InvalidTime
         );
 
@@ -217,10 +219,10 @@ pub mod cross_chain_escrow_src {
 
     pub fn public_cancel(ctx: Context<PublicCancel>) -> Result<()> {
         let now = utils::get_current_timestamp()?;
-        require!(
-            now >= ctx.accounts.order.public_cancellation_start,
-            EscrowError::InvalidTime
-        );
+        // require!(
+        //     now >= ctx.accounts.order.public_cancellation_start(),
+        //     EscrowError::InvalidTime
+        // );
 
         common::escrow::cancel(
             &ctx.accounts.order,
@@ -619,10 +621,10 @@ pub struct Order {
     token: Pubkey,
     amount: u64,
     safety_deposit: u64,
-    withdrawal_start: u32,
-    public_withdrawal_start: u32,
-    cancellation_start: u32,
-    public_cancellation_start: u32,
+    finality_duration: u32,
+    withdrawal_duration: u32,
+    public_withdrawal_duration: u32,
+    cancellation_duration: u32,
     rescue_start: u32,
     asset_is_native: bool,
     dst_amount: u64,
@@ -677,15 +679,15 @@ impl EscrowBase for Order {
     }
 
     fn withdrawal_start(&self) -> u32 {
-        self.withdrawal_start
+        self.withdrawal_duration
     }
 
     fn public_withdrawal_start(&self) -> u32 {
-        self.public_withdrawal_start
+        self.public_withdrawal_duration
     }
 
     fn cancellation_start(&self) -> u32 {
-        self.cancellation_start
+        self.cancellation_duration
     }
 
     fn rescue_start(&self) -> u32 {
