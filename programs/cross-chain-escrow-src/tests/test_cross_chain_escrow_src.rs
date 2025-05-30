@@ -18,12 +18,11 @@ run_for_tokens!(
 
         use super::*;
 
-        mod test_escrow_creation {
-
+        mod test_order_creation {
             use super::*;
             #[test_context(TestState)]
             #[tokio::test]
-            async fn test_escrow_creation(test_state: &mut TestState) {
+            async fn test_order_creation(test_state: &mut TestState) {
                 common_escrow_tests::test_escrow_creation(test_state).await
             }
 
@@ -79,38 +78,34 @@ run_for_tokens!(
 
             #[test_context(TestState)]
             #[tokio::test]
-            async fn test_escrow_creation_fail_with_zero_amount(test_state: &mut TestState) {
+            async fn test_order_creation_fail_with_zero_amount(test_state: &mut TestState) {
                 common_escrow_tests::test_escrow_creation_fail_with_zero_amount(test_state).await
             }
 
             #[test_context(TestState)]
             #[tokio::test]
-            async fn test_escrow_creation_fail_with_insufficient_funds(test_state: &mut TestState) {
+            async fn test_order_creation_fail_with_insufficient_funds(test_state: &mut TestState) {
                 common_escrow_tests::test_escrow_creation_fail_with_insufficient_funds(test_state)
                     .await
             }
 
             #[test_context(TestState)]
             #[tokio::test]
-            async fn test_escrow_creation_fail_with_insufficient_tokens(
-                test_state: &mut TestState,
-            ) {
+            async fn test_order_creation_fail_with_insufficient_tokens(test_state: &mut TestState) {
                 common_escrow_tests::test_escrow_creation_fail_with_insufficient_tokens(test_state)
                     .await
             }
 
             #[test_context(TestState)]
             #[tokio::test]
-            async fn test_escrow_creation_fail_with_existing_order_hash(
-                test_state: &mut TestState,
-            ) {
+            async fn test_order_creation_fail_with_existing_order_hash(test_state: &mut TestState) {
                 common_escrow_tests::test_escrow_creation_fail_with_existing_order_hash(test_state)
                     .await
             }
 
             #[test_context(TestState)]
             #[tokio::test]
-            async fn test_escrow_creation_fail_if_finality_duration_overflows(
+            async fn test_order_creation_fail_if_finality_duration_overflows(
                 test_state: &mut TestState,
             ) {
                 common_escrow_tests::test_escrow_creation_fail_if_finality_duration_overflows(
@@ -121,7 +116,7 @@ run_for_tokens!(
 
             #[test_context(TestState)]
             #[tokio::test]
-            async fn test_escrow_creation_fail_if_withdrawal_duration_overflows(
+            async fn test_order_creation_fail_if_withdrawal_duration_overflows(
                 test_state: &mut TestState,
             ) {
                 common_escrow_tests::test_escrow_creation_fail_if_withdrawal_duration_overflows(
@@ -132,7 +127,7 @@ run_for_tokens!(
 
             #[test_context(TestState)]
             #[tokio::test]
-            async fn test_escrow_creation_fail_if_public_withdrawal_duration_overflows(
+            async fn test_order_creation_fail_if_public_withdrawal_duration_overflows(
                 test_state: &mut TestState,
             ) {
                 common_escrow_tests::test_escrow_creation_fail_if_public_withdrawal_duration_overflows(
@@ -143,7 +138,7 @@ run_for_tokens!(
 
             #[test_context(TestState)]
             #[tokio::test]
-            async fn test_escrow_creation_fail_if_cancellation_duration_overflows(
+            async fn test_order_creation_fail_if_cancellation_duration_overflows(
                 test_state: &mut TestState,
             ) {
                 test_state.test_arguments.cancellation_duration = u32::MAX;
@@ -157,11 +152,11 @@ run_for_tokens!(
             }
         }
 
-        mod test_escrow_withdraw {
+        mod test_order_withdraw {
             use super::*;
             #[test_context(TestState)]
             #[tokio::test]
-            async fn test_escrow_creation_fail_if_public_withdrawal_duration_overflows(
+            async fn test_order_creation_fail_if_public_withdrawal_duration_overflows(
                 test_state: &mut TestState,
             ) {
                 common_escrow_tests::test_escrow_creation_fail_if_public_withdrawal_duration_overflows(
@@ -202,7 +197,7 @@ run_for_tokens!(
 
             #[test_context(TestState)]
             #[tokio::test]
-            async fn test_withdraw_does_not_work_with_wrong_escrow_ata(test_state: &mut TestState) {
+            async fn test_withdraw_does_not_work_with_wrong_order_ata(test_state: &mut TestState) {
                 common_escrow_tests::test_withdraw_does_not_work_with_wrong_escrow_ata(test_state)
                     .await
             }
@@ -228,7 +223,7 @@ run_for_tokens!(
             }
         }
 
-        mod test_escrow_public_withdraw {
+        mod test_order_public_withdraw {
             use super::*;
 
             #[test_context(TestState)]
@@ -272,7 +267,7 @@ run_for_tokens!(
 
             #[test_context(TestState)]
             #[tokio::test]
-            async fn test_public_withdraw_fails_with_wrong_escrow_ata(test_state: &mut TestState) {
+            async fn test_public_withdraw_fails_with_wrong_order_ata(test_state: &mut TestState) {
                 common_escrow_tests::test_public_withdraw_fails_with_wrong_escrow_ata(test_state)
                     .await
             }
@@ -298,7 +293,7 @@ run_for_tokens!(
             }
         }
 
-        mod test_escrow_cancel {
+        mod test_order_cancel {
             use super::*;
 
             #[test_context(TestState)]
@@ -321,7 +316,7 @@ run_for_tokens!(
 
             #[test_context(TestState)]
             #[tokio::test]
-            async fn test_cannot_cancel_with_wrong_escrow_ata(test_state: &mut TestState) {
+            async fn test_cannot_cancel_with_wrong_order_ata(test_state: &mut TestState) {
                 common_escrow_tests::test_cannot_cancel_with_wrong_escrow_ata(test_state).await
             }
 
@@ -332,7 +327,7 @@ run_for_tokens!(
             }
         }
 
-        mod test_escrow_public_cancel {
+        mod test_order_public_cancel {
             use super::local_helpers::*;
             use super::*;
 
@@ -341,9 +336,9 @@ run_for_tokens!(
             async fn test_cannot_public_cancel_before_public_cancellation_start(
                 test_state: &mut TestState,
             ) {
-                let (escrow, escrow_ata) = create_escrow(test_state).await;
+                let (order, order_ata) = create_escrow(test_state).await;
                 let transaction =
-                    create_public_cancel_tx(test_state, &escrow, &escrow_ata, &test_state.payer_kp);
+                    create_public_cancel_tx(test_state, &order, &order_ata, &test_state.payer_kp);
 
                 set_time(
                     &mut test_state.context,
@@ -358,7 +353,7 @@ run_for_tokens!(
             }
         }
 
-        mod test_escrow_rescue_funds {
+        mod test_order_rescue_funds {
             use super::*;
 
             #[test_context(TestState)]
@@ -395,18 +390,18 @@ run_for_tokens!(
 
             #[test_context(TestState)]
             #[tokio::test]
-            async fn test_cannot_rescue_funds_with_wrong_escrow_ata(test_state: &mut TestState) {
+            async fn test_cannot_rescue_funds_with_wrong_order_ata(test_state: &mut TestState) {
                 common_escrow_tests::test_cannot_rescue_funds_with_wrong_escrow_ata(test_state)
                     .await
             }
         }
 
-        mod test_escrow_creation_cost {
+        mod test_order_creation_cost {
             use super::*;
 
             #[test_context(TestState)]
             #[tokio::test]
-            async fn test_escrow_creation_tx_cost(test_state: &mut TestState) {
+            async fn test_order_creation_tx_cost(test_state: &mut TestState) {
                 common_escrow_tests::test_escrow_creation_tx_cost(test_state).await
             }
         }
@@ -429,8 +424,8 @@ mod local_helpers {
 
     pub fn create_public_cancel_tx<S: TokenVariant>(
         test_state: &TestStateBase<SrcProgram, S>,
-        escrow: &Pubkey,
-        escrow_ata: &Pubkey,
+        order: &Pubkey,
+        order_ata: &Pubkey,
         canceller: &Keypair,
     ) -> Transaction {
         let instruction_data =
@@ -444,8 +439,8 @@ mod local_helpers {
                 AccountMeta::new(test_state.creator_wallet.keypair.pubkey(), false),
                 AccountMeta::new_readonly(test_state.token, false),
                 AccountMeta::new(canceller.pubkey(), true),
-                AccountMeta::new(*escrow, false),
-                AccountMeta::new(*escrow_ata, false),
+                AccountMeta::new(*order, false),
+                AccountMeta::new(*order_ata, false),
                 AccountMeta::new(creator_ata, false),
                 AccountMeta::new_readonly(S::get_token_program_id(), false),
                 AccountMeta::new_readonly(system_program_id, false),

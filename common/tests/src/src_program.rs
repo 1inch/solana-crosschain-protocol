@@ -139,9 +139,9 @@ impl<S: TokenVariant> EscrowVariant<S> for SrcProgram {
             InstructionData::data(&cross_chain_escrow_src::instruction::RescueFunds {
                 hashlock: test_state.hashlock.to_bytes(),
                 order_hash: test_state.order_hash.to_bytes(),
-                escrow_creator: test_state.creator_wallet.keypair.pubkey(),
-                escrow_mint: test_state.token,
-                escrow_amount: test_state.test_arguments.escrow_amount,
+                order_creator: test_state.creator_wallet.keypair.pubkey(),
+                order_mint: test_state.token,
+                order_amount: test_state.test_arguments.escrow_amount,
                 safety_deposit: test_state.test_arguments.safety_deposit,
                 rescue_start: test_state.test_arguments.rescue_start,
                 rescue_amount: test_state.test_arguments.rescue_amount,
@@ -174,6 +174,6 @@ impl<S: TokenVariant> EscrowVariant<S> for SrcProgram {
 
     fn get_escrow_data_len() -> usize {
         cross_chain_escrow_src::constants::DISCRIMINATOR_BYTES
-            + cross_chain_escrow_src::EscrowSrc::INIT_SPACE
+            + cross_chain_escrow_src::Order::INIT_SPACE
     }
 }
