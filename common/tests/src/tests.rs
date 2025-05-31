@@ -1092,13 +1092,11 @@ pub async fn test_escrow_creation_native<T: EscrowVariant<S> + 'static, S: Token
     let token_account_rent =
         get_min_rent_for_size(&mut test_state.client, TokenSPL::get_token_account_size()).await;
 
-    let escrow_amount: u64;
-
-    if TypeId::of::<T>() == TypeId::of::<SrcProgram>() {
-        escrow_amount = 0; // Expecting the order creator to already have put the tokens in the order account.
+    let escrow_amount: u64 = if TypeId::of::<T>() == TypeId::of::<SrcProgram>() {
+        0 // Expecting the order creator to already have put the tokens in the order account.
     } else {
-        escrow_amount = test_state.test_arguments.escrow_amount;
-    }
+        test_state.test_arguments.escrow_amount
+    };
 
     // Check native balance for the creator is as expected.
     assert_eq!(
