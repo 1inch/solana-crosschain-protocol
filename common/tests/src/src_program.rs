@@ -236,7 +236,7 @@ pub fn get_order_data_len() -> usize {
 pub fn get_order_addresses<S: TokenVariant>(
     test_state: &TestStateBase<SrcProgram, S>,
 ) -> (Pubkey, Pubkey) {
-    let (program_id, _) = <SrcProgram as EscrowVariant<TokenSPL>>::get_program_spec();
+    let (program_id, _) = <SrcProgram as EscrowVariant<S>>::get_program_spec();
     let (order_pda, _) = Pubkey::find_program_address(
         &[
             b"escrow",
@@ -282,8 +282,8 @@ pub fn create_order_data<S: TokenVariant>(
 
 pub fn get_create_order_tx<T: EscrowVariant<S>, S: TokenVariant>(
     test_state: &TestStateBase<T, S>,
-    escrow: &Pubkey,
-    escrow_ata: &Pubkey,
+    order: &Pubkey,
+    order_ata: &Pubkey,
 ) -> Transaction {
     let instruction_data = InstructionData::data(&cross_chain_escrow_src::instruction::Create {
         amount: test_state.test_arguments.escrow_amount,
@@ -309,8 +309,8 @@ pub fn get_create_order_tx<T: EscrowVariant<S>, S: TokenVariant>(
             AccountMeta::new(test_state.creator_wallet.keypair.pubkey(), true),
             AccountMeta::new_readonly(test_state.token, false),
             AccountMeta::new(creator_ata, false),
-            AccountMeta::new(*escrow, false),
-            AccountMeta::new(*escrow_ata, false),
+            AccountMeta::new(*order, false),
+            AccountMeta::new(*order_ata, false),
             AccountMeta::new_readonly(spl_associated_token_id, false),
             AccountMeta::new_readonly(S::get_token_program_id(), false),
             AccountMeta::new_readonly(rent_id, false),
