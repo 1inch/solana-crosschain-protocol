@@ -1,10 +1,12 @@
-use crate::helpers::*;
+use std::any::TypeId;
+
+use crate::{helpers::*, src_program::SrcProgram};
 use anchor_lang::error::ErrorCode;
 use anchor_spl::token::spl_token::{error::TokenError, native_mint::ID as NATIVE_MINT};
 use common::{constants::RESCUE_DELAY, error::EscrowError};
 use solana_program::{keccak::hash, program_error::ProgramError};
 use solana_sdk::{
-    signature::Signer, signer::keypair::Keypair, system_instruction::SystemError,
+    pubkey::Pubkey, signature::Signer, signer::keypair::Keypair, system_instruction::SystemError,
     transaction::Transaction,
 };
 
@@ -1069,6 +1071,7 @@ pub async fn test_cannot_rescue_funds_with_wrong_escrow_ata<
 
 pub async fn test_escrow_creation_native<T: EscrowVariant<S> + 'static, S: TokenVariant>(
     test_state: &mut TestStateBase<T, S>,
+    escrow_creator: Pubkey, // The wallet that pays for the escrow creation transaction
 ) {
     let (escrow, escrow_ata) = create_escrow(test_state).await;
 
@@ -1089,15 +1092,19 @@ pub async fn test_escrow_creation_native<T: EscrowVariant<S> + 'static, S: Token
     let token_account_rent =
         get_min_rent_for_size(&mut test_state.client, TokenSPL::get_token_account_size()).await;
 
+    let escrow_amount: u64;
+
+    if TypeId::of::<T>() == TypeId::of::<SrcProgram>() {
+        escrow_amount = 0; // Expecting the order creator to already have put the tokens in the order account.
+    } else {
+        escrow_amount = test_state.test_arguments.escrow_amount;
+    }
+
     // Check native balance for the creator is as expected.
     assert_eq!(
-        WALLET_DEFAULT_LAMPORTS - DEFAULT_ESCROW_AMOUNT - token_account_rent - rent_lamports,
+        WALLET_DEFAULT_LAMPORTS - escrow_amount - token_account_rent - rent_lamports,
         // The pure lamport balance of the creator wallet after the transaction.
-        test_state
-            .client
-            .get_balance(test_state.creator_wallet.keypair.pubkey())
-            .await
-            .unwrap()
+        test_state.client.get_balance(escrow_creator).await.unwrap()
     );
 }
 
