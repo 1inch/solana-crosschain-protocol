@@ -239,7 +239,7 @@ pub fn get_order_addresses<S: TokenVariant>(
     let (program_id, _) = <SrcProgram as EscrowVariant<S>>::get_program_spec();
     let (order_pda, _) = Pubkey::find_program_address(
         &[
-            b"escrow",
+            b"order",
             test_state.order_hash.as_ref(),
             test_state.hashlock.as_ref(),
             test_state.creator_wallet.keypair.pubkey().as_ref(),

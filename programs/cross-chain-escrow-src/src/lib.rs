@@ -100,7 +100,7 @@ pub mod cross_chain_escrow_src {
             .ok_or(ProgramError::ArithmeticOverflow)?;
 
         let seeds = [
-            "escrow".as_bytes(),
+            "order".as_bytes(),
             &order.order_hash,
             &order.hashlock,
             &order.creator.as_ref(),
@@ -310,7 +310,7 @@ pub struct Create<'info> {
         payer = creator,
         space = constants::DISCRIMINATOR_BYTES + Order::INIT_SPACE,
         seeds = [
-            "escrow".as_bytes(),
+            "order".as_bytes(),
             order_hash.as_ref(),
             hashlock.as_ref(),
             creator.key().as_ref(),
@@ -356,7 +356,7 @@ pub struct CreateEscrow<'info> {
     #[account(
         mut,
         seeds = [
-            "escrow".as_bytes(),
+            "order".as_bytes(),
             order.order_hash.as_ref(),
             order.hashlock.as_ref(),
             order.creator.as_ref(),
