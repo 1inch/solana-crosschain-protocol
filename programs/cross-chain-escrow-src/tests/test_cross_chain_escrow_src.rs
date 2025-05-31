@@ -144,6 +144,28 @@ run_for_tokens!(
                         ),
                     ));
             }
+
+            #[test_context(TestState)]
+            #[tokio::test]
+            async fn test_order_creation_fail_with_zero_expiration_duration(
+                test_state: &mut TestState,
+            ) {
+                test_state.test_arguments.expiration_duration = 0;
+                let (order, order_ata, tx) = create_order_data(test_state);
+
+                test_state
+                    .client
+                    .process_transaction(tx)
+                    .await
+                    .expect_error((0, ProgramError::Custom(EscrowError::InvalidTime.into())));
+
+                // Check that the order accounts have not been created.
+                let acc_lookup_result = test_state.client.get_account(order).await.unwrap();
+                assert!(acc_lookup_result.is_none());
+
+                let acc_lookup_result = test_state.client.get_account(order_ata).await.unwrap();
+                assert!(acc_lookup_result.is_none());
+            }
         }
 
         mod test_escrow_creation {
@@ -299,8 +321,28 @@ run_for_tokens!(
                     .await
                     .expect_error((0, ProgramError::ArithmeticOverflow));
             }
-        }
 
+            #[test_context(TestState)]
+            #[tokio::test]
+            async fn test_order_creation_fail_with_expired_order(test_state: &mut TestState) {
+                create_order(test_state).await;
+
+                set_time(
+                    &mut test_state.context,
+                    test_state.init_timestamp
+                        + DEFAULT_PERIOD_DURATION * PeriodType::OrderExpiration as u32,
+                );
+
+                let (_, _, transaction) = create_escrow_data(test_state);
+
+                test_state
+                    .client
+                    .process_transaction(transaction)
+                    .await
+                    .expect_error((0, ProgramError::Custom(EscrowError::OrderHasExpired.into())));
+            }
+        }
+        
         mod test_order_withdraw {
             use super::*;
             #[test_context(TestState)]
