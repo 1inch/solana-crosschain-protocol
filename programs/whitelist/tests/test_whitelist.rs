@@ -3,7 +3,7 @@ use crate::helpers::{
     set_authority, set_authority_data, TestState,
 };
 use anchor_lang::{prelude::ProgramError, AccountDeserialize, InstructionData, Space};
-use common::constants::DISCRIMINATOR;
+use common::constants::DISCRIMINATOR_BYTES;
 use common_tests::helpers::*;
 use solana_program_test::tokio;
 use solana_sdk::signer::Signer;
@@ -21,7 +21,7 @@ mod test_whitelist {
     async fn test_init_whitelist(test_state: &mut TestState) {
         let whitelist_state = init_whitelist(test_state).await;
 
-        let whitelist_data_len = DISCRIMINATOR + whitelist::WhitelistState::INIT_SPACE;
+        let whitelist_data_len = DISCRIMINATOR_BYTES + whitelist::WhitelistState::INIT_SPACE;
         let rent_lamports = get_min_rent_for_size(&mut test_state.client, whitelist_data_len).await;
         assert_eq!(
             rent_lamports,
@@ -53,7 +53,7 @@ mod test_whitelist {
 
         let whitelist_access_address = register(test_state).await;
 
-        let whitelist_data_len = DISCRIMINATOR + whitelist::ResolverAccess::INIT_SPACE;
+        let whitelist_data_len = DISCRIMINATOR_BYTES + whitelist::ResolverAccess::INIT_SPACE;
         let rent_lamports = get_min_rent_for_size(&mut test_state.client, whitelist_data_len).await;
         assert_eq!(
             rent_lamports,
@@ -145,7 +145,7 @@ mod test_whitelist {
         test_state.authority_kp = test_state.someone_kp.insecure_clone();
         let whitelist_access_address = register(test_state).await;
 
-        let whitelist_data_len = DISCRIMINATOR + whitelist::ResolverAccess::INIT_SPACE;
+        let whitelist_data_len = DISCRIMINATOR_BYTES + whitelist::ResolverAccess::INIT_SPACE;
         let rent_lamports = get_min_rent_for_size(&mut test_state.client, whitelist_data_len).await;
         assert_eq!(
             rent_lamports,
