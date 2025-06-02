@@ -372,11 +372,7 @@ run_for_tokens!(
             async fn test_withdraw_only(test_state: &mut TestState) {
                 create_order(test_state).await;
                 let rent_recipient = test_state.recipient_wallet.keypair.pubkey();
-                common_escrow_tests::test_withdraw(
-                    test_state,
-                    rent_recipient,
-                )
-                .await
+                common_escrow_tests::test_withdraw(test_state, rent_recipient).await
             }
 
             #[test_context(TestState)]
@@ -826,8 +822,7 @@ mod test_native_src {
         test_state.test_arguments.asset_is_native = true;
         create_order(test_state).await;
         let rent_recipient = test_state.recipient_wallet.keypair.pubkey();
-        common_escrow_tests::test_withdraw(test_state, rent_recipient)
-            .await
+        common_escrow_tests::test_withdraw(test_state, rent_recipient).await
     }
 
     #[test_context(TestState)]
@@ -1033,8 +1028,7 @@ mod test_wrapped_native {
         test_state.token = NATIVE_MINT;
         create_order(test_state).await;
         let rent_recipient = test_state.recipient_wallet.keypair.pubkey();
-        common_escrow_tests::test_withdraw(test_state, rent_recipient)
-            .await
+        common_escrow_tests::test_withdraw(test_state, rent_recipient).await
     }
 
     #[test_context(TestState)]
