@@ -233,6 +233,7 @@ pub async fn test_escrow_creation_fails_with_invalid_rescue_start<
 
 pub async fn test_withdraw<T: EscrowVariant<S>, S: TokenVariant>(
     test_state: &mut TestStateBase<T, S>,
+    rent_recipient: Pubkey,
 ) {
     let (escrow, escrow_ata) = create_escrow(test_state).await;
     let transaction = T::get_withdraw_tx(test_state, &escrow, &escrow_ata);
@@ -253,7 +254,7 @@ pub async fn test_withdraw<T: EscrowVariant<S>, S: TokenVariant>(
             transaction,
             &[
                 native_change(
-                    test_state.creator_wallet.keypair.pubkey(),
+                    rent_recipient,
                     token_account_rent + escrow_rent,
                 ),
                 token_change(recipient_ata, test_state.test_arguments.escrow_amount),

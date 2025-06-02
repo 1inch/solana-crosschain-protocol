@@ -98,7 +98,7 @@ run_for_tokens!(
             #[test_context(TestState)]
             #[tokio::test]
             async fn test_withdraw(test_state: &mut TestState) {
-                common_escrow_tests::test_withdraw(test_state).await
+                common_escrow_tests::test_withdraw(test_state, test_state.creator_wallet.keypair.pubkey()).await
             }
 
             #[test_context(TestState)]
@@ -391,7 +391,7 @@ mod test_escrow_native {
     async fn test_withdraw(test_state: &mut TestState) {
         test_state.token = NATIVE_MINT;
         test_state.test_arguments.asset_is_native = true;
-        common_escrow_tests::test_withdraw(test_state).await
+        common_escrow_tests::test_withdraw(test_state, test_state.creator_wallet.keypair.pubkey()).await
     }
 
     #[test_context(TestState)]
@@ -464,7 +464,7 @@ mod test_escrow_wrapped_native {
     #[tokio::test]
     async fn test_withdraw(test_state: &mut TestState) {
         test_state.token = NATIVE_MINT;
-        common_escrow_tests::test_withdraw(test_state).await
+        common_escrow_tests::test_withdraw(test_state, test_state.creator_wallet.keypair.pubkey()).await
     }
 
     #[test_context(TestState)]
