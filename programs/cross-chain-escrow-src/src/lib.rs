@@ -187,8 +187,8 @@ pub mod cross_chain_escrow_src {
         //     &ctx.accounts.recipient_ata,
         //     &ctx.accounts.mint,
         //     &ctx.accounts.token_program,
-        //     &ctx.accounts.rent_recipient,
-        //     &ctx.accounts.rent_recipient,
+        //     &ctx.accounts.recipient,
+        //     &ctx.accounts.recipient,
         //     secret,
         // )
 
@@ -213,7 +213,7 @@ pub mod cross_chain_escrow_src {
         //     &ctx.accounts.recipient_ata,
         //     &ctx.accounts.mint,
         //     &ctx.accounts.token_program,
-        //     &ctx.accounts.rent_recipient,
+        //     &ctx.accounts.recipient,
         //     &ctx.accounts.payer,
         //     secret,
         // )
