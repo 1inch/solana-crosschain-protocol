@@ -22,4 +22,6 @@ pub enum EscrowError {
     MissingRecipientAta,
     #[msg("Inconsistent native trait")]
     InconsistentNativeTrait,
+    #[msg("Cancel by resolver is forbidden")]
+    CancelOrderByResolverIsForbidden,
 }

@@ -385,7 +385,7 @@ pub fn rescue_funds<'info>(
     Ok(())
 }
 
-enum UniTransferParams<'info> {
+pub enum UniTransferParams<'info> {
     NativeTransfer {
         from: AccountInfo<'info>,
         to: AccountInfo<'info>,
@@ -403,7 +403,10 @@ enum UniTransferParams<'info> {
     },
 }
 
-fn uni_transfer(params: &UniTransferParams<'_>, signer_seeds: Option<&[&[&[u8]]]>) -> Result<()> {
+pub fn uni_transfer(
+    params: &UniTransferParams<'_>,
+    signer_seeds: Option<&[&[&[u8]]]>,
+) -> Result<()> {
     match params {
         UniTransferParams::NativeTransfer {
             from,

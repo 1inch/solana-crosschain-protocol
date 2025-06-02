@@ -1,16 +1,35 @@
 use anchor_lang::prelude::*;
 use anchor_spl::associated_token::{AssociatedToken, ID as ASSOCIATED_TOKEN_PROGRAM_ID};
+use anchor_spl::token_interface::{close_account, transfer_checked, CloseAccount, TransferChecked};
 use anchor_spl::token_interface::{Mint, TokenAccount, TokenInterface};
 pub use auction::{calculate_rate_bump, AuctionData};
 pub use common::constants;
 use common::error::EscrowError;
-use common::escrow::EscrowBase;
+use common::escrow::{uni_transfer, EscrowBase, UniTransferParams};
 use common::utils;
 use muldiv::MulDiv;
 
 pub mod auction;
 
 declare_id!("6NwMYeUmigiMDjhYeYpbxC6Kc63NzZy1dfGd7fGcdkVS");
+
+fn calculate_premium(
+    timestamp: u32,
+    auction_start_time: u32,
+    auction_duration: u32,
+    max_cancellation_premium: u64,
+) -> u64 {
+    if timestamp <= auction_start_time {
+        return 0;
+    }
+
+    let time_elapsed = timestamp - auction_start_time;
+    if time_elapsed >= auction_duration {
+        return max_cancellation_premium;
+    }
+
+    (time_elapsed as u64 * max_cancellation_premium) / auction_duration as u64
+}
 
 #[program]
 pub mod cross_chain_escrow_src {
@@ -79,6 +98,9 @@ pub mod cross_chain_escrow_src {
             rent_recipient: ctx.accounts.creator.key(),
             asset_is_native,
             dst_amount: get_dst_amount(dst_amount, &dutch_auction_data)?,
+            max_cancellation_premium: 0,      // TODO@sras
+            expiration_time: 0,               // TODO@sras
+            cancellation_auction_duration: 0, // TODO@sras
         });
 
         Ok(())
@@ -154,6 +176,101 @@ pub mod cross_chain_escrow_src {
         )
     }
 
+    pub fn cancel_by_resolver(ctx: Context<CancelByResolver>, reward_limit: u64) -> Result<()> {
+        let order = ctx.accounts.order.clone();
+        let now = utils::get_current_timestamp()?;
+        require!(
+            now >= ctx.accounts.order.cancellation_start,
+            EscrowError::InvalidTime
+        );
+
+        require!(
+            order.max_cancellation_premium > 0,
+            EscrowError::CancelOrderByResolverIsForbidden
+        );
+
+        // Not sure if order expiration should be included.
+        let current_timestamp = Clock::get()?.unix_timestamp;
+        //require!(
+        //    current_timestamp >= order.expiration_time as i64,
+        //    FusionError::OrderNotExpired
+        //);
+        require!(
+            order.asset_is_native == ctx.accounts.creator_ata.is_none(),
+            EscrowError::InconsistentNativeTrait
+        );
+
+        let order_hash = order.order_hash();
+
+        // Return remaining src tokens back to maker
+        if !order.asset_is_native {
+            transfer_checked(
+                CpiContext::new_with_signer(
+                    ctx.accounts.token_program.to_account_info(),
+                    TransferChecked {
+                        from: ctx.accounts.order_ata.to_account_info(),
+                        mint: ctx.accounts.mint.to_account_info(),
+                        to: ctx
+                            .accounts
+                            .creator_ata
+                            .as_ref()
+                            .ok_or(EscrowError::MissingCreatorAta)?
+                            .to_account_info(),
+                        authority: ctx.accounts.order.to_account_info(),
+                    },
+                    &[&[
+                        "escrow".as_bytes(),
+                        ctx.accounts.creator.key().as_ref(),
+                        order_hash,
+                        &[ctx.bumps.order],
+                    ]],
+                ),
+                ctx.accounts.order_ata.amount,
+                ctx.accounts.mint.decimals,
+            )?;
+        };
+
+        let cancellation_premium = calculate_premium(
+            current_timestamp as u32,
+            order.expiration_time,
+            order.cancellation_auction_duration,
+            order.max_cancellation_premium,
+        );
+        let maker_amount = ctx.accounts.order_ata.to_account_info().lamports()
+            - std::cmp::min(cancellation_premium, reward_limit);
+
+        // Transfer all the remaining lamports to the resolver first
+        close_account(CpiContext::new_with_signer(
+            ctx.accounts.token_program.to_account_info(),
+            CloseAccount {
+                account: ctx.accounts.order_ata.to_account_info(),
+                destination: ctx.accounts.resolver.to_account_info(),
+                authority: ctx.accounts.order.to_account_info(),
+            },
+            &[&[
+                "escrow".as_bytes(),
+                ctx.accounts.creator.key().as_ref(),
+                order.order_hash(),
+                &[ctx.bumps.order],
+            ]],
+        ))?;
+
+        // Transfer all lamports from the closed account, minus the cancellation premium, to the maker
+        uni_transfer(
+            &UniTransferParams::NativeTransfer {
+                from: ctx.accounts.resolver.to_account_info(),
+                to: ctx.accounts.creator.to_account_info(),
+                amount: maker_amount,
+                program: ctx.accounts.system_program.clone(),
+            },
+            None,
+        );
+
+        ////
+
+        Ok(())
+    }
+
     pub fn public_cancel(ctx: Context<PublicCancel>) -> Result<()> {
         let now = utils::get_current_timestamp()?;
         require!(
@@ -214,40 +331,40 @@ pub struct Create<'info> {
     /// CHECK: check is not necessary as token is only used as a constraint to creator_ata and order
     mint: Box<InterfaceAccount<'info, Mint>>,
     #[account(
-        mut,
-        associated_token::mint = mint,
-        associated_token::authority = creator,
-        associated_token::token_program = token_program
-    )]
+            mut,
+            associated_token::mint = mint,
+            associated_token::authority = creator,
+            associated_token::token_program = token_program
+        )]
     /// Account to store creator's tokens (Optional if the token is native)
     creator_ata: Option<Box<InterfaceAccount<'info, TokenAccount>>>,
     /// Account to store order details
     #[account(
-        init,
-        payer = creator,
-        space = constants::DISCRIMINATOR_BYTES + Order::INIT_SPACE,
-        seeds = [
-            "escrow".as_bytes(),
-            order_hash.as_ref(),
-            hashlock.as_ref(),
-            creator.key().as_ref(),
-            recipient.as_ref(),
-            mint.key().as_ref(),
-            amount.to_be_bytes().as_ref(),
-            safety_deposit.to_be_bytes().as_ref(),
-            rescue_start.to_be_bytes().as_ref(),
-            ],
-        bump,
-    )]
+                init,
+                payer = creator,
+                space = constants::DISCRIMINATOR_BYTES + Order::INIT_SPACE,
+                seeds = [
+                "escrow".as_bytes(),
+                order_hash.as_ref(),
+                hashlock.as_ref(),
+                creator.key().as_ref(),
+                recipient.as_ref(),
+                mint.key().as_ref(),
+                amount.to_be_bytes().as_ref(),
+                safety_deposit.to_be_bytes().as_ref(),
+                rescue_start.to_be_bytes().as_ref(),
+                ],
+                bump,
+            )]
     order: Box<Account<'info, Order>>,
     /// Account to store escrowed tokens
     #[account(
-        init,
-        payer = creator,
-        associated_token::mint = mint,
-        associated_token::authority = order,
-        associated_token::token_program = token_program
-    )]
+                    init,
+                    payer = creator,
+                    associated_token::mint = mint,
+                    associated_token::authority = order,
+                    associated_token::token_program = token_program
+                )]
     order_ata: Box<InterfaceAccount<'info, TokenAccount>>,
 
     #[account(address = ASSOCIATED_TOKEN_PROGRAM_ID)]
@@ -268,8 +385,8 @@ pub struct Withdraw<'info> {
     rent_recipient: AccountInfo<'info>,
     mint: Box<InterfaceAccount<'info, Mint>>,
     #[account(
-        mut,
-        seeds = [
+            mut,
+            seeds = [
             "escrow".as_bytes(),
             order.order_hash.as_ref(),
             order.hashlock.as_ref(),
@@ -279,23 +396,23 @@ pub struct Withdraw<'info> {
             order.amount.to_be_bytes().as_ref(),
             order.safety_deposit.to_be_bytes().as_ref(),
             order.rescue_start.to_be_bytes().as_ref(),
-        ],
-        bump,
-    )]
+            ],
+            bump,
+        )]
     order: Box<Account<'info, Order>>,
     #[account(
-        mut,
-        associated_token::mint = mint,
-        associated_token::authority = order,
-        associated_token::token_program = token_program
-    )]
+                mut,
+                associated_token::mint = mint,
+                associated_token::authority = order,
+                associated_token::token_program = token_program
+            )]
     order_ata: Box<InterfaceAccount<'info, TokenAccount>>,
     #[account(
-        mut,
-        associated_token::mint = mint,
-        associated_token::authority = recipient,
-        associated_token::token_program = token_program
-    )]
+                    mut,
+                    associated_token::mint = mint,
+                    associated_token::authority = recipient,
+                    associated_token::token_program = token_program
+                )]
     recipient_ata: Box<InterfaceAccount<'info, TokenAccount>>,
     token_program: Interface<'info, TokenInterface>,
     system_program: Program<'info, System>,
@@ -316,8 +433,8 @@ pub struct PublicWithdraw<'info> {
     payer: Signer<'info>,
     mint: Box<InterfaceAccount<'info, Mint>>,
     #[account(
-        mut,
-        seeds = [
+            mut,
+            seeds = [
             "escrow".as_bytes(),
             order.order_hash.as_ref(),
             order.hashlock.as_ref(),
@@ -327,23 +444,23 @@ pub struct PublicWithdraw<'info> {
             order.amount.to_be_bytes().as_ref(),
             order.safety_deposit.to_be_bytes().as_ref(),
             order.rescue_start.to_be_bytes().as_ref(),
-        ],
-        bump,
-    )]
+            ],
+            bump,
+        )]
     order: Box<Account<'info, Order>>,
     #[account(
-        mut,
-        associated_token::mint = mint,
-        associated_token::authority = order,
-        associated_token::token_program = token_program
-    )]
+                mut,
+                associated_token::mint = mint,
+                associated_token::authority = order,
+                associated_token::token_program = token_program
+            )]
     order_ata: Box<InterfaceAccount<'info, TokenAccount>>,
     #[account(
-        mut,
-        associated_token::mint = mint,
-        associated_token::authority = recipient,
-        associated_token::token_program = token_program
-    )]
+                    mut,
+                    associated_token::mint = mint,
+                    associated_token::authority = recipient,
+                    associated_token::token_program = token_program
+                )]
     recipient_ata: Box<InterfaceAccount<'info, TokenAccount>>,
     token_program: Interface<'info, TokenInterface>,
     system_program: Program<'info, System>,
@@ -359,8 +476,8 @@ pub struct Cancel<'info> {
     creator: Signer<'info>,
     mint: Box<InterfaceAccount<'info, Mint>>,
     #[account(
-        mut,
-        seeds = [
+            mut,
+            seeds = [
             "escrow".as_bytes(),
             order.order_hash.as_ref(),
             order.hashlock.as_ref(),
@@ -370,23 +487,70 @@ pub struct Cancel<'info> {
             order.amount.to_be_bytes().as_ref(),
             order.safety_deposit.to_be_bytes().as_ref(),
             order.rescue_start.to_be_bytes().as_ref(),
-        ],
-        bump,
-    )]
+            ],
+            bump,
+        )]
     order: Box<Account<'info, Order>>,
     #[account(
-        mut,
-        associated_token::mint = mint,
-        associated_token::authority = order,
-        associated_token::token_program = token_program
-    )]
+                mut,
+                associated_token::mint = mint,
+                associated_token::authority = order,
+                associated_token::token_program = token_program
+            )]
     order_ata: Box<InterfaceAccount<'info, TokenAccount>>,
     #[account(
-        mut,
-        associated_token::mint = mint,
-        associated_token::authority = creator,
-        associated_token::token_program = token_program
+                    mut,
+                    associated_token::mint = mint,
+                    associated_token::authority = creator,
+                    associated_token::token_program = token_program
+                )]
+    // Optional if the token is native
+    creator_ata: Option<Box<InterfaceAccount<'info, TokenAccount>>>,
+    token_program: Interface<'info, TokenInterface>,
+    system_program: Program<'info, System>,
+}
+
+#[derive(Accounts)]
+pub struct CancelByResolver<'info> {
+    /// Account that cancels the escrow
+    #[account(mut, signer)]
+    resolver: Signer<'info>,
+    /// CHECK: Currently only used for the token-authority check and to receive lamports if the token is native
+    #[account(
+        mut, // Needed because this account receives lamports if the token is native
+        constraint = creator.key() == order.creator @ EscrowError::InvalidAccount
     )]
+    creator: Signer<'info>,
+    mint: Box<InterfaceAccount<'info, Mint>>,
+    #[account(
+            mut,
+            seeds = [
+            "escrow".as_bytes(),
+            order.order_hash.as_ref(),
+            order.hashlock.as_ref(),
+            order.creator.as_ref(),
+            order.recipient.key().as_ref(),
+            mint.key().as_ref(),
+            order.amount.to_be_bytes().as_ref(),
+            order.safety_deposit.to_be_bytes().as_ref(),
+            order.rescue_start.to_be_bytes().as_ref(),
+            ],
+            bump,
+        )]
+    order: Box<Account<'info, Order>>,
+    #[account(
+                mut,
+                associated_token::mint = mint,
+                associated_token::authority = order,
+                associated_token::token_program = token_program
+            )]
+    order_ata: Box<InterfaceAccount<'info, TokenAccount>>,
+    #[account(
+                    mut,
+                    associated_token::mint = mint,
+                    associated_token::authority = creator,
+                    associated_token::token_program = token_program
+                )]
     // Optional if the token is native
     creator_ata: Option<Box<InterfaceAccount<'info, TokenAccount>>>,
     token_program: Interface<'info, TokenInterface>,
@@ -405,8 +569,8 @@ pub struct PublicCancel<'info> {
     #[account(mut)]
     payer: Signer<'info>,
     #[account(
-        mut,
-        seeds = [
+            mut,
+            seeds = [
             "escrow".as_bytes(),
             order.order_hash.as_ref(),
             order.hashlock.as_ref(),
@@ -416,23 +580,23 @@ pub struct PublicCancel<'info> {
             order.amount.to_be_bytes().as_ref(),
             order.safety_deposit.to_be_bytes().as_ref(),
             order.rescue_start.to_be_bytes().as_ref(),
-        ],
-        bump,
-    )]
+            ],
+            bump,
+        )]
     order: Box<Account<'info, Order>>,
     #[account(
-        mut,
-        associated_token::mint = mint,
-        associated_token::authority = order,
-        associated_token::token_program = token_program
-    )]
+                mut,
+                associated_token::mint = mint,
+                associated_token::authority = order,
+                associated_token::token_program = token_program
+            )]
     order_ata: Box<InterfaceAccount<'info, TokenAccount>>,
     #[account(
-        mut,
-        associated_token::mint = mint,
-        associated_token::authority = creator,
-        associated_token::token_program = token_program
-    )]
+                    mut,
+                    associated_token::mint = mint,
+                    associated_token::authority = creator,
+                    associated_token::token_program = token_program
+                )]
     // Optional if the token is native
     creator_ata: Option<Box<InterfaceAccount<'info, TokenAccount>>>,
     token_program: Interface<'info, TokenInterface>,
@@ -449,7 +613,7 @@ pub struct RescueFunds<'info> {
     mint: Box<InterfaceAccount<'info, Mint>>,
     /// CHECK: We don't accept escrow as 'Account<'info, Escrow>' because it may be already closed at the time of rescue funds.
     #[account(
-        seeds = [
+            seeds = [
             "escrow".as_bytes(),
             order_hash.as_ref(),
             hashlock.as_ref(),
@@ -459,23 +623,23 @@ pub struct RescueFunds<'info> {
             order_amount.to_be_bytes().as_ref(),
             safety_deposit.to_be_bytes().as_ref(),
             rescue_start.to_be_bytes().as_ref(),
-        ],
-        bump,
-    )]
+            ],
+            bump,
+        )]
     order: AccountInfo<'info>,
     #[account(
-        mut,
-        associated_token::mint = mint,
-        associated_token::authority = order,
-        associated_token::token_program = token_program
-    )]
+                mut,
+                associated_token::mint = mint,
+                associated_token::authority = order,
+                associated_token::token_program = token_program
+            )]
     order_ata: Box<InterfaceAccount<'info, TokenAccount>>,
     #[account(
-        mut,
-        associated_token::mint = mint,
-        associated_token::authority = recipient,
-        associated_token::token_program = token_program
-    )]
+                    mut,
+                    associated_token::mint = mint,
+                    associated_token::authority = recipient,
+                    associated_token::token_program = token_program
+                )]
     recipient_ata: Box<InterfaceAccount<'info, TokenAccount>>,
     token_program: Interface<'info, TokenInterface>,
     system_program: Program<'info, System>,
@@ -499,6 +663,9 @@ pub struct Order {
     rent_recipient: Pubkey,
     asset_is_native: bool,
     dst_amount: u64,
+    max_cancellation_premium: u64,
+    expiration_time: u64,
+    cancellation_auction_duration: u64,
 }
 
 impl EscrowBase for Order {
