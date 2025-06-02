@@ -324,7 +324,7 @@ run_for_tokens!(
 
             #[test_context(TestState)]
             #[tokio::test]
-            async fn test_order_creation_fail_with_expired_order(test_state: &mut TestState) {
+            async fn test_escrow_creation_fail_with_expired_order(test_state: &mut TestState) {
                 create_order(test_state).await;
 
                 set_time(
