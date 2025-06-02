@@ -36,8 +36,6 @@ pub trait EscrowBase {
 
     fn rescue_start(&self) -> u32;
 
-    fn rent_recipient(&self) -> &Pubkey;
-
     fn asset_is_native(&self) -> bool;
 }
 
