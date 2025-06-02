@@ -24,4 +24,6 @@ pub enum EscrowError {
     InconsistentNativeTrait,
     #[msg("Order has expired")]
     OrderHasExpired,
+    #[msg("Dutch auction data hash mismatch")]
+    DutchAuctionDataHashMismatch,
 }

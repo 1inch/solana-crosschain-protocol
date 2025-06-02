@@ -208,6 +208,46 @@ run_for_tokens!(
 
             #[test_context(TestState)]
             #[tokio::test]
+            async fn test_escrow_creation_fails_with_wrong_dutch_auction_hash(test_state: &mut TestState) {
+                test_state.test_arguments.dutch_auction_data =
+                    cross_chain_escrow_src::AuctionData {
+                        start_time: test_state.init_timestamp - AUCTION_START_OFFSET,
+                        duration: AUCTION_DURATION,
+                        initial_rate_bump: INITIAL_RATE_BUMP,
+                        points_and_time_deltas: vec![
+                            cross_chain_escrow_src::auction::PointAndTimeDelta {
+                                rate_bump: INTERMEDIATE_RATE_BUMP,
+                                time_delta: INTERMEDIATE_TIME_DELTA,
+                            },
+                        ],
+                    };
+
+                create_order(test_state).await;
+                test_state.test_arguments.dutch_auction_data =
+                    cross_chain_escrow_src::AuctionData {
+                        start_time: test_state.init_timestamp - AUCTION_START_OFFSET,
+                        duration: AUCTION_DURATION,
+                        initial_rate_bump: INITIAL_RATE_BUMP,
+                        points_and_time_deltas: vec![
+                            cross_chain_escrow_src::auction::PointAndTimeDelta {
+                                rate_bump: INTERMEDIATE_RATE_BUMP * 2, // Incorrect rate bump
+                                time_delta: INTERMEDIATE_TIME_DELTA,
+                            },
+                        ],
+                    };
+                let (_, _, tx) = create_escrow_data(test_state);
+                test_state
+                    .client
+                    .process_transaction(tx)
+                    .await
+                    .expect_error((
+                        0,
+                        ProgramError::Custom(EscrowError::DutchAuctionDataHashMismatch.into()),
+                    ));
+            }
+
+            #[test_context(TestState)]
+            #[tokio::test]
             async fn test_calculation_of_dutch_auction_params(test_state: &mut TestState) {
                 test_state.test_arguments.dutch_auction_data =
                     cross_chain_escrow_src::AuctionData {

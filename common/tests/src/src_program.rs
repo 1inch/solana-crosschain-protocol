@@ -1,6 +1,8 @@
 use crate::helpers::*;
 use crate::wrap_entry;
+use anchor_lang::AnchorSerialize;
 use anchor_lang::prelude::AccountInfo;
+use anchor_lang::solana_program::hash::hashv;
 use anchor_lang::InstructionData;
 use solana_program_runtime::invoke_context::BuiltinFunctionWithContext;
 use solana_program_test::processor;
@@ -146,7 +148,10 @@ impl<S: TokenVariant> EscrowVariant<S> for SrcProgram {
     ) -> Transaction {
         let instruction_data =
             InstructionData::data(&cross_chain_escrow_src::instruction::CreateEscrow {
-                rescue_start: test_state.test_arguments.rescue_start,
+                dutch_auction_data: test_state
+                    .test_arguments
+                    .dutch_auction_data
+                    .clone(),
             });
 
         let (order, order_ata) = get_order_addresses(test_state);
@@ -298,7 +303,9 @@ pub fn get_create_order_tx<T: EscrowVariant<S>, S: TokenVariant>(
         expiration_duration: test_state.test_arguments.expiration_duration,
         asset_is_native: test_state.test_arguments.asset_is_native,
         dst_amount: test_state.test_arguments.dst_amount,
-        dutch_auction_data: test_state.test_arguments.dutch_auction_data.clone(),
+        dutch_auction_data_hash: hashv(&[
+            &test_state.test_arguments.dutch_auction_data.try_to_vec().unwrap(),
+        ]).to_bytes(),
     });
 
     let (creator_ata, _) = find_user_ata(test_state);

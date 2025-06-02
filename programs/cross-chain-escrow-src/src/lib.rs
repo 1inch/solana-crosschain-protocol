@@ -1,4 +1,5 @@
 use anchor_lang::prelude::*;
+use anchor_lang::solana_program::hash::hashv;
 use anchor_spl::associated_token::{AssociatedToken, ID as ASSOCIATED_TOKEN_PROGRAM_ID};
 use anchor_spl::token_interface::{
     close_account, CloseAccount, Mint, TokenAccount, TokenInterface,
@@ -32,7 +33,7 @@ pub mod cross_chain_escrow_src {
         expiration_duration: u32,
         asset_is_native: bool,
         dst_amount: u64,
-        dutch_auction_data: AuctionData,
+        dutch_auction_data_hash: [u8; 32],
     ) -> Result<()> {
         let now = utils::get_current_timestamp()?;
 
@@ -72,19 +73,27 @@ pub mod cross_chain_escrow_src {
             rescue_start,
             expiration_time,
             asset_is_native,
-            dst_amount: get_dst_amount(dst_amount, &dutch_auction_data)?,
+            dst_amount,
+            dutch_auction_data_hash,
         });
 
         Ok(())
     }
 
-    pub fn create_escrow(ctx: Context<CreateEscrow>) -> Result<()> {
+    pub fn create_escrow(ctx: Context<CreateEscrow>, dutch_auction_data: AuctionData) -> Result<()> {
         let order = &ctx.accounts.order;
         let escrow = &mut ctx.accounts.escrow;
 
         let now = utils::get_current_timestamp()?;
 
         require!(now < order.expiration_time, EscrowError::OrderHasExpired);
+        let calculated_hash = hashv(&[
+            &dutch_auction_data.try_to_vec()?,
+        ]).to_bytes();
+        require!(
+            calculated_hash == order.dutch_auction_data_hash,
+            EscrowError::DutchAuctionDataHashMismatch
+        );
 
         let withdrawal_start = now
             .checked_add(order.finality_duration)
@@ -137,7 +146,7 @@ pub mod cross_chain_escrow_src {
             public_cancellation_start,
             rescue_start: order.rescue_start,
             asset_is_native: order.asset_is_native,
-            dst_amount: order.dst_amount,
+            dst_amount: get_dst_amount(order.dst_amount, &dutch_auction_data)?,
         });
 
         // Close the order_ata account
@@ -638,6 +647,8 @@ pub struct Order {
     rescue_start: u32,
     expiration_time: u32,
     asset_is_native: bool,
+    dst_amount: u64,
+    dutch_auction_data_hash: [u8; 32],
 }
 
 #[account]
