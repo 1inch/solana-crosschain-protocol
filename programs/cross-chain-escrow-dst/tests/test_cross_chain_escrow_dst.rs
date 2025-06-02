@@ -370,7 +370,11 @@ mod test_escrow_native {
     async fn test_escrow_creation(test_state: &mut TestState) {
         test_state.token = NATIVE_MINT;
         test_state.test_arguments.asset_is_native = true;
-        common_escrow_tests::test_escrow_creation_native(test_state).await
+        common_escrow_tests::test_escrow_creation_native(
+            test_state,
+            test_state.creator_wallet.keypair.pubkey(),
+        )
+        .await
     }
 
     #[test_context(TestState)]

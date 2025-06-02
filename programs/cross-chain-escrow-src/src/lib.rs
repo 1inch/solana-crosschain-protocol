@@ -100,11 +100,11 @@ pub mod cross_chain_escrow_src {
             .ok_or(ProgramError::ArithmeticOverflow)?;
 
         let seeds = [
-            "escrow".as_bytes(),
+            "order".as_bytes(),
             &order.order_hash,
             &order.hashlock,
-            &order.creator.as_ref(),
-            &order.token.as_ref(),
+            order.creator.as_ref(),
+            order.token.as_ref(),
             &order.amount.to_be_bytes(),
             &order.safety_deposit.to_be_bytes(),
             &order.rescue_start.to_be_bytes(),
@@ -310,7 +310,7 @@ pub struct Create<'info> {
         payer = creator,
         space = constants::DISCRIMINATOR_BYTES + Order::INIT_SPACE,
         seeds = [
-            "escrow".as_bytes(),
+            "order".as_bytes(),
             order_hash.as_ref(),
             hashlock.as_ref(),
             creator.key().as_ref(),
@@ -354,8 +354,9 @@ pub struct CreateEscrow<'info> {
 
     /// Account to store order details
     #[account(
+        mut,
         seeds = [
-            "escrow".as_bytes(),
+            "order".as_bytes(),
             order.order_hash.as_ref(),
             order.hashlock.as_ref(),
             order.creator.as_ref(),
@@ -369,6 +370,7 @@ pub struct CreateEscrow<'info> {
     order: Box<Account<'info, Order>>,
     /// Account to store orders tokens
     #[account(
+        mut,
         associated_token::mint = mint,
         associated_token::authority = order,
         associated_token::token_program = token_program
@@ -381,7 +383,7 @@ pub struct CreateEscrow<'info> {
         payer = taker,
         space = constants::DISCRIMINATOR_BYTES + EscrowSrc::INIT_SPACE,
         seeds = [
-            "takerescrow".as_bytes(),
+            "escrow".as_bytes(),
             order.order_hash.as_ref(),
             order.hashlock.as_ref(),
             order.creator.as_ref(),

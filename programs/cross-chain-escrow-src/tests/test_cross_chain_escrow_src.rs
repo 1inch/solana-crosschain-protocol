@@ -1,11 +1,10 @@
 use anchor_lang::{error::ErrorCode, prelude::ProgramError};
-use anchor_spl::associated_token::{spl_associated_token_account, ID as spl_associated_token_id};
 use anchor_spl::token::spl_token::native_mint::ID as NATIVE_MINT;
 use anchor_spl::token::spl_token::state::Account as SplTokenAccount;
 use common::error::EscrowError;
 use common_tests::helpers::*;
 use common_tests::run_for_tokens;
-use common_tests::src_program::SrcProgram;
+use common_tests::src_program::{create_order, create_order_data, get_order_data_len, SrcProgram};
 use common_tests::tests as common_escrow_tests;
 use solana_program_test::tokio;
 use solana_sdk::signature::Signer;
@@ -22,6 +21,156 @@ run_for_tokens!(
         mod test_order_creation {
             use super::*;
 
+            #[test_context(TestState)]
+            #[tokio::test]
+            async fn test_order_creation(test_state: &mut TestState) {
+                local_helpers::test_order_creation(test_state).await;
+            }
+
+            #[test_context(TestState)]
+            #[tokio::test]
+            async fn test_order_creation_fail_with_zero_amount(test_state: &mut TestState) {
+                test_state.test_arguments.escrow_amount = 0;
+                let (order, order_ata, _) = create_order_data(test_state);
+
+                let transaction =
+                    common_tests::src_program::get_create_order_tx(test_state, &order, &order_ata);
+
+                test_state
+                    .client
+                    .process_transaction(transaction)
+                    .await
+                    .expect_error((
+                        0,
+                        ProgramError::Custom(EscrowError::ZeroAmountOrDeposit.into()),
+                    ));
+            }
+
+            #[test_context(TestState)]
+            #[tokio::test]
+            async fn test_order_creation_fail_with_zero_safety_deposit(test_state: &mut TestState) {
+                test_state.test_arguments.safety_deposit = 0;
+                let (order, order_ata, _) = create_order_data(test_state);
+
+                let transaction =
+                    common_tests::src_program::get_create_order_tx(test_state, &order, &order_ata);
+
+                test_state
+                    .client
+                    .process_transaction(transaction)
+                    .await
+                    .expect_error((
+                        0,
+                        ProgramError::Custom(EscrowError::ZeroAmountOrDeposit.into()),
+                    ));
+            }
+
+            #[test_context(TestState)]
+            #[tokio::test]
+            async fn test_order_creation_fail_with_insufficient_funds(test_state: &mut TestState) {
+                test_state.test_arguments.safety_deposit = WALLET_DEFAULT_LAMPORTS + 1;
+
+                let (order, order_ata, _) = create_order_data(test_state);
+
+                let transaction =
+                    common_tests::src_program::get_create_order_tx(test_state, &order, &order_ata);
+
+                test_state
+                    .client
+                    .process_transaction(transaction)
+                    .await
+                    .expect_error((
+                        0,
+                        ProgramError::Custom(EscrowError::SafetyDepositTooLarge.into()),
+                    ));
+            }
+
+            #[test_context(TestState)]
+            #[tokio::test]
+            async fn test_order_creation_fail_with_wrong_token(test_state: &mut TestState) {
+                test_state.token = solana_sdk::pubkey::Pubkey::new_unique();
+                let (order, order_ata, tx) = create_order_data(test_state);
+
+                test_state
+                    .client
+                    .process_transaction(tx)
+                    .await
+                    .expect_error((
+                        0,
+                        ProgramError::Custom(ErrorCode::AccountNotInitialized.into()),
+                    ));
+
+                // Check that the order accounts have not been created.
+                let acc_lookup_result = test_state.client.get_account(order).await.unwrap();
+                assert!(acc_lookup_result.is_none());
+
+                let acc_lookup_result = test_state.client.get_account(order_ata).await.unwrap();
+                assert!(acc_lookup_result.is_none());
+            }
+
+            #[test_context(TestState)]
+            #[tokio::test]
+            async fn test_order_creation_fail_with_existing_order_hash(test_state: &mut TestState) {
+                let (_, _, mut transaction) = create_order_data(test_state);
+
+                // Send the transaction.
+                test_state
+                    .client
+                    .process_transaction(transaction.clone())
+                    .await
+                    .expect_success();
+                let new_hash = test_state.context.get_new_latest_blockhash().await.unwrap();
+
+                if transaction.signatures.len() == 1 {
+                    transaction.sign(&[&test_state.creator_wallet.keypair], new_hash);
+                }
+                if transaction.signatures.len() == 2 {
+                    transaction.sign(
+                        &[
+                            &test_state.creator_wallet.keypair,
+                            &test_state.context.payer,
+                        ],
+                        new_hash,
+                    );
+                }
+                test_state
+                    .client
+                    .process_transaction(transaction)
+                    .await
+                    .expect_error((
+                        0,
+                        ProgramError::Custom(
+                            solana_sdk::system_instruction::SystemError::AccountAlreadyInUse as u32,
+                        ),
+                    ));
+            }
+
+            #[test_context(TestState)]
+            #[tokio::test]
+            async fn test_order_creation_fail_with_zero_expiration_duration(
+                test_state: &mut TestState,
+            ) {
+                test_state.test_arguments.expiration_duration = 0;
+                let (order, order_ata, tx) = create_order_data(test_state);
+
+                test_state
+                    .client
+                    .process_transaction(tx)
+                    .await
+                    .expect_error((0, ProgramError::Custom(EscrowError::InvalidTime.into())));
+
+                // Check that the order accounts have not been created.
+                let acc_lookup_result = test_state.client.get_account(order).await.unwrap();
+                assert!(acc_lookup_result.is_none());
+
+                let acc_lookup_result = test_state.client.get_account(order_ata).await.unwrap();
+                assert!(acc_lookup_result.is_none());
+            }
+        }
+
+        mod test_escrow_creation {
+            use super::*;
+
             const AUCTION_START_OFFSET: u32 = 250;
             const AUCTION_DURATION: u32 = 1000;
             const INITIAL_RATE_BUMP: u16 = 10_000; // 10%
@@ -32,8 +181,9 @@ run_for_tokens!(
 
             #[test_context(TestState)]
             #[tokio::test]
-            async fn test_order_creation(test_state: &mut TestState) {
-                common_escrow_tests::test_escrow_creation(test_state).await
+            async fn test_escrow_creation(test_state: &mut TestState) {
+                create_order(test_state).await;
+                common_escrow_tests::test_escrow_creation(test_state).await;
             }
 
             #[test_context(TestState)]
@@ -51,6 +201,8 @@ run_for_tokens!(
                             },
                         ],
                     };
+
+                create_order(test_state).await;
                 common_escrow_tests::test_escrow_creation(test_state).await
             }
 
@@ -69,6 +221,9 @@ run_for_tokens!(
                             },
                         ],
                     };
+
+                create_order(test_state).await;
+
                 let (escrow, _) = create_escrow(test_state).await;
                 let escrow_account_data = test_state
                     .client
@@ -89,36 +244,36 @@ run_for_tokens!(
 
             #[test_context(TestState)]
             #[tokio::test]
-            async fn test_order_creation_fail_with_zero_amount(test_state: &mut TestState) {
-                common_escrow_tests::test_escrow_creation_fail_with_zero_amount(test_state).await
-            }
-
-            #[test_context(TestState)]
-            #[tokio::test]
-            async fn test_order_creation_fail_with_insufficient_funds(test_state: &mut TestState) {
-                common_escrow_tests::test_escrow_creation_fail_with_insufficient_funds(test_state)
-                    .await
-            }
-
-            #[test_context(TestState)]
-            #[tokio::test]
-            async fn test_order_creation_fail_with_insufficient_tokens(test_state: &mut TestState) {
-                common_escrow_tests::test_escrow_creation_fail_with_insufficient_tokens(test_state)
-                    .await
-            }
-
-            #[test_context(TestState)]
-            #[tokio::test]
-            async fn test_order_creation_fail_with_existing_order_hash(test_state: &mut TestState) {
-                common_escrow_tests::test_escrow_creation_fail_with_existing_order_hash(test_state)
-                    .await
-            }
-
-            #[test_context(TestState)]
-            #[tokio::test]
-            async fn test_order_creation_fail_if_finality_duration_overflows(
+            async fn test_escrow_creation_fail_with_empty_order_account(
                 test_state: &mut TestState,
             ) {
+                // Create an escrow account without existing order account.
+                let (escrow, escrow_ata, tx) = create_escrow_data(test_state);
+
+                test_state
+                    .client
+                    .process_transaction(tx)
+                    .await
+                    .expect_error((
+                        0,
+                        ProgramError::Custom(ErrorCode::AccountNotInitialized.into()),
+                    ));
+
+                // Check that the order accounts have not been created.
+                let acc_lookup_result = test_state.client.get_account(escrow).await.unwrap();
+                assert!(acc_lookup_result.is_none());
+
+                let acc_lookup_result = test_state.client.get_account(escrow_ata).await.unwrap();
+                assert!(acc_lookup_result.is_none());
+            }
+
+            #[test_context(TestState)]
+            #[tokio::test]
+            async fn test_escrow_creation_fail_if_finality_duration_overflows(
+                test_state: &mut TestState,
+            ) {
+                test_state.test_arguments.finality_duration = u32::MAX;
+                create_order(test_state).await;
                 common_escrow_tests::test_escrow_creation_fail_if_finality_duration_overflows(
                     test_state,
                 )
@@ -127,9 +282,11 @@ run_for_tokens!(
 
             #[test_context(TestState)]
             #[tokio::test]
-            async fn test_order_creation_fail_if_withdrawal_duration_overflows(
+            async fn test_escrow_creation_fail_if_withdrawal_duration_overflows(
                 test_state: &mut TestState,
             ) {
+                test_state.test_arguments.withdrawal_duration = u32::MAX;
+                create_order(test_state).await;
                 common_escrow_tests::test_escrow_creation_fail_if_withdrawal_duration_overflows(
                     test_state,
                 )
@@ -138,9 +295,11 @@ run_for_tokens!(
 
             #[test_context(TestState)]
             #[tokio::test]
-            async fn test_order_creation_fail_if_public_withdrawal_duration_overflows(
+            async fn test_escrow_creation_fail_if_public_withdrawal_duration_overflows(
                 test_state: &mut TestState,
             ) {
+                test_state.test_arguments.public_withdrawal_duration = u32::MAX;
+                create_order(test_state).await;
                 common_escrow_tests::test_escrow_creation_fail_if_public_withdrawal_duration_overflows(
                     test_state,
                 )
@@ -149,10 +308,11 @@ run_for_tokens!(
 
             #[test_context(TestState)]
             #[tokio::test]
-            async fn test_order_creation_fail_if_cancellation_duration_overflows(
+            async fn test_escrow_creation_fail_if_cancellation_duration_overflows(
                 test_state: &mut TestState,
             ) {
                 test_state.test_arguments.cancellation_duration = u32::MAX;
+                create_order(test_state).await;
                 let (_, _, transaction) = create_escrow_data(test_state);
 
                 test_state
@@ -161,89 +321,25 @@ run_for_tokens!(
                     .await
                     .expect_error((0, ProgramError::ArithmeticOverflow));
             }
-        }
-
-        mod test_escrow_creation {
-            use super::*;
-            #[test_context(TestState)]
-            #[tokio::test]
-            async fn test_escrow_creation(test_state: &mut TestState) {
-                let (order, order_ata) = create_escrow(test_state).await;
-                let (escrow, escrow_ata) = local_helpers::create_taker_escrow(test_state).await;
-
-                // Check token balances for the escrow account and creator are as expected.
-                assert_eq!(
-                    DEFAULT_ESCROW_AMOUNT,
-                    get_token_balance(&mut test_state.context, &escrow_ata).await
-                );
-
-                // Check the lamport balance of escrow account is as expected.
-                let escrow_data_len =
-                    <SrcProgram as EscrowVariant<TokenSPL>>::get_escrow_data_len();
-                let rent_lamports =
-                    get_min_rent_for_size(&mut test_state.client, escrow_data_len).await;
-
-                assert_eq!(
-                    rent_lamports,
-                    test_state.client.get_balance(escrow).await.unwrap()
-                );
-
-                // Check that orders accounts have been closed.
-                let acc_lookup_result = test_state.client.get_account(order).await.unwrap();
-                assert!(acc_lookup_result.is_none());
-
-                let acc_lookup_result = test_state.client.get_account(order_ata).await.unwrap();
-                assert!(acc_lookup_result.is_none());
-            }
 
             #[test_context(TestState)]
             #[tokio::test]
-            async fn test_escrow_creation_fail_with_wrong_token(test_state: &mut TestState) {
-                create_escrow(test_state).await;
+            async fn test_order_creation_fail_with_expired_order(test_state: &mut TestState) {
+                create_order(test_state).await;
 
-                test_state.token = solana_sdk::pubkey::Pubkey::new_unique();
-                let (escrow, escrow_ata, tx) = local_helpers::create_taker_escrow_data(test_state);
+                set_time(
+                    &mut test_state.context,
+                    test_state.init_timestamp
+                        + DEFAULT_PERIOD_DURATION * PeriodType::OrderExpiration as u32,
+                );
+
+                let (_, _, transaction) = create_escrow_data(test_state);
 
                 test_state
                     .client
-                    .process_transaction(tx)
+                    .process_transaction(transaction)
                     .await
-                    .expect_error((
-                        0,
-                        ProgramError::Custom(ErrorCode::AccountNotInitialized.into()),
-                    ));
-
-                // Check that the order accounts have not been created.
-                let acc_lookup_result = test_state.client.get_account(escrow).await.unwrap();
-                assert!(acc_lookup_result.is_none());
-
-                let acc_lookup_result = test_state.client.get_account(escrow_ata).await.unwrap();
-                assert!(acc_lookup_result.is_none());
-            }
-
-            #[test_context(TestState)]
-            #[tokio::test]
-            async fn test_escrow_creation_fail_with_empty_order_account(
-                test_state: &mut TestState,
-            ) {
-                // Create an escrow account without existing order account.
-                let (escrow, escrow_ata, tx) = local_helpers::create_taker_escrow_data(test_state);
-
-                test_state
-                    .client
-                    .process_transaction(tx)
-                    .await
-                    .expect_error((
-                        0,
-                        ProgramError::Custom(ErrorCode::AccountNotInitialized.into()),
-                    ));
-
-                // Check that the order accounts have not been created.
-                let acc_lookup_result = test_state.client.get_account(escrow).await.unwrap();
-                assert!(acc_lookup_result.is_none());
-
-                let acc_lookup_result = test_state.client.get_account(escrow_ata).await.unwrap();
-                assert!(acc_lookup_result.is_none());
+                    .expect_error((0, ProgramError::Custom(EscrowError::OrderHasExpired.into())));
             }
         }
 
@@ -514,7 +610,7 @@ mod local_helpers {
     use solana_sdk::transaction::Transaction;
 
     /// Byte offset in the escrow account data where the `dst_amount` field is located
-    const DST_AMOUNT_OFFSET: usize = 237;
+    const DST_AMOUNT_OFFSET: usize = 205;
     const U64_SIZE: usize = size_of::<u64>();
 
     pub fn create_public_cancel_tx<S: TokenVariant>(
@@ -560,93 +656,69 @@ mod local_helpers {
         Some(u64::from_le_bytes(arr))
     }
 
-    pub fn get_taker_escrow_addresses<S: TokenVariant>(
-        test_state: &TestStateBase<SrcProgram, S>,
-        creator: Pubkey,
-    ) -> (Pubkey, Pubkey) {
-        let (program_id, _) = <SrcProgram as EscrowVariant<TokenSPL>>::get_program_spec();
-        let (escrow_pda, _) = Pubkey::find_program_address(
-            &[
-                b"takerescrow",
-                test_state.order_hash.as_ref(),
-                test_state.hashlock.as_ref(),
-                creator.as_ref(),
-                test_state.recipient_wallet.keypair.pubkey().as_ref(),
-                test_state.token.as_ref(),
-                test_state
-                    .test_arguments
-                    .escrow_amount
-                    .to_be_bytes()
-                    .as_ref(),
-                test_state
-                    .test_arguments
-                    .safety_deposit
-                    .to_be_bytes()
-                    .as_ref(),
-                test_state
-                    .test_arguments
-                    .rescue_start
-                    .to_be_bytes()
-                    .as_ref(),
-            ],
-            &program_id,
-        );
-        let escrow_ata = spl_associated_token_account::get_associated_token_address_with_program_id(
-            &escrow_pda,
-            &test_state.token,
-            &S::get_token_program_id(),
-        );
-
-        (escrow_pda, escrow_ata)
-    }
-
-    pub fn create_taker_escrow_data<S: TokenVariant>(
-        test_state: &TestStateBase<SrcProgram, S>,
-    ) -> (Pubkey, Pubkey, Transaction) {
-        let (order_pda, order_ata) =
-            get_escrow_addresses(test_state, test_state.creator_wallet.keypair.pubkey());
-        let (escrow_pda, escrow_ata) =
-            get_taker_escrow_addresses(test_state, test_state.creator_wallet.keypair.pubkey());
-        let instruction_data =
-            InstructionData::data(&cross_chain_escrow_src::instruction::CreateEscrow {
-                rescue_start: test_state.test_arguments.rescue_start,
-            });
-
-        let instruction: Instruction = Instruction {
-            program_id: cross_chain_escrow_src::id(),
-            accounts: vec![
-                AccountMeta::new(test_state.recipient_wallet.keypair.pubkey(), true),
-                AccountMeta::new(test_state.creator_wallet.keypair.pubkey(), false),
-                AccountMeta::new_readonly(test_state.token, false),
-                AccountMeta::new(order_pda, false),
-                AccountMeta::new(order_ata, false),
-                AccountMeta::new(escrow_pda, false),
-                AccountMeta::new(escrow_ata, false),
-                AccountMeta::new_readonly(spl_associated_token_id, false),
-                AccountMeta::new_readonly(S::get_token_program_id(), false),
-                AccountMeta::new_readonly(system_program_id, false),
-            ],
-            data: instruction_data,
-        };
-        let transaction = Transaction::new_signed_with_payer(
-            &[instruction],
-            Some(&test_state.payer_kp.pubkey()),
-            &[&test_state.payer_kp, &test_state.recipient_wallet.keypair],
-            test_state.context.last_blockhash,
-        );
-        (escrow_pda, escrow_ata, transaction)
-    }
-
-    pub async fn create_taker_escrow<S: TokenVariant>(
+    pub async fn test_order_creation<S: TokenVariant>(
         test_state: &mut TestStateBase<SrcProgram, S>,
-    ) -> (Pubkey, Pubkey) {
-        let (escrow, escrow_ata, tx) = create_taker_escrow_data(test_state);
+    ) {
+        let (order, order_ata, transaction) = create_order_data(test_state);
+
         test_state
             .client
-            .process_transaction(tx)
+            .process_transaction(transaction)
             .await
             .expect_success();
-        (escrow, escrow_ata)
+
+        let (creator_ata, _) = find_user_ata(test_state);
+
+        // Check token balance for the order is as expected.
+        assert_eq!(
+            DEFAULT_ESCROW_AMOUNT,
+            get_token_balance(&mut test_state.context, &order_ata).await
+        );
+
+        // Check the lamport balance of order account is as expected.
+        let order_data_len = get_order_data_len();
+        let rent_lamports = get_min_rent_for_size(&mut test_state.client, order_data_len).await;
+
+        let order_ata_lamports =
+            get_min_rent_for_size(&mut test_state.client, S::get_token_account_size()).await;
+        assert_eq!(
+            rent_lamports,
+            test_state.client.get_balance(order).await.unwrap()
+        );
+
+        // Check the token or lamport balance of creator account is as expected.
+        if !test_state.test_arguments.asset_is_native {
+            assert_eq!(
+                WALLET_DEFAULT_TOKENS - DEFAULT_ESCROW_AMOUNT,
+                get_token_balance(&mut test_state.context, &creator_ata).await
+            );
+        } else {
+            // Check native balance for the creator is as expected.
+            assert_eq!(
+                WALLET_DEFAULT_LAMPORTS
+                    - DEFAULT_ESCROW_AMOUNT
+                    - order_ata_lamports
+                    - rent_lamports,
+                // The pure lamport balance of the creator wallet after the transaction.
+                test_state
+                    .client
+                    .get_balance(test_state.creator_wallet.keypair.pubkey())
+                    .await
+                    .unwrap()
+            );
+        }
+
+        // Calculate the wrapped SOL amount if the token is NATIVE_MINT to adjust the escrow ATA balance.
+        let wrapped_sol = if test_state.token == NATIVE_MINT {
+            test_state.test_arguments.escrow_amount
+        } else {
+            0
+        };
+
+        assert_eq!(
+            order_ata_lamports,
+            test_state.client.get_balance(order_ata).await.unwrap() - wrapped_sol
+        );
     }
 }
 
@@ -661,17 +733,38 @@ mod test_escrow_native {
 
     #[test_context(TestState)]
     #[tokio::test]
-    async fn test_escrow_creation(test_state: &mut TestState) {
+    async fn test_order_creation(test_state: &mut TestState) {
         test_state.token = NATIVE_MINT;
         test_state.test_arguments.asset_is_native = true;
-        common_escrow_tests::test_escrow_creation_native(test_state).await
+        local_helpers::test_order_creation(test_state).await;
     }
 
     #[test_context(TestState)]
     #[tokio::test]
-    async fn test_escrow_creation_fail_if_token_is_not_native(test_state: &mut TestState) {
+    async fn test_escrow_creation(test_state: &mut TestState) {
+        test_state.token = NATIVE_MINT;
         test_state.test_arguments.asset_is_native = true;
-        common_escrow_tests::test_escrow_creation_fail_if_token_is_not_native(test_state).await
+        create_order(test_state).await;
+        common_escrow_tests::test_escrow_creation_native(
+            test_state,
+            test_state.recipient_wallet.keypair.pubkey(),
+        )
+        .await
+    }
+
+    #[test_context(TestState)]
+    #[tokio::test]
+    async fn test_order_creation_fail_if_token_is_not_native(test_state: &mut TestState) {
+        test_state.test_arguments.asset_is_native = true;
+        let (_, _, tx) = create_order_data(test_state);
+        test_state
+            .client
+            .process_transaction(tx)
+            .await
+            .expect_error((
+                0,
+                ProgramError::Custom(EscrowError::InconsistentNativeTrait.into()),
+            ));
     }
 
     #[test_context(TestState)]
@@ -860,8 +953,16 @@ mod test_escrow_wrapped_native {
 
     #[test_context(TestState)]
     #[tokio::test]
+    async fn test_order_creation(test_state: &mut TestState) {
+        test_state.token = NATIVE_MINT;
+        local_helpers::test_order_creation(test_state).await
+    }
+
+    #[test_context(TestState)]
+    #[tokio::test]
     async fn test_escrow_creation(test_state: &mut TestState) {
         test_state.token = NATIVE_MINT;
+        create_order(test_state).await;
         common_escrow_tests::test_escrow_creation(test_state).await
     }
 
