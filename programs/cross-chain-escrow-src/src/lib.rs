@@ -422,7 +422,7 @@ pub struct CreateEscrow<'info> {
 #[derive(Accounts)]
 pub struct Withdraw<'info> {
     #[account(
-        mut,
+        mut, // Necessary because lamports will be transferred to this account when the escrow account is closed.
         constraint = taker.key() == escrow.taker @ EscrowError::InvalidAccount,
     )]
     taker: Signer<'info>,
@@ -464,9 +464,8 @@ pub struct Withdraw<'info> {
 #[derive(Accounts)]
 pub struct PublicWithdraw<'info> {
     /// CHECK: This account is used to check its pubkey to match the one stored in the escrow account
-    /// Or to receive lamports if the token is native
     #[account(
-        mut,
+        mut, // Necessary because lamports will be transferred to this account when the escrow account is closed.
         constraint = taker.key() == escrow.taker @ EscrowError::InvalidAccount,
     )]
     taker: AccountInfo<'info>,
