@@ -43,7 +43,7 @@ pub mod cross_chain_escrow_src {
             .ok_or(ProgramError::ArithmeticOverflow)?;
 
         common::escrow::create(
-            EscrowSrc::INIT_SPACE + constants::DISCRIMINATOR_BYTES,
+            EscrowSrc::INIT_SPACE + constants::DISCRIMINATOR_BYTES, // Needed to check the safety deposit amount validity
             &ctx.accounts.creator,
             asset_is_native,
             &ctx.accounts.order_ata,
@@ -78,7 +78,7 @@ pub mod cross_chain_escrow_src {
         Ok(())
     }
 
-    pub fn create_escrow(ctx: Context<CreateEscrow>, rescue_start: u32) -> Result<()> {
+    pub fn create_escrow(ctx: Context<CreateEscrow>) -> Result<()> {
         let order = &ctx.accounts.order;
         let escrow = &mut ctx.accounts.escrow;
 
@@ -135,7 +135,7 @@ pub mod cross_chain_escrow_src {
             public_withdrawal_start,
             cancellation_start,
             public_cancellation_start,
-            rescue_start,
+            rescue_start: order.rescue_start,
             asset_is_native: order.asset_is_native,
             dst_amount: order.dst_amount,
         });
@@ -389,7 +389,7 @@ pub struct CreateEscrow<'info> {
             order.creator.as_ref(),
             taker.key().as_ref(),
             order.token.key().as_ref(),
-            order.amount.to_be_bytes().as_ref(),
+            order.amount.to_be_bytes().as_ref(), // TODO: Must be replaced with the actual amount when partial fills are implemented.
             order.safety_deposit.to_be_bytes().as_ref(),
             order.rescue_start.to_be_bytes().as_ref(),
         ],
@@ -638,7 +638,6 @@ pub struct Order {
     rescue_start: u32,
     expiration_time: u32,
     asset_is_native: bool,
-    dst_amount: u64,
 }
 
 #[account]
