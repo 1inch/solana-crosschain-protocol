@@ -27,7 +27,9 @@ run_for_tokens!(
 
             #[test_context(TestState)]
             #[tokio::test]
-            async fn test_escrow_creation_fails_with_insufficient_funds(test_state: &mut TestState) {
+            async fn test_escrow_creation_fails_with_insufficient_funds(
+                test_state: &mut TestState,
+            ) {
                 common_escrow_tests::test_escrow_creation_fails_with_insufficient_funds(test_state)
                     .await
             }

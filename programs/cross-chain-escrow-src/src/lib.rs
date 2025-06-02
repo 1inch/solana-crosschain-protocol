@@ -80,16 +80,17 @@ pub mod cross_chain_escrow_src {
         Ok(())
     }
 
-    pub fn create_escrow(ctx: Context<CreateEscrow>, dutch_auction_data: AuctionData) -> Result<()> {
+    pub fn create_escrow(
+        ctx: Context<CreateEscrow>,
+        dutch_auction_data: AuctionData,
+    ) -> Result<()> {
         let order = &ctx.accounts.order;
         let escrow = &mut ctx.accounts.escrow;
 
         let now = utils::get_current_timestamp()?;
 
         require!(now < order.expiration_time, EscrowError::OrderHasExpired);
-        let calculated_hash = hashv(&[
-            &dutch_auction_data.try_to_vec()?,
-        ]).to_bytes();
+        let calculated_hash = hashv(&[&dutch_auction_data.try_to_vec()?]).to_bytes();
         require!(
             calculated_hash == order.dutch_auction_data_hash,
             EscrowError::DutchAuctionDataHashMismatch

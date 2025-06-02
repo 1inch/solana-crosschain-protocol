@@ -48,7 +48,9 @@ run_for_tokens!(
 
             #[test_context(TestState)]
             #[tokio::test]
-            async fn test_order_creation_fails_with_zero_safety_deposit(test_state: &mut TestState) {
+            async fn test_order_creation_fails_with_zero_safety_deposit(
+                test_state: &mut TestState,
+            ) {
                 test_state.test_arguments.safety_deposit = 0;
                 let (order, order_ata, _) = create_order_data(test_state);
 
@@ -87,7 +89,9 @@ run_for_tokens!(
 
             #[test_context(TestState)]
             #[tokio::test]
-            async fn test_order_creation_fails_with_existing_order_hash(test_state: &mut TestState) {
+            async fn test_order_creation_fails_with_existing_order_hash(
+                test_state: &mut TestState,
+            ) {
                 let (_, _, mut transaction) = create_order_data(test_state);
 
                 // Send the transaction.
@@ -185,7 +189,9 @@ run_for_tokens!(
 
             #[test_context(TestState)]
             #[tokio::test]
-            async fn test_escrow_creation_fails_with_wrong_dutch_auction_hash(test_state: &mut TestState) {
+            async fn test_escrow_creation_fails_with_wrong_dutch_auction_hash(
+                test_state: &mut TestState,
+            ) {
                 test_state.test_arguments.dutch_auction_data =
                     cross_chain_escrow_src::AuctionData {
                         start_time: test_state.init_timestamp - AUCTION_START_OFFSET,
