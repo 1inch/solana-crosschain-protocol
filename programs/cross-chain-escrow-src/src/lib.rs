@@ -716,10 +716,6 @@ impl EscrowBase for EscrowSrc {
         self.rescue_start
     }
 
-    fn rent_recipient(&self) -> &Pubkey {
-        &self.taker
-    }
-
     fn asset_is_native(&self) -> bool {
         self.asset_is_native
     }
