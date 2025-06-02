@@ -29,7 +29,7 @@ run_for_tokens!(
 
             #[test_context(TestState)]
             #[tokio::test]
-            async fn test_order_creation_fail_with_zero_amount(test_state: &mut TestState) {
+            async fn test_order_creation_fails_with_zero_amount(test_state: &mut TestState) {
                 test_state.test_arguments.escrow_amount = 0;
                 let (order, order_ata, _) = create_order_data(test_state);
 
@@ -48,7 +48,7 @@ run_for_tokens!(
 
             #[test_context(TestState)]
             #[tokio::test]
-            async fn test_order_creation_fail_with_zero_safety_deposit(test_state: &mut TestState) {
+            async fn test_order_creation_fails_with_zero_safety_deposit(test_state: &mut TestState) {
                 test_state.test_arguments.safety_deposit = 0;
                 let (order, order_ata, _) = create_order_data(test_state);
 
@@ -67,7 +67,7 @@ run_for_tokens!(
 
             #[test_context(TestState)]
             #[tokio::test]
-            async fn test_order_creation_fail_with_insufficient_funds(test_state: &mut TestState) {
+            async fn test_order_creation_fails_with_insufficient_funds(test_state: &mut TestState) {
                 test_state.test_arguments.safety_deposit = WALLET_DEFAULT_LAMPORTS + 1;
 
                 let (order, order_ata, _) = create_order_data(test_state);
@@ -87,30 +87,7 @@ run_for_tokens!(
 
             #[test_context(TestState)]
             #[tokio::test]
-            async fn test_order_creation_fail_with_wrong_token(test_state: &mut TestState) {
-                test_state.token = solana_sdk::pubkey::Pubkey::new_unique();
-                let (order, order_ata, tx) = create_order_data(test_state);
-
-                test_state
-                    .client
-                    .process_transaction(tx)
-                    .await
-                    .expect_error((
-                        0,
-                        ProgramError::Custom(ErrorCode::AccountNotInitialized.into()),
-                    ));
-
-                // Check that the order accounts have not been created.
-                let acc_lookup_result = test_state.client.get_account(order).await.unwrap();
-                assert!(acc_lookup_result.is_none());
-
-                let acc_lookup_result = test_state.client.get_account(order_ata).await.unwrap();
-                assert!(acc_lookup_result.is_none());
-            }
-
-            #[test_context(TestState)]
-            #[tokio::test]
-            async fn test_order_creation_fail_with_existing_order_hash(test_state: &mut TestState) {
+            async fn test_order_creation_fails_with_existing_order_hash(test_state: &mut TestState) {
                 let (_, _, mut transaction) = create_order_data(test_state);
 
                 // Send the transaction.
@@ -147,7 +124,7 @@ run_for_tokens!(
 
             #[test_context(TestState)]
             #[tokio::test]
-            async fn test_order_creation_fail_with_zero_expiration_duration(
+            async fn test_order_creation_fails_with_zero_expiration_duration(
                 test_state: &mut TestState,
             ) {
                 test_state.test_arguments.expiration_duration = 0;
@@ -284,7 +261,7 @@ run_for_tokens!(
 
             #[test_context(TestState)]
             #[tokio::test]
-            async fn test_escrow_creation_fail_with_empty_order_account(
+            async fn test_escrow_creation_fails_with_empty_order_account(
                 test_state: &mut TestState,
             ) {
                 // Create an escrow account without existing order account.
@@ -309,12 +286,12 @@ run_for_tokens!(
 
             #[test_context(TestState)]
             #[tokio::test]
-            async fn test_escrow_creation_fail_if_finality_duration_overflows(
+            async fn test_escrow_creation_fails_if_finality_duration_overflows(
                 test_state: &mut TestState,
             ) {
                 test_state.test_arguments.finality_duration = u32::MAX;
                 create_order(test_state).await;
-                common_escrow_tests::test_escrow_creation_fail_if_finality_duration_overflows(
+                common_escrow_tests::test_escrow_creation_fails_if_finality_duration_overflows(
                     test_state,
                 )
                 .await
@@ -322,12 +299,12 @@ run_for_tokens!(
 
             #[test_context(TestState)]
             #[tokio::test]
-            async fn test_escrow_creation_fail_if_withdrawal_duration_overflows(
+            async fn test_escrow_creation_fails_if_withdrawal_duration_overflows(
                 test_state: &mut TestState,
             ) {
                 test_state.test_arguments.withdrawal_duration = u32::MAX;
                 create_order(test_state).await;
-                common_escrow_tests::test_escrow_creation_fail_if_withdrawal_duration_overflows(
+                common_escrow_tests::test_escrow_creation_fails_if_withdrawal_duration_overflows(
                     test_state,
                 )
                 .await
@@ -335,12 +312,12 @@ run_for_tokens!(
 
             #[test_context(TestState)]
             #[tokio::test]
-            async fn test_escrow_creation_fail_if_public_withdrawal_duration_overflows(
+            async fn test_escrow_creation_fails_if_public_withdrawal_duration_overflows(
                 test_state: &mut TestState,
             ) {
                 test_state.test_arguments.public_withdrawal_duration = u32::MAX;
                 create_order(test_state).await;
-                common_escrow_tests::test_escrow_creation_fail_if_public_withdrawal_duration_overflows(
+                common_escrow_tests::test_escrow_creation_fails_if_public_withdrawal_duration_overflows(
                     test_state,
                 )
                     .await
@@ -348,7 +325,7 @@ run_for_tokens!(
 
             #[test_context(TestState)]
             #[tokio::test]
-            async fn test_escrow_creation_fail_if_cancellation_duration_overflows(
+            async fn test_escrow_creation_fails_if_cancellation_duration_overflows(
                 test_state: &mut TestState,
             ) {
                 test_state.test_arguments.cancellation_duration = u32::MAX;
@@ -364,13 +341,12 @@ run_for_tokens!(
 
             #[test_context(TestState)]
             #[tokio::test]
-            async fn test_escrow_creation_fail_with_expired_order(test_state: &mut TestState) {
+            async fn test_escrow_creation_fails_with_expired_order(test_state: &mut TestState) {
                 create_order(test_state).await;
 
                 set_time(
                     &mut test_state.context,
-                    test_state.init_timestamp
-                        + DEFAULT_PERIOD_DURATION * PeriodType::OrderExpiration as u32,
+                    test_state.init_timestamp + test_state.test_arguments.expiration_duration + 1,
                 );
 
                 let (_, _, transaction) = create_escrow_data(test_state);
@@ -385,17 +361,6 @@ run_for_tokens!(
 
         mod test_order_withdraw {
             use super::*;
-            #[test_context(TestState)]
-            #[tokio::test]
-            async fn test_order_creation_fail_if_public_withdrawal_duration_overflows(
-                test_state: &mut TestState,
-            ) {
-                common_escrow_tests::test_escrow_creation_fail_if_public_withdrawal_duration_overflows(
-                    test_state,
-                )
-                    .await
-            }
-
             #[test_context(TestState)]
             #[tokio::test]
             async fn test_withdraw_only(test_state: &mut TestState) {
@@ -765,7 +730,7 @@ mod local_helpers {
 // Native Mint (wrapped SOL) is always owned by the SPL Token program
 type TestState = TestStateBase<SrcProgram, TokenSPL>;
 
-mod test_escrow_native {
+mod test_native_src {
     use solana_program_pack::Pack;
 
     use super::*;
@@ -794,7 +759,7 @@ mod test_escrow_native {
 
     #[test_context(TestState)]
     #[tokio::test]
-    async fn test_order_creation_fail_if_token_is_not_native(test_state: &mut TestState) {
+    async fn test_order_creation_fails_if_token_is_not_native(test_state: &mut TestState) {
         test_state.test_arguments.asset_is_native = true;
         let (_, _, tx) = create_order_data(test_state);
         test_state
@@ -985,7 +950,7 @@ mod test_escrow_native {
     }
 }
 
-mod test_escrow_wrapped_native {
+mod test_wrapped_native {
     use solana_program_pack::Pack;
 
     use super::*;

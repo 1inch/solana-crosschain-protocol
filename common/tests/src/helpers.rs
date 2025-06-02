@@ -53,7 +53,6 @@ pub enum PeriodType {
     PublicWithdrawal = 2,
     Cancellation = 3,
     PublicCancellation = 4,
-    OrderExpiration = 5,
 }
 
 pub const DEFAULT_ESCROW_AMOUNT: u64 = 100000;

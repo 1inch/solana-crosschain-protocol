@@ -27,44 +27,44 @@ run_for_tokens!(
 
             #[test_context(TestState)]
             #[tokio::test]
-            async fn test_escrow_creation_fail_with_insufficient_funds(test_state: &mut TestState) {
-                common_escrow_tests::test_escrow_creation_fail_with_insufficient_funds(test_state)
+            async fn test_escrow_creation_fails_with_insufficient_funds(test_state: &mut TestState) {
+                common_escrow_tests::test_escrow_creation_fails_with_insufficient_funds(test_state)
                     .await
             }
 
             #[test_context(TestState)]
             #[tokio::test]
-            async fn test_escrow_creation_fail_with_zero_safety_deposit(
+            async fn test_escrow_creation_fails_with_zero_safety_deposit(
                 test_state: &mut TestState,
             ) {
-                common_escrow_tests::test_escrow_creation_fail_with_zero_safety_deposit(test_state)
+                common_escrow_tests::test_escrow_creation_fails_with_zero_safety_deposit(test_state)
                     .await
             }
 
             #[test_context(TestState)]
             #[tokio::test]
-            async fn test_escrow_creation_fail_with_insufficient_tokens(
+            async fn test_escrow_creation_fails_with_insufficient_tokens(
                 test_state: &mut TestState,
             ) {
-                common_escrow_tests::test_escrow_creation_fail_with_insufficient_tokens(test_state)
+                common_escrow_tests::test_escrow_creation_fails_with_insufficient_tokens(test_state)
                     .await
             }
 
             #[test_context(TestState)]
             #[tokio::test]
-            async fn test_escrow_creation_fail_with_existing_order_hash(
+            async fn test_escrow_creation_fails_with_existing_order_hash(
                 test_state: &mut TestState,
             ) {
-                common_escrow_tests::test_escrow_creation_fail_with_existing_order_hash(test_state)
+                common_escrow_tests::test_escrow_creation_fails_with_existing_order_hash(test_state)
                     .await
             }
 
             #[test_context(TestState)]
             #[tokio::test]
-            async fn test_escrow_creation_fail_if_finality_duration_overflows(
+            async fn test_escrow_creation_fails_if_finality_duration_overflows(
                 test_state: &mut TestState,
             ) {
-                common_escrow_tests::test_escrow_creation_fail_if_finality_duration_overflows(
+                common_escrow_tests::test_escrow_creation_fails_if_finality_duration_overflows(
                     test_state,
                 )
                 .await
@@ -72,7 +72,7 @@ run_for_tokens!(
 
             #[test_context(TestState)]
             #[tokio::test]
-            async fn test_escrow_creation_fail_when_cancellation_start_gt_src_cancellation_timestamp(
+            async fn test_escrow_creation_fails_when_cancellation_start_gt_src_cancellation_timestamp(
                 test_state: &mut TestState,
             ) {
                 let c: Clock = test_state.client.get_sysvar().await.unwrap();
@@ -379,9 +379,9 @@ mod test_escrow_native {
 
     #[test_context(TestState)]
     #[tokio::test]
-    async fn test_escrow_creation_fail_if_token_is_not_native(test_state: &mut TestState) {
+    async fn test_escrow_creation_fails_if_token_is_not_native(test_state: &mut TestState) {
         test_state.test_arguments.asset_is_native = true;
-        common_escrow_tests::test_escrow_creation_fail_if_token_is_not_native(test_state).await
+        common_escrow_tests::test_escrow_creation_fails_if_token_is_not_native(test_state).await
     }
 
     #[test_context(TestState)]

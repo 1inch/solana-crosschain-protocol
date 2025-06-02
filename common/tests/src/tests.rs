@@ -84,7 +84,7 @@ pub async fn test_escrow_creation<T: EscrowVariant<S>, S: TokenVariant>(
     );
 }
 
-pub async fn test_escrow_creation_fail_with_zero_amount<T: EscrowVariant<S>, S: TokenVariant>(
+pub async fn test_escrow_creation_fails_with_zero_amount<T: EscrowVariant<S>, S: TokenVariant>(
     test_state: &mut TestStateBase<T, S>,
 ) {
     test_state.test_arguments.escrow_amount = 0;
@@ -103,7 +103,7 @@ pub async fn test_escrow_creation_fail_with_zero_amount<T: EscrowVariant<S>, S: 
     assert!(acc_lookup_result.is_none());
 }
 
-pub async fn test_escrow_creation_fail_with_zero_safety_deposit<
+pub async fn test_escrow_creation_fails_with_zero_safety_deposit<
     T: EscrowVariant<S>,
     S: TokenVariant,
 >(
@@ -125,7 +125,7 @@ pub async fn test_escrow_creation_fail_with_zero_safety_deposit<
     assert!(acc_lookup_result.is_none());
 }
 
-pub async fn test_escrow_creation_fail_with_insufficient_funds<
+pub async fn test_escrow_creation_fails_with_insufficient_funds<
     T: EscrowVariant<S>,
     S: TokenVariant,
 >(
@@ -150,7 +150,7 @@ pub async fn test_escrow_creation_fail_with_insufficient_funds<
     assert!(acc_lookup_result.is_none());
 }
 
-pub async fn test_escrow_creation_fail_with_insufficient_tokens<
+pub async fn test_escrow_creation_fails_with_insufficient_tokens<
     T: EscrowVariant<S>,
     S: TokenVariant,
 >(
@@ -172,7 +172,7 @@ pub async fn test_escrow_creation_fail_with_insufficient_tokens<
     assert!(acc_lookup_result.is_none());
 }
 
-pub async fn test_escrow_creation_fail_with_existing_order_hash<
+pub async fn test_escrow_creation_fails_with_existing_order_hash<
     T: EscrowVariant<S>,
     S: TokenVariant,
 >(
@@ -208,7 +208,7 @@ pub async fn test_escrow_creation_fail_with_existing_order_hash<
         ));
 }
 
-pub async fn test_escrow_creation_fail_with_invalid_rescue_start<
+pub async fn test_escrow_creation_fails_with_invalid_rescue_start<
     T: EscrowVariant<S>,
     S: TokenVariant,
 >(
@@ -714,7 +714,7 @@ pub async fn test_cannot_cancel_before_cancellation_start<T: EscrowVariant<S>, S
         .expect_error((0, ProgramError::Custom(EscrowError::InvalidTime.into())))
 }
 
-pub async fn test_escrow_creation_fail_if_finality_duration_overflows<
+pub async fn test_escrow_creation_fails_if_finality_duration_overflows<
     T: EscrowVariant<S>,
     S: TokenVariant,
 >(
@@ -729,7 +729,7 @@ pub async fn test_escrow_creation_fail_if_finality_duration_overflows<
         .expect_error((0, ProgramError::ArithmeticOverflow));
 }
 
-pub async fn test_escrow_creation_fail_if_withdrawal_duration_overflows<
+pub async fn test_escrow_creation_fails_if_withdrawal_duration_overflows<
     T: EscrowVariant<S>,
     S: TokenVariant,
 >(
@@ -744,7 +744,7 @@ pub async fn test_escrow_creation_fail_if_withdrawal_duration_overflows<
         .expect_error((0, ProgramError::ArithmeticOverflow));
 }
 
-pub async fn test_escrow_creation_fail_if_public_withdrawal_duration_overflows<
+pub async fn test_escrow_creation_fails_if_public_withdrawal_duration_overflows<
     T: EscrowVariant<S>,
     S: TokenVariant,
 >(
@@ -1106,7 +1106,7 @@ pub async fn test_escrow_creation_native<T: EscrowVariant<S> + 'static, S: Token
     );
 }
 
-pub async fn test_escrow_creation_fail_if_token_is_not_native<
+pub async fn test_escrow_creation_fails_if_token_is_not_native<
     T: EscrowVariant<S>,
     S: TokenVariant,
 >(
