@@ -253,10 +253,7 @@ pub async fn test_withdraw<T: EscrowVariant<S>, S: TokenVariant>(
         .expect_balance_change(
             transaction,
             &[
-                native_change(
-                    rent_recipient,
-                    token_account_rent + escrow_rent,
-                ),
+                native_change(rent_recipient, token_account_rent + escrow_rent),
                 token_change(recipient_ata, test_state.test_arguments.escrow_amount),
             ],
         )
@@ -455,34 +452,32 @@ pub async fn test_public_withdraw_tokens<T: EscrowVariant<S>, S: TokenVariant>(
 
     if withdrawer.pubkey() == rent_recipient {
         test_state
-        .expect_balance_change(
-            transaction,
-            &[
-                native_change(
-                    rent_recipient,
-                    token_account_rent + rent_lamports,
-                ),
-                token_change(recipient_ata, test_state.test_arguments.escrow_amount),
-            ],
-        )
-        .await;
+            .expect_balance_change(
+                transaction,
+                &[
+                    native_change(rent_recipient, token_account_rent + rent_lamports),
+                    token_change(recipient_ata, test_state.test_arguments.escrow_amount),
+                ],
+            )
+            .await;
     } else {
         test_state
-        .expect_balance_change(
-            transaction,
-            &[
-                native_change(
-                    withdrawer.pubkey(),
-                    test_state.test_arguments.safety_deposit,
-                ),
-                native_change(
-                    rent_recipient,
-                    token_account_rent + rent_lamports - test_state.test_arguments.safety_deposit,
-                ),
-                token_change(recipient_ata, test_state.test_arguments.escrow_amount),
-            ],
-        )
-        .await;
+            .expect_balance_change(
+                transaction,
+                &[
+                    native_change(
+                        withdrawer.pubkey(),
+                        test_state.test_arguments.safety_deposit,
+                    ),
+                    native_change(
+                        rent_recipient,
+                        token_account_rent + rent_lamports
+                            - test_state.test_arguments.safety_deposit,
+                    ),
+                    token_change(recipient_ata, test_state.test_arguments.escrow_amount),
+                ],
+            )
+            .await;
     };
 
     // Assert accounts were closed

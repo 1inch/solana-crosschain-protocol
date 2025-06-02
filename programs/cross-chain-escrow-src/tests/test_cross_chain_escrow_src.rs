@@ -371,7 +371,11 @@ run_for_tokens!(
             #[tokio::test]
             async fn test_withdraw_only(test_state: &mut TestState) {
                 create_order(test_state).await;
-                common_escrow_tests::test_withdraw(test_state, test_state.recipient_wallet.keypair.pubkey()).await
+                common_escrow_tests::test_withdraw(
+                    test_state,
+                    test_state.recipient_wallet.keypair.pubkey(),
+                )
+                .await
             }
 
             #[test_context(TestState)]
@@ -410,8 +414,10 @@ run_for_tokens!(
                 create_order(test_state).await;
                 test_state.test_arguments.escrow_amount -= diff_amount;
                 create_order(test_state).await;
-                common_escrow_tests::test_withdraw_does_not_work_with_wrong_escrow_ata(test_state, new_amount)
-                    .await
+                common_escrow_tests::test_withdraw_does_not_work_with_wrong_escrow_ata(
+                    test_state, new_amount,
+                )
+                .await
             }
 
             #[test_context(TestState)]
@@ -466,7 +472,12 @@ run_for_tokens!(
                 )
                 .await;
                 let rent_recipient = test_state.recipient_wallet.keypair.pubkey();
-                common_escrow_tests::test_public_withdraw_tokens(test_state, withdrawer, rent_recipient).await
+                common_escrow_tests::test_public_withdraw_tokens(
+                    test_state,
+                    withdrawer,
+                    rent_recipient,
+                )
+                .await
             }
 
             #[test_context(TestState)]
@@ -495,8 +506,10 @@ run_for_tokens!(
                 create_order(test_state).await;
                 test_state.test_arguments.escrow_amount -= diff;
                 create_order(test_state).await;
-                common_escrow_tests::test_public_withdraw_fails_with_wrong_escrow_ata(test_state, new_amount)
-                    .await
+                common_escrow_tests::test_public_withdraw_fails_with_wrong_escrow_ata(
+                    test_state, new_amount,
+                )
+                .await
             }
 
             #[test_context(TestState)]
@@ -811,7 +824,8 @@ mod test_native_src {
         test_state.token = NATIVE_MINT;
         test_state.test_arguments.asset_is_native = true;
         create_order(test_state).await;
-        common_escrow_tests::test_withdraw(test_state, test_state.recipient_wallet.keypair.pubkey()).await
+        common_escrow_tests::test_withdraw(test_state, test_state.recipient_wallet.keypair.pubkey())
+            .await
     }
 
     #[test_context(TestState)]
@@ -822,7 +836,8 @@ mod test_native_src {
         create_order(test_state).await;
         let withdrawer = test_state.recipient_wallet.keypair.insecure_clone();
         let rent_recipient = test_state.recipient_wallet.keypair.pubkey();
-        common_escrow_tests::test_public_withdraw_tokens(test_state, withdrawer, rent_recipient).await
+        common_escrow_tests::test_public_withdraw_tokens(test_state, withdrawer, rent_recipient)
+            .await
     }
 
     #[test_context(TestState)]
@@ -843,7 +858,8 @@ mod test_native_src {
         )
         .await;
         let rent_recipient = test_state.recipient_wallet.keypair.pubkey();
-        common_escrow_tests::test_public_withdraw_tokens(test_state, withdrawer, rent_recipient).await
+        common_escrow_tests::test_public_withdraw_tokens(test_state, withdrawer, rent_recipient)
+            .await
     }
 
     #[test_context(TestState)]
@@ -1014,7 +1030,8 @@ mod test_wrapped_native {
     async fn test_withdraw(test_state: &mut TestState) {
         test_state.token = NATIVE_MINT;
         create_order(test_state).await;
-        common_escrow_tests::test_withdraw(test_state, test_state.recipient_wallet.keypair.pubkey()).await
+        common_escrow_tests::test_withdraw(test_state, test_state.recipient_wallet.keypair.pubkey())
+            .await
     }
 
     #[test_context(TestState)]
@@ -1024,7 +1041,8 @@ mod test_wrapped_native {
         create_order(test_state).await;
         let withdrawer = test_state.recipient_wallet.keypair.insecure_clone();
         let rent_recipient = test_state.recipient_wallet.keypair.pubkey();
-        common_escrow_tests::test_public_withdraw_tokens(test_state, withdrawer, rent_recipient).await
+        common_escrow_tests::test_public_withdraw_tokens(test_state, withdrawer, rent_recipient)
+            .await
     }
 
     #[test_context(TestState)]
@@ -1044,7 +1062,8 @@ mod test_wrapped_native {
         )
         .await;
         let rent_recipient = test_state.recipient_wallet.keypair.pubkey();
-        common_escrow_tests::test_public_withdraw_tokens(test_state, withdrawer, rent_recipient).await
+        common_escrow_tests::test_public_withdraw_tokens(test_state, withdrawer, rent_recipient)
+            .await
     }
 
     #[test_context(TestState)]
