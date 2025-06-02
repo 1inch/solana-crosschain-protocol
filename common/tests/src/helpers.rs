@@ -71,6 +71,7 @@ pub struct TestArgs {
     pub init_timestamp: u32,
     pub rescue_start: u32,
     pub rescue_amount: u64,
+    pub expiration_duration: u32,
     pub asset_is_native: bool,
     pub dst_amount: u64,
     pub dutch_auction_data: cross_chain_escrow_src::AuctionData,
@@ -88,6 +89,7 @@ pub fn get_default_testargs(nowsecs: u32) -> TestArgs {
         init_timestamp: nowsecs,
         rescue_start: nowsecs + RESCUE_DELAY + 100,
         rescue_amount: DEFAULT_RESCUE_AMOUNT,
+        expiration_duration: DEFAULT_PERIOD_DURATION,
         asset_is_native: false, // This is set to false by default, will be changed for native tests.
         dst_amount: DEFAULT_DST_ESCROW_AMOUNT,
         dutch_auction_data: cross_chain_escrow_src::AuctionData {
