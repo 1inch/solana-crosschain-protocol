@@ -457,12 +457,6 @@ pub struct PublicWithdraw<'info> {
     /// Or to receive lamports if the token is native
     // #[account(constraint = recipient.key() == order.recipient @ EscrowError::InvalidAccount)] // TODO: return it
     recipient: AccountInfo<'info>,
-    /// CHECK: this account is used only to receive rent and is checked against the one stored in the escrow account
-    #[account(
-        mut, // Needed because this account receives lamports (safety deposit and from closed accounts)
-    )]
-    // constraint = rent_recipient.key() == order.rent_recipient @ EscrowError::InvalidAccount)] // TODO: return it
-    rent_recipient: AccountInfo<'info>,
     #[account(mut)]
     payer: Signer<'info>,
     mint: Box<InterfaceAccount<'info, Mint>>,
