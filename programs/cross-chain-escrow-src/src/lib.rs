@@ -244,7 +244,7 @@ pub mod cross_chain_escrow_src {
         )
     }
 
-    pub fn cancel_by_resolver(
+    pub fn cancel_order_by_resolver(
         ctx: Context<CancelOrderbyResolver>,
         reward_limit: u64,
     ) -> Result<()> {
@@ -266,7 +266,6 @@ pub mod cross_chain_escrow_src {
             order.asset_is_native == ctx.accounts.creator_ata.is_none(),
             EscrowError::InconsistentNativeTrait
         );
-
 
         let seeds = [
             "order".as_bytes(),
