@@ -185,6 +185,7 @@ pub fn cancel<'info, T>(
     creator_ata: Option<&InterfaceAccount<'info, TokenAccount>>,
     mint: &InterfaceAccount<'info, Mint>,
     token_program: &Interface<'info, TokenInterface>,
+    rent_recipient: &AccountInfo<'info>,
     creator: &AccountInfo<'info>,
     safety_deposit_recipient: &AccountInfo<'info>,
 ) -> Result<()>
@@ -225,25 +226,17 @@ where
             token_program.to_account_info(),
             CloseAccount {
                 account: escrow_ata.to_account_info(),
-                destination: creator.to_account_info(),
+                destination: rent_recipient.to_account_info(),
                 authority: escrow.to_account_info(),
             },
             &[&seeds],
         ))?;
     } else {
         // Handle native token (WSOL) withdrawal and ata closure
-        close_and_withdraw_native_ata(
-            escrow,
-            escrow_ata,
-            creator,
-            creator_ata,
-            token_program,
-            mint,
-            seeds,
-        )?;
+        close_and_withdraw_native_ata(escrow, escrow_ata, creator, token_program, seeds)?;
     }
     // Close the escrow account
-    close_escrow_account(escrow, safety_deposit_recipient, creator)?;
+    close_escrow_account(escrow, safety_deposit_recipient, rent_recipient)?;
 
     Ok(())
 }
@@ -273,29 +266,12 @@ fn close_and_withdraw_native_ata<'info, T>(
     escrow: &Account<'info, T>,
     escrow_ata: &InterfaceAccount<'info, TokenAccount>,
     recipient: &AccountInfo<'info>,
-    recipient_ata: Option<&InterfaceAccount<'info, TokenAccount>>,
     token_program: &Interface<'info, TokenInterface>,
-    mint: &InterfaceAccount<'info, Mint>,
     seeds: [&[u8]; 10],
 ) -> Result<()>
 where
     T: EscrowBase + AccountSerialize + AccountDeserialize + Clone,
 {
-    if let Some(recipient_ata) = recipient_ata {
-        // In case of recipient_ata provided, we transfer wSOL from the escrow_ata to recipient_ata (without unwrapping)
-        uni_transfer(
-            &UniTransferParams::TokenTransfer {
-                from: escrow_ata.to_account_info(),
-                authority: escrow.to_account_info(),
-                to: recipient_ata.to_account_info(),
-                mint: mint.clone(),
-                amount: escrow.amount(),
-                program: token_program.clone(),
-            },
-            Some(&[&seeds]),
-        )?;
-    }
-
     // Using escrow pda as an intermediate account to transfer native tokens
     // in case of recipient_ata provided, escrow pda will only receive the escrow ata rent-exempt lamports
     // which rent_recipient will receive after closing the escrow
@@ -309,11 +285,9 @@ where
         &[&seeds],
     ))?;
 
-    if recipient_ata.is_none() {
-        // Transfer the native tokens from escrow pda to recipient
-        escrow.sub_lamports(escrow.amount())?;
-        recipient.add_lamports(escrow.amount())?;
-    }
+    // Transfer the native tokens from escrow pda to recipient
+    escrow.sub_lamports(escrow.amount())?;
+    recipient.add_lamports(escrow.amount())?;
 
     Ok(())
 }
