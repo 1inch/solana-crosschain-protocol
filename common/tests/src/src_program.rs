@@ -147,9 +147,6 @@ impl<S: TokenVariant> EscrowVariant<S> for SrcProgram {
         let instruction_data =
             InstructionData::data(&cross_chain_escrow_src::instruction::CreateEscrow {
                 dutch_auction_data: test_state.test_arguments.dutch_auction_data.clone(),
-                max_cancellation_premium: 10,
-                expiration_time: 10,
-                cancellation_auction_duration: 0,
             });
 
         let (order, order_ata) = get_order_addresses(test_state);
@@ -307,6 +304,8 @@ pub fn get_create_order_tx<T: EscrowVariant<S>, S: TokenVariant>(
             .try_to_vec()
             .unwrap()])
         .to_bytes(),
+        max_cancellation_premium: test_state.test_arguments.max_cancellation_premium,
+        cancellation_auction_duration: test_state.test_arguments.cancellation_auction_duration,
     });
 
     let (creator_ata, _) = find_user_ata(test_state);

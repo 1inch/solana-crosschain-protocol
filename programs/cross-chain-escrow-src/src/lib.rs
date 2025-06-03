@@ -15,24 +15,6 @@ pub mod auction;
 
 declare_id!("6NwMYeUmigiMDjhYeYpbxC6Kc63NzZy1dfGd7fGcdkVS");
 
-fn calculate_premium(
-    timestamp: u32,
-    auction_start_time: u32,
-    auction_duration: u32,
-    max_cancellation_premium: u64,
-) -> u64 {
-    if timestamp <= auction_start_time {
-        return 0;
-    }
-
-    let time_elapsed = timestamp - auction_start_time;
-    if time_elapsed >= auction_duration {
-        return max_cancellation_premium;
-    }
-
-    (time_elapsed as u64 * max_cancellation_premium) / auction_duration as u64
-}
-
 #[program]
 pub mod cross_chain_escrow_src {
     use super::*;
@@ -52,6 +34,8 @@ pub mod cross_chain_escrow_src {
         asset_is_native: bool,
         dst_amount: u64,
         dutch_auction_data_hash: [u8; 32],
+        max_cancellation_premium: u64,
+        cancellation_auction_duration: u32,
     ) -> Result<()> {
         let now = utils::get_current_timestamp()?;
 
@@ -93,6 +77,8 @@ pub mod cross_chain_escrow_src {
             asset_is_native,
             dst_amount,
             dutch_auction_data_hash,
+            max_cancellation_premium,
+            cancellation_auction_duration,
         });
 
         Ok(())
@@ -236,86 +222,92 @@ pub mod cross_chain_escrow_src {
     }
 
     pub fn cancel(ctx: Context<Cancel>) -> Result<()> {
-        let now = utils::get_current_timestamp()?;
-        require!(
-            now >= ctx.accounts.order.cancellation_start,
-            EscrowError::InvalidTime
-        );
+        // let now = utils::get_current_timestamp()?;
+        // require!(
+        //     now >= ctx.accounts.order.cancellation_start,
+        //     EscrowError::InvalidTime
+        // );
 
-        // In a standard cancel, the rent recipient receives the entire rent amount, including the safety deposit,
-        // because they initially covered the entire rent during escrow creation.
+        // // In a standard cancel, the rent recipient receives the entire rent amount, including the safety deposit,
+        // // because they initially covered the entire rent during escrow creation.
 
-        common::escrow::cancel(
-            &ctx.accounts.order,
-            ctx.bumps.order,
-            &ctx.accounts.order_ata,
-            ctx.accounts.creator_ata.as_deref(),
-            &ctx.accounts.mint,
-            &ctx.accounts.token_program,
-            &ctx.accounts.creator,
-            &ctx.accounts.creator,
-        )
+        // common::escrow::cancel(
+        //     &ctx.accounts.order,
+        //     ctx.bumps.order,
+        //     &ctx.accounts.order_ata,
+        //     ctx.accounts.creator_ata.as_deref(),
+        //     &ctx.accounts.mint,
+        //     &ctx.accounts.token_program,
+        //     &ctx.accounts.creator,
+        //     &ctx.accounts.creator,
+        // )
+        Ok(())
     }
 
-    pub fn cancel_by_resolver(ctx: Context<CancelByResolver>, reward_limit: u64) -> Result<()> {
+    pub fn cancel_by_resolver(
+        ctx: Context<CancelOrderbyResolver>,
+        reward_limit: u64,
+    ) -> Result<()> {
         let order = ctx.accounts.order.clone();
         let now = utils::get_current_timestamp()?;
         require!(
-            now >= ctx.accounts.order.cancellation_start,
+            now >= ctx.accounts.order.cancellation_duration,
             EscrowError::InvalidTime
         );
+
+        require!(now >= order.expiration_time, EscrowError::OrderNotExpired);
 
         require!(
             order.max_cancellation_premium > 0,
             EscrowError::CancelOrderByResolverIsForbidden
         );
 
-        let current_timestamp = Clock::get()?.unix_timestamp;
-        require!(
-            current_timestamp >= order.expiration_time as i64,
-            EscrowError::OrderNotExpired
-        );
         require!(
             order.asset_is_native == ctx.accounts.creator_ata.is_none(),
             EscrowError::InconsistentNativeTrait
         );
 
-        let order_hash = order.order_hash();
+        let order_hash = order.order_hash;
+
+        let seeds = [
+            "order".as_bytes(),
+            &order.order_hash,
+            &order.hashlock,
+            order.creator.as_ref(),
+            order.token.as_ref(),
+            &order.amount.to_be_bytes(),
+            &order.safety_deposit.to_be_bytes(),
+            &order.rescue_start.to_be_bytes(),
+            &[ctx.bumps.order],
+        ];
 
         // Return remaining src tokens back to maker
         if !order.asset_is_native {
-            transfer_checked(
-                CpiContext::new_with_signer(
-                    ctx.accounts.token_program.to_account_info(),
-                    TransferChecked {
-                        from: ctx.accounts.order_ata.to_account_info(),
-                        mint: ctx.accounts.mint.to_account_info(),
-                        to: ctx
-                            .accounts
-                            .creator_ata
-                            .as_ref()
-                            .ok_or(EscrowError::MissingCreatorAta)?
-                            .to_account_info(),
-                        authority: ctx.accounts.order.to_account_info(),
-                    },
-                    &[&[
-                        "escrow".as_bytes(),
-                        ctx.accounts.creator.key().as_ref(),
-                        order_hash,
-                        &[ctx.bumps.order],
-                    ]],
-                ),
-                ctx.accounts.order_ata.amount,
-                ctx.accounts.mint.decimals,
+            uni_transfer(
+                &UniTransferParams::TokenTransfer {
+                    from: ctx.accounts.order_ata.to_account_info(),
+                    authority: ctx.accounts.order.to_account_info(),
+                    to: ctx
+                        .accounts
+                        .creator_ata
+                        .as_ref()
+                        .ok_or(EscrowError::MissingCreatorAta)?
+                        .to_account_info(),
+                    mint: *ctx.accounts.mint.clone(),
+                    amount: ctx.accounts.order_ata.amount,
+                    program: ctx.accounts.token_program.clone(),
+                },
+                Some(&[&seeds]),
             )?;
         };
 
         let cancellation_premium = calculate_premium(
-            current_timestamp as u32,
+            now,
             order.expiration_time,
             order.cancellation_auction_duration,
             order.max_cancellation_premium,
         );
+
         let maker_amount = ctx.accounts.order_ata.to_account_info().lamports()
             - std::cmp::min(cancellation_premium, reward_limit);
 
@@ -327,12 +319,7 @@ pub mod cross_chain_escrow_src {
                 destination: ctx.accounts.resolver.to_account_info(),
                 authority: ctx.accounts.order.to_account_info(),
             },
-            &[&[
-                "escrow".as_bytes(),
-                ctx.accounts.creator.key().as_ref(),
-                order.order_hash(),
-                &[ctx.bumps.order],
-            ]],
+            &[&seeds],
         ))?;
 
         // Transfer all lamports from the closed account, minus the cancellation premium, to the maker
@@ -344,7 +331,7 @@ pub mod cross_chain_escrow_src {
                 program: ctx.accounts.system_program.clone(),
             },
             None,
-        );
+        )?;
 
         Ok(())
     }
@@ -658,7 +645,7 @@ pub struct Cancel<'info> {
 }
 
 #[derive(Accounts)]
-pub struct CancelByResolver<'info> {
+pub struct CancelOrderbyResolver<'info> {
     /// Account that cancels the escrow
     #[account(mut, signer)]
     resolver: Signer<'info>,
@@ -672,58 +659,11 @@ pub struct CancelByResolver<'info> {
     #[account(
             mut,
             seeds = [
-            "escrow".as_bytes(),
+            "order".as_bytes(),
             order.order_hash.as_ref(),
             order.hashlock.as_ref(),
             order.creator.as_ref(),
-            mint.key().as_ref(),
-            order.amount.to_be_bytes().as_ref(),
-            order.safety_deposit.to_be_bytes().as_ref(),
-            order.rescue_start.to_be_bytes().as_ref(),
-            ],
-            bump,
-        )]
-    order: Box<Account<'info, Order>>,
-    #[account(
-                mut,
-                associated_token::mint = mint,
-                associated_token::authority = order,
-                associated_token::token_program = token_program
-            )]
-    order_ata: Box<InterfaceAccount<'info, TokenAccount>>,
-    #[account(
-                    mut,
-                    associated_token::mint = mint,
-                    associated_token::authority = creator,
-                    associated_token::token_program = token_program
-                )]
-    // Optional if the token is native
-    creator_ata: Option<Box<InterfaceAccount<'info, TokenAccount>>>,
-    token_program: Interface<'info, TokenInterface>,
-    system_program: Program<'info, System>,
-}
-
-#[derive(Accounts)]
-pub struct CancelByResolver<'info> {
-    /// Account that cancels the escrow
-    #[account(mut, signer)]
-    resolver: Signer<'info>,
-    /// CHECK: Currently only used for the token-authority check and to receive lamports if the token is native
-    #[account(
-        mut, // Needed because this account receives lamports if the token is native
-        constraint = creator.key() == order.creator @ EscrowError::InvalidAccount
-    )]
-    creator: AccountInfo<'info>,
-    mint: Box<InterfaceAccount<'info, Mint>>,
-    #[account(
-            mut,
-            seeds = [
-            "escrow".as_bytes(),
-            order.order_hash.as_ref(),
-            order.hashlock.as_ref(),
-            order.creator.as_ref(),
-            order.recipient.key().as_ref(),
-            mint.key().as_ref(),
+            order.token.key().as_ref(),
             order.amount.to_be_bytes().as_ref(),
             order.safety_deposit.to_be_bytes().as_ref(),
             order.rescue_start.to_be_bytes().as_ref(),
@@ -854,6 +794,8 @@ pub struct Order {
     asset_is_native: bool,
     dst_amount: u64,
     dutch_auction_data_hash: [u8; 32],
+    max_cancellation_premium: u64,
+    cancellation_auction_duration: u32,
 }
 
 #[account]
@@ -873,9 +815,6 @@ pub struct EscrowSrc {
     rescue_start: u32,
     asset_is_native: bool,
     dst_amount: u64,
-    max_cancellation_premium: u64,
-    expiration_time: u32,
-    cancellation_auction_duration: u32,
 }
 
 impl EscrowBase for EscrowSrc {
@@ -934,4 +873,22 @@ fn get_dst_amount(dst_amount: u64, data: &AuctionData) -> Result<u64> {
         .mul_div_ceil(constants::BASE_1E5 + rate_bump, constants::BASE_1E5)
         .ok_or(ProgramError::ArithmeticOverflow)?;
     Ok(result)
+}
+
+fn calculate_premium(
+    timestamp: u32,
+    auction_start_time: u32,
+    auction_duration: u32,
+    max_cancellation_premium: u64,
+) -> u64 {
+    if timestamp <= auction_start_time {
+        return 0;
+    }
+
+    let time_elapsed = timestamp - auction_start_time;
+    if time_elapsed >= auction_duration {
+        return max_cancellation_premium;
+    }
+
+    (time_elapsed as u64 * max_cancellation_premium) / auction_duration as u64
 }
