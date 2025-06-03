@@ -188,7 +188,7 @@ impl<S: TokenVariant> EscrowVariant<S> for SrcProgram {
         recipient_ata: &Pubkey,
     ) -> Transaction {
         let instruction_data =
-            InstructionData::data(&cross_chain_escrow_src::instruction::RescueFunds {
+            InstructionData::data(&cross_chain_escrow_src::instruction::RescueFundsForEscrow {
                 hashlock: test_state.hashlock.to_bytes(),
                 order_hash: test_state.order_hash.to_bytes(),
                 order_creator: test_state.creator_wallet.keypair.pubkey(),

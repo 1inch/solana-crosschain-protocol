@@ -157,22 +157,30 @@ pub mod cross_chain_escrow_dst {
         rescue_start: u32,
         rescue_amount: u64,
     ) -> Result<()> {
+        let recipient_pubkey = ctx.accounts.recipient.key();
+        let seeds = [
+            "escrow".as_bytes(),
+            order_hash.as_ref(),
+            hashlock.as_ref(),
+            escrow_creator.as_ref(),
+            recipient_pubkey.as_ref(),
+            escrow_mint.as_ref(),
+            &escrow_amount.to_be_bytes(),
+            &safety_deposit.to_be_bytes(),
+            &rescue_start.to_be_bytes(),
+            &[ctx.bumps.escrow],
+        ];
+
         common::escrow::rescue_funds(
             &ctx.accounts.escrow,
-            order_hash,
-            hashlock,
-            escrow_creator,
-            escrow_mint,
-            escrow_amount,
-            safety_deposit,
             rescue_start,
-            ctx.bumps.escrow,
             &ctx.accounts.escrow_ata,
             &ctx.accounts.recipient,
             &ctx.accounts.recipient_ata,
             &ctx.accounts.mint,
             &ctx.accounts.token_program,
             rescue_amount,
+            &seeds,
         )
     }
 }

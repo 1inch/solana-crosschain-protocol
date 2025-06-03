@@ -321,38 +321,17 @@ where
 #[allow(clippy::too_many_arguments)]
 pub fn rescue_funds<'info>(
     escrow: &AccountInfo<'info>,
-    order_hash: [u8; 32],
-    hashlock: [u8; 32],
-    escrow_creator: Pubkey,
-    escrow_mint: Pubkey,
-    escrow_amount: u64,
-    safety_deposit: u64,
     rescue_start: u32,
-    escrow_bump: u8,
     escrow_ata: &InterfaceAccount<'info, TokenAccount>,
     recipient: &AccountInfo<'info>,
     recipient_ata: &InterfaceAccount<'info, TokenAccount>,
     mint: &InterfaceAccount<'info, Mint>,
     token_program: &Interface<'info, TokenInterface>,
     rescue_amount: u64,
+    seeds: &[&[u8]],
 ) -> Result<()> {
     let now = utils::get_current_timestamp()?;
     require!(now >= rescue_start, EscrowError::InvalidTime);
-
-    let recipient_pubkey = recipient.key();
-
-    let seeds = [
-        "escrow".as_bytes(),
-        order_hash.as_ref(),
-        hashlock.as_ref(),
-        escrow_creator.as_ref(),
-        recipient_pubkey.as_ref(),
-        escrow_mint.as_ref(),
-        &escrow_amount.to_be_bytes(),
-        &safety_deposit.to_be_bytes(),
-        &rescue_start.to_be_bytes(),
-        &[escrow_bump],
-    ];
 
     // Transfer tokens from escrow to recipient
     uni_transfer(

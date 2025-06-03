@@ -266,8 +266,8 @@ pub mod cross_chain_escrow_src {
         Ok(())
     }
 
-    pub fn rescue_funds(
-        ctx: Context<RescueFunds>,
+    pub fn rescue_funds_for_escrow(
+        ctx: Context<RescueFundsForEscrow>,
         order_hash: [u8; 32],
         hashlock: [u8; 32],
         order_creator: Pubkey,
@@ -277,22 +277,66 @@ pub mod cross_chain_escrow_src {
         rescue_start: u32,
         rescue_amount: u64,
     ) -> Result<()> {
+        let taker_pubkey = ctx.accounts.taker.key();
+        let seeds = [
+            "escrow".as_bytes(),
+            order_hash.as_ref(),
+            hashlock.as_ref(),
+            order_creator.as_ref(),
+            taker_pubkey.as_ref(),
+            order_mint.as_ref(),
+            &escrow_amount.to_be_bytes(),
+            &safety_deposit.to_be_bytes(),
+            &rescue_start.to_be_bytes(),
+            &[ctx.bumps.escrow],
+        ];
+
         common::escrow::rescue_funds(
             &ctx.accounts.escrow,
-            order_hash,
-            hashlock,
-            order_creator,
-            order_mint,
-            escrow_amount,
-            safety_deposit,
             rescue_start,
-            ctx.bumps.escrow,
             &ctx.accounts.escrow_ata,
             &ctx.accounts.taker,
             &ctx.accounts.taker_ata,
             &ctx.accounts.mint,
             &ctx.accounts.token_program,
             rescue_amount,
+            &seeds,
+        )
+    }
+
+    pub fn rescue_funds_for_order(
+        ctx: Context<RescueFundsForOrder>,
+        order_hash: [u8; 32],
+        hashlock: [u8; 32],
+        order_creator: Pubkey,
+        order_mint: Pubkey,
+        order_amount: u64,
+        safety_deposit: u64,
+        rescue_start: u32,
+        rescue_amount: u64,
+    ) -> Result<()> {
+        let seeds = [
+            "order".as_bytes(),
+            order_hash.as_ref(),
+            hashlock.as_ref(),
+            order_creator.as_ref(),
+            order_mint.as_ref(),
+            &order_amount.to_be_bytes(),
+            &safety_deposit.to_be_bytes(),
+            &rescue_start.to_be_bytes(),
+            &[ctx.bumps.order],
+        ];
+
+        common::escrow::rescue_funds(
+            &ctx.accounts.order,
+            rescue_start,
+            &ctx.accounts.order_ata,
+            &ctx.accounts.recipient,
+            &ctx.accounts.recipient_ata,
+            &ctx.accounts.mint,
+            &ctx.accounts.token_program,
+            rescue_amount,
+            &seeds,
         )
     }
 }
@@ -593,7 +637,7 @@ pub struct PublicCancel<'info> {
 
 #[derive(Accounts)]
 #[instruction(order_hash: [u8; 32], hashlock: [u8; 32], order_creator: Pubkey, order_mint: Pubkey, escrow_amount: u64, safety_deposit: u64, rescue_start: u32)]
-pub struct RescueFunds<'info> {
+pub struct RescueFundsForEscrow<'info> {
     #[account(
         mut, // Needed because this account receives lamports from closed token account.
     )]
@@ -629,6 +673,48 @@ pub struct RescueFunds<'info> {
         associated_token::token_program = token_program
     )]
     taker_ata: Box<InterfaceAccount<'info, TokenAccount>>,
+    token_program: Interface<'info, TokenInterface>,
+    system_program: Program<'info, System>,
+}
+
+#[derive(Accounts)]
+#[instruction(order_hash: [u8; 32], hashlock: [u8; 32], order_creator: Pubkey, order_mint: Pubkey, order_amount: u64, safety_deposit: u64, rescue_start: u32)]
+pub struct RescueFundsForOrder<'info> {
+    #[account(
+        mut, // Needed because this account receives lamports from closed token account.
+    )]
+    recipient: Signer<'info>,
+    mint: Box<InterfaceAccount<'info, Mint>>,
+    /// CHECK: We don't accept order as 'Account<'info, Order>' because it may be already closed at the time of rescue funds.
+    #[account(
+        seeds = [
+            "order".as_bytes(),
+            order_hash.as_ref(),
+            hashlock.as_ref(),
+            order_creator.as_ref(),
+            recipient.key().as_ref(),
+            order_mint.as_ref(),
+            order_amount.to_be_bytes().as_ref(),
+            safety_deposit.to_be_bytes().as_ref(),
+            rescue_start.to_be_bytes().as_ref(),
+        ],
+        bump,
+    )]
+    order: AccountInfo<'info>,
+    #[account(
+        mut,
+        associated_token::mint = mint,
+        associated_token::authority = order,
+        associated_token::token_program = token_program
+    )]
+    order_ata: Box<InterfaceAccount<'info, TokenAccount>>,
+    #[account(
+        mut,
+        associated_token::mint = mint,
+        associated_token::authority = recipient,
+        associated_token::token_program = token_program
+    )]
+    recipient_ata: Box<InterfaceAccount<'info, TokenAccount>>,
     token_program: Interface<'info, TokenInterface>,
     system_program: Program<'info, System>,
 }
