@@ -325,8 +325,8 @@ pub mod cross_chain_escrow_src {
             &ctx.accounts.order,
             rescue_start,
             &ctx.accounts.order_ata,
-            &ctx.accounts.recipient,
-            &ctx.accounts.recipient_ata,
+            &ctx.accounts.resolver,
+            &ctx.accounts.resolver_ata,
             &ctx.accounts.mint,
             &ctx.accounts.token_program,
             rescue_amount,
@@ -697,7 +697,7 @@ pub struct RescueFundsForOrder<'info> {
     #[account(
         mut, // Needed because this account receives lamports from closed token account.
     )]
-    recipient: Signer<'info>,
+    resolver: Signer<'info>,
     mint: Box<InterfaceAccount<'info, Mint>>,
     /// CHECK: We don't accept order as 'Account<'info, Order>' because it may be already closed at the time of rescue funds.
     #[account(
@@ -724,10 +724,10 @@ pub struct RescueFundsForOrder<'info> {
     #[account(
         mut,
         associated_token::mint = mint,
-        associated_token::authority = recipient,
+        associated_token::authority = resolver,
         associated_token::token_program = token_program
     )]
-    recipient_ata: Box<InterfaceAccount<'info, TokenAccount>>,
+    resolver_ata: Box<InterfaceAccount<'info, TokenAccount>>,
     token_program: Interface<'info, TokenInterface>,
     system_program: Program<'info, System>,
 }

@@ -1487,7 +1487,6 @@ mod test_native_src {
     async fn test_rescue_all_tokens_from_order_and_close_ata(test_state: &mut TestState) {
         test_state.token = NATIVE_MINT;
         test_state.test_arguments.asset_is_native = true;
-        create_order(test_state).await;
         local_helpers::test_rescue_all_tokens_from_order_and_close_ata(test_state).await
     }
 
@@ -1496,7 +1495,6 @@ mod test_native_src {
     async fn test_rescue_part_of_tokens_from_order_and_not_close_ata(test_state: &mut TestState) {
         test_state.token = NATIVE_MINT;
         test_state.test_arguments.asset_is_native = true;
-        create_order(test_state).await;
         local_helpers::test_rescue_part_of_tokens_from_order_and_not_close_ata(test_state).await
     }
 }
