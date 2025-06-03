@@ -239,6 +239,7 @@ pub mod cross_chain_escrow_src {
             &ctx.accounts.mint,
             &ctx.accounts.token_program,
             &ctx.accounts.taker,
+            &ctx.accounts.maker,
             &ctx.accounts.taker,
         )
     }
@@ -258,6 +259,7 @@ pub mod cross_chain_escrow_src {
             &ctx.accounts.mint,
             &ctx.accounts.token_program,
             &ctx.accounts.taker,
+            &ctx.accounts.maker,
             &ctx.accounts.payer,
         )
     }
@@ -501,12 +503,17 @@ pub struct PublicWithdraw<'info> {
 
 #[derive(Accounts)]
 pub struct CancelEscrow<'info> {
-    /// CHECK: Currently only used for the token-authority check and to receive lamports if the token is native
     #[account(
         mut, // Needed because this account receives lamports if the token is native
         constraint = taker.key() == escrow.taker @ EscrowError::InvalidAccount
     )]
     taker: Signer<'info>,
+    /// CHECK: this account is used only to receive lamports and to check its pubkey to match the one stored in the escrow account
+    #[account(
+        mut, // Needed because this account receives lamports if the token is native
+        constraint = maker.key() == escrow.maker @ EscrowError::InvalidAccount
+    )]
+    maker: AccountInfo<'info>,
     mint: Box<InterfaceAccount<'info, Mint>>,
     #[account(
         mut,
@@ -534,7 +541,7 @@ pub struct CancelEscrow<'info> {
     #[account(
         mut,
         associated_token::mint = mint,
-        associated_token::authority = escrow.maker,
+        associated_token::authority = maker,
         associated_token::token_program = token_program
     )]
     // Optional if the token is native
@@ -551,6 +558,12 @@ pub struct PublicCancelEscrow<'info> {
         constraint = taker.key() == escrow.taker @ EscrowError::InvalidAccount
     )]
     taker: AccountInfo<'info>,
+    #[account(
+        mut, // Needed because this account receives lamports if the token is native
+        constraint = maker.key() == escrow.maker @ EscrowError::InvalidAccount
+    )]
+    /// CHECK: this account is used only to receive lamports and to check its pubkey to match the one stored in the escrow account
+    maker: AccountInfo<'info>,
     mint: Box<InterfaceAccount<'info, Mint>>,
     #[account(mut)]
     payer: Signer<'info>,

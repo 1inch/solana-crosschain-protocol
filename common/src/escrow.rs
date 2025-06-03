@@ -185,6 +185,7 @@ pub fn cancel<'info, T>(
     creator_ata: Option<&InterfaceAccount<'info, TokenAccount>>,
     mint: &InterfaceAccount<'info, Mint>,
     token_program: &Interface<'info, TokenInterface>,
+    rent_recipient: &AccountInfo<'info>,
     creator: &AccountInfo<'info>,
     safety_deposit_recipient: &AccountInfo<'info>,
 ) -> Result<()>
@@ -225,7 +226,7 @@ where
             token_program.to_account_info(),
             CloseAccount {
                 account: escrow_ata.to_account_info(),
-                destination: creator.to_account_info(),
+                destination: rent_recipient.to_account_info(),
                 authority: escrow.to_account_info(),
             },
             &[&seeds],
@@ -243,7 +244,7 @@ where
         )?;
     }
     // Close the escrow account
-    close_escrow_account(escrow, safety_deposit_recipient, creator)?;
+    close_escrow_account(escrow, safety_deposit_recipient, rent_recipient)?;
 
     Ok(())
 }

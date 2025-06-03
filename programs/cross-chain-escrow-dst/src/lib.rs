@@ -143,6 +143,7 @@ pub mod cross_chain_escrow_dst {
             &ctx.accounts.token_program,
             &ctx.accounts.creator,
             &ctx.accounts.creator,
+            &ctx.accounts.creator,
         )
     }
 
