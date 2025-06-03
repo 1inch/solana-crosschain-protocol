@@ -193,7 +193,7 @@ impl<S: TokenVariant> EscrowVariant<S> for SrcProgram {
                 order_hash: test_state.order_hash.to_bytes(),
                 order_creator: test_state.creator_wallet.keypair.pubkey(),
                 order_mint: test_state.token,
-                order_amount: test_state.test_arguments.escrow_amount,
+                escrow_amount: test_state.test_arguments.escrow_amount,
                 safety_deposit: test_state.test_arguments.safety_deposit,
                 rescue_start: test_state.test_arguments.rescue_start,
                 rescue_amount: test_state.test_arguments.rescue_amount,

@@ -272,24 +272,24 @@ pub mod cross_chain_escrow_src {
         hashlock: [u8; 32],
         order_creator: Pubkey,
         order_mint: Pubkey,
-        order_amount: u64,
+        escrow_amount: u64,
         safety_deposit: u64,
         rescue_start: u32,
         rescue_amount: u64,
     ) -> Result<()> {
         common::escrow::rescue_funds(
-            &ctx.accounts.order,
+            &ctx.accounts.escrow,
             order_hash,
             hashlock,
             order_creator,
             order_mint,
-            order_amount,
+            escrow_amount,
             safety_deposit,
             rescue_start,
-            ctx.bumps.order,
-            &ctx.accounts.order_ata,
-            &ctx.accounts.recipient,
-            &ctx.accounts.recipient_ata,
+            ctx.bumps.escrow,
+            &ctx.accounts.escrow_ata,
+            &ctx.accounts.taker,
+            &ctx.accounts.taker_ata,
             &ctx.accounts.mint,
             &ctx.accounts.token_program,
             rescue_amount,
@@ -592,12 +592,12 @@ pub struct PublicCancel<'info> {
 }
 
 #[derive(Accounts)]
-#[instruction(order_hash: [u8; 32], hashlock: [u8; 32], order_creator: Pubkey, order_mint: Pubkey, order_amount: u64, safety_deposit: u64, rescue_start: u32)]
+#[instruction(order_hash: [u8; 32], hashlock: [u8; 32], order_creator: Pubkey, order_mint: Pubkey, escrow_amount: u64, safety_deposit: u64, rescue_start: u32)]
 pub struct RescueFunds<'info> {
     #[account(
         mut, // Needed because this account receives lamports from closed token account.
     )]
-    recipient: Signer<'info>,
+    taker: Signer<'info>,
     mint: Box<InterfaceAccount<'info, Mint>>,
     /// CHECK: We don't accept escrow as 'Account<'info, Escrow>' because it may be already closed at the time of rescue funds.
     #[account(
@@ -606,28 +606,29 @@ pub struct RescueFunds<'info> {
             order_hash.as_ref(),
             hashlock.as_ref(),
             order_creator.as_ref(),
+            taker.key().as_ref(),
             order_mint.as_ref(),
-            order_amount.to_be_bytes().as_ref(),
+            escrow_amount.to_be_bytes().as_ref(),
             safety_deposit.to_be_bytes().as_ref(),
             rescue_start.to_be_bytes().as_ref(),
         ],
         bump,
     )]
-    order: AccountInfo<'info>,
+    escrow: AccountInfo<'info>,
     #[account(
         mut,
         associated_token::mint = mint,
-        associated_token::authority = order,
+        associated_token::authority = escrow,
         associated_token::token_program = token_program
     )]
-    order_ata: Box<InterfaceAccount<'info, TokenAccount>>,
+    escrow_ata: Box<InterfaceAccount<'info, TokenAccount>>,
     #[account(
         mut,
         associated_token::mint = mint,
-        associated_token::authority = recipient,
+        associated_token::authority = taker,
         associated_token::token_program = token_program
     )]
-    recipient_ata: Box<InterfaceAccount<'info, TokenAccount>>,
+    taker_ata: Box<InterfaceAccount<'info, TokenAccount>>,
     token_program: Interface<'info, TokenInterface>,
     system_program: Program<'info, System>,
 }
