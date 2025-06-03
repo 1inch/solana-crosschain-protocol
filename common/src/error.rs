@@ -26,4 +26,8 @@ pub enum EscrowError {
     CancelOrderByResolverIsForbidden,
     #[msg("Order not expired")]
     OrderNotExpired,
+    #[msg("Order has expired")]
+    OrderHasExpired,
+    #[msg("Dutch auction data hash mismatch")]
+    DutchAuctionDataHashMismatch,
 }
