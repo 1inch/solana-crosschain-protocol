@@ -264,9 +264,9 @@ pub mod cross_chain_escrow_src {
         ctx: Context<RescueFundsForEscrow>,
         order_hash: [u8; 32],
         hashlock: [u8; 32],
-        order_creator: Pubkey,
-        order_mint: Pubkey,
-        escrow_amount: u64,
+        maker: Pubkey,
+        token: Pubkey,
+        amount: u64,
         safety_deposit: u64,
         rescue_start: u32,
         rescue_amount: u64,
@@ -276,10 +276,10 @@ pub mod cross_chain_escrow_src {
             "escrow".as_bytes(),
             order_hash.as_ref(),
             hashlock.as_ref(),
-            order_creator.as_ref(),
+            maker.as_ref(),
             taker_pubkey.as_ref(),
-            order_mint.as_ref(),
-            &escrow_amount.to_be_bytes(),
+            token.as_ref(),
+            &amount.to_be_bytes(),
             &safety_deposit.to_be_bytes(),
             &rescue_start.to_be_bytes(),
             &[ctx.bumps.escrow],
@@ -650,7 +650,7 @@ pub struct PublicCancelEscrow<'info> {
 }
 
 #[derive(Accounts)]
-#[instruction(order_hash: [u8; 32], hashlock: [u8; 32], order_creator: Pubkey, order_mint: Pubkey, escrow_amount: u64, safety_deposit: u64, rescue_start: u32)]
+#[instruction(order_hash: [u8; 32], hashlock: [u8; 32], maker: Pubkey, token: Pubkey, amount: u64, safety_deposit: u64, rescue_start: u32)]
 pub struct RescueFundsForEscrow<'info> {
     #[account(
         mut, // Needed because this account receives lamports from closed token account.
@@ -663,10 +663,10 @@ pub struct RescueFundsForEscrow<'info> {
             "escrow".as_bytes(),
             order_hash.as_ref(),
             hashlock.as_ref(),
-            order_creator.as_ref(),
+            maker.as_ref(),
             taker.key().as_ref(),
-            order_mint.as_ref(),
-            escrow_amount.to_be_bytes().as_ref(),
+            token.as_ref(),
+            amount.to_be_bytes().as_ref(),
             safety_deposit.to_be_bytes().as_ref(),
             rescue_start.to_be_bytes().as_ref(),
         ],
