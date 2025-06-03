@@ -296,7 +296,10 @@ pub mod cross_chain_escrow_src {
                 authority: ctx.accounts.order.to_account_info(),
             },
             &[&seeds],
-        ))
+        ))?;
+
+        //Close the order account
+        order.close(ctx.accounts.creator.to_account_info())
     }
 
     pub fn cancel_order_by_resolver(
@@ -386,7 +389,8 @@ pub mod cross_chain_escrow_src {
             None,
         )?;
 
-        Ok(())
+        //Close the order account
+        order.close(ctx.accounts.creator.to_account_info())
     }
 
     pub fn public_cancel_escrow(ctx: Context<PublicCancelEscrow>) -> Result<()> {
