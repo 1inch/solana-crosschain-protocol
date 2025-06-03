@@ -317,7 +317,7 @@ pub fn rescue_funds<'info>(
             amount: rescue_amount,
             program: token_program.clone(),
         },
-        Some(&[&seeds]),
+        Some(&[seeds]),
     )?;
 
     if rescue_amount == escrow_ata.amount {
@@ -329,7 +329,7 @@ pub fn rescue_funds<'info>(
                 destination: recipient.to_account_info(),
                 authority: escrow.to_account_info(),
             },
-            &[&seeds],
+            &[seeds],
         ))?;
     }
 

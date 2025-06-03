@@ -654,15 +654,22 @@ run_for_tokens!(
 
             #[test_context(TestState)]
             #[tokio::test]
-            async fn test_rescue_part_of_tokens_from_order_and_not_close_ata(test_state: &mut TestState) {
-                local_helpers::test_rescue_part_of_tokens_from_order_and_not_close_ata(test_state).await
+            async fn test_rescue_part_of_tokens_from_order_and_not_close_ata(
+                test_state: &mut TestState,
+            ) {
+                local_helpers::test_rescue_part_of_tokens_from_order_and_not_close_ata(test_state)
+                    .await
             }
 
             #[test_context(TestState)]
             #[tokio::test]
-            async fn test_cannot_rescue_funds_from_order_before_rescue_delay_pass(test_state: &mut TestState) {
-                local_helpers::test_cannot_rescue_funds_from_order_before_rescue_delay_pass(test_state)
-                    .await
+            async fn test_cannot_rescue_funds_from_order_before_rescue_delay_pass(
+                test_state: &mut TestState,
+            ) {
+                local_helpers::test_cannot_rescue_funds_from_order_before_rescue_delay_pass(
+                    test_state,
+                )
+                .await
             }
 
             // #[test_context(TestState)]
@@ -673,14 +680,20 @@ run_for_tokens!(
 
             #[test_context(TestState)]
             #[tokio::test]
-            async fn test_cannot_rescue_funds_from_order_with_wrong_recipient_ata(test_state: &mut TestState) {
-                local_helpers::test_cannot_rescue_funds_from_order_with_wrong_recipient_ata(test_state)
-                    .await
+            async fn test_cannot_rescue_funds_from_order_with_wrong_recipient_ata(
+                test_state: &mut TestState,
+            ) {
+                local_helpers::test_cannot_rescue_funds_from_order_with_wrong_recipient_ata(
+                    test_state,
+                )
+                .await
             }
 
             #[test_context(TestState)]
             #[tokio::test]
-            async fn test_cannot_rescue_funds_from_order_with_wrong_order_ata(test_state: &mut TestState) {
+            async fn test_cannot_rescue_funds_from_order_with_wrong_order_ata(
+                test_state: &mut TestState,
+            ) {
                 local_helpers::test_cannot_rescue_funds_from_order_with_wrong_orders_ata(test_state)
                     .await
             }
@@ -946,16 +959,16 @@ mod local_helpers {
         recipient_ata: &Pubkey,
     ) -> Transaction {
         let instruction_data =
-        InstructionData::data(&cross_chain_escrow_src::instruction::RescueFundsForOrder {
-            hashlock: test_state.hashlock.to_bytes(),
-            order_hash: test_state.order_hash.to_bytes(),
-            order_creator: test_state.creator_wallet.keypair.pubkey(),
-            order_mint: test_state.token,
-            order_amount: test_state.test_arguments.escrow_amount,
-            safety_deposit: test_state.test_arguments.safety_deposit,
-            rescue_start: test_state.test_arguments.rescue_start,
-            rescue_amount: test_state.test_arguments.rescue_amount,
-        });
+            InstructionData::data(&cross_chain_escrow_src::instruction::RescueFundsForOrder {
+                hashlock: test_state.hashlock.to_bytes(),
+                order_hash: test_state.order_hash.to_bytes(),
+                order_creator: test_state.creator_wallet.keypair.pubkey(),
+                order_mint: test_state.token,
+                order_amount: test_state.test_arguments.escrow_amount,
+                safety_deposit: test_state.test_arguments.safety_deposit,
+                rescue_start: test_state.test_arguments.rescue_start,
+                rescue_amount: test_state.test_arguments.rescue_amount,
+            });
 
         let instruction: Instruction = Instruction {
             program_id: cross_chain_escrow_src::id(),
@@ -1105,9 +1118,7 @@ mod local_helpers {
             .is_some());
     }
 
-    pub async fn test_cannot_rescue_funds_from_order_before_rescue_delay_pass<
-        S: TokenVariant,
-    >(
+    pub async fn test_cannot_rescue_funds_from_order_before_rescue_delay_pass<S: TokenVariant>(
         test_state: &mut TestStateBase<SrcProgram, S>,
     ) {
         let (order, _) = create_order(test_state).await;
@@ -1153,7 +1164,8 @@ mod local_helpers {
             .expect_error((0, ProgramError::Custom(EscrowError::InvalidTime.into())));
     }
 
-    pub async fn _test_cannot_rescue_funds_from_order_by_non_recipient<S: TokenVariant>( // TODO: use after implement whitelist
+    pub async fn _test_cannot_rescue_funds_from_order_by_non_recipient<S: TokenVariant>(
+        // TODO: use after implement whitelist
         test_state: &mut TestStateBase<SrcProgram, S>,
     ) {
         let (order, _) = create_order(test_state).await;
@@ -1200,9 +1212,7 @@ mod local_helpers {
             .expect_error((0, ProgramError::Custom(ErrorCode::ConstraintSeeds.into())))
     }
 
-    pub async fn test_cannot_rescue_funds_from_order_with_wrong_recipient_ata<
-        S: TokenVariant,
-    >(
+    pub async fn test_cannot_rescue_funds_from_order_with_wrong_recipient_ata<S: TokenVariant>(
         test_state: &mut TestStateBase<SrcProgram, S>,
     ) {
         let (order, _) = create_order(test_state).await;
@@ -1252,9 +1262,7 @@ mod local_helpers {
             ))
     }
 
-    pub async fn test_cannot_rescue_funds_from_order_with_wrong_orders_ata<
-        S: TokenVariant,
-    >(
+    pub async fn test_cannot_rescue_funds_from_order_with_wrong_orders_ata<S: TokenVariant>(
         test_state: &mut TestStateBase<SrcProgram, S>,
     ) {
         let (order, order_ata) = create_order(test_state).await;
