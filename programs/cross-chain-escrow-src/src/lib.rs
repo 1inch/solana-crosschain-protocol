@@ -392,6 +392,12 @@ pub struct CreateEscrow<'info> {
     #[account(mut)]
     taker: Signer<'info>,
     #[account(
+        seeds = [whitelist::RESOLVER_ACCESS_SEED, taker.key().as_ref()],
+        bump = resolver_access.bump,
+        seeds::program = whitelist::ID,
+    )]
+    resolver_access: Account<'info, whitelist::ResolverAccess>,
+    #[account(
         mut, // Necessary because lamports will be transferred to this account when the order accounts are closed.
         constraint = maker.key() == order.creator @ EscrowError::InvalidAccount
     )]
@@ -513,6 +519,12 @@ pub struct PublicWithdraw<'info> {
     taker: AccountInfo<'info>,
     #[account(mut)]
     payer: Signer<'info>,
+    #[account(
+        seeds = [whitelist::RESOLVER_ACCESS_SEED, payer.key().as_ref()],
+        bump = resolver_access.bump,
+        seeds::program = whitelist::ID,
+    )]
+    resolver_access: Account<'info, whitelist::ResolverAccess>,
     mint: Box<InterfaceAccount<'info, Mint>>,
     #[account(
         mut,
@@ -615,6 +627,12 @@ pub struct PublicCancelEscrow<'info> {
     #[account(mut)]
     payer: Signer<'info>,
     #[account(
+        seeds = [whitelist::RESOLVER_ACCESS_SEED, payer.key().as_ref()],
+        bump = resolver_access.bump,
+        seeds::program = whitelist::ID,
+    )]
+    resolver_access: Account<'info, whitelist::ResolverAccess>,
+    #[account(
         mut,
         seeds = [
             "escrow".as_bytes(),
@@ -698,6 +716,12 @@ pub struct RescueFundsForOrder<'info> {
         mut, // Needed because this account receives lamports from closed token account.
     )]
     resolver: Signer<'info>,
+    #[account(
+        seeds = [whitelist::RESOLVER_ACCESS_SEED, resolver.key().as_ref()],
+        bump = resolver_access.bump,
+        seeds::program = whitelist::ID,
+    )]
+    resolver_access: Account<'info, whitelist::ResolverAccess>,
     mint: Box<InterfaceAccount<'info, Mint>>,
     /// CHECK: We don't accept order as 'Account<'info, Order>' because it may be already closed at the time of rescue funds.
     #[account(

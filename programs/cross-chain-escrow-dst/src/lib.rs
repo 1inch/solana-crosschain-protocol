@@ -194,6 +194,12 @@ pub struct Create<'info> {
         mut, // Needed because this account transfers lamports if the token is native and to pay for the order creation
     )]
     creator: Signer<'info>,
+    #[account(
+        seeds = [whitelist::RESOLVER_ACCESS_SEED, creator.key().as_ref()],
+        bump = resolver_access.bump,
+        seeds::program = whitelist::ID,
+    )]
+    resolver_access: Account<'info, whitelist::ResolverAccess>,
     /// CHECK: check is not necessary as token is only used as a constraint to creator_ata and escrow_ata
     mint: Box<InterfaceAccount<'info, Mint>>,
     #[account(
@@ -298,6 +304,12 @@ pub struct PublicWithdraw<'info> {
     recipient: AccountInfo<'info>,
     #[account(mut)]
     payer: Signer<'info>,
+    #[account(
+        seeds = [whitelist::RESOLVER_ACCESS_SEED, payer.key().as_ref()],
+        bump = resolver_access.bump,
+        seeds::program = whitelist::ID,
+    )]
+    resolver_access: Account<'info, whitelist::ResolverAccess>,
     mint: Box<InterfaceAccount<'info, Mint>>,
     #[account(
         mut,
@@ -383,6 +395,12 @@ pub struct RescueFunds<'info> {
         mut, // Needed because this account receives lamports from closed token account.
     )]
     recipient: Signer<'info>,
+    #[account(
+        seeds = [whitelist::RESOLVER_ACCESS_SEED, recipient.key().as_ref()],
+        bump = resolver_access.bump,
+        seeds::program = whitelist::ID,
+    )]
+    resolver_access: Account<'info, whitelist::ResolverAccess>,
     mint: Box<InterfaceAccount<'info, Mint>>,
     /// CHECK: We don't accept escrow as 'Account<'info, Escrow>' because it may be already closed at the time of rescue funds.
     #[account(
