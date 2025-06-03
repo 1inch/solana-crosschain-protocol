@@ -532,52 +532,103 @@ run_for_tokens!(
             }
         }
 
-        mod test_order_cancel {
+        mod test_escrow_cancel {
             use super::*;
 
             #[test_context(TestState)]
             #[tokio::test]
             async fn test_cancel(test_state: &mut TestState) {
+                create_order(test_state).await;
                 common_escrow_tests::test_cancel(test_state).await
             }
 
             #[test_context(TestState)]
             #[tokio::test]
             async fn test_cannot_cancel_by_non_creator(test_state: &mut TestState) {
+                create_order(test_state).await;
                 common_escrow_tests::test_cannot_cancel_by_non_creator(test_state).await
             }
 
             #[test_context(TestState)]
             #[tokio::test]
             async fn test_cannot_cancel_with_wrong_creator_ata(test_state: &mut TestState) {
+                create_order(test_state).await;
                 common_escrow_tests::test_cannot_cancel_with_wrong_creator_ata(test_state).await
             }
 
             #[test_context(TestState)]
             #[tokio::test]
-            async fn test_cannot_cancel_with_wrong_order_ata(test_state: &mut TestState) {
-                common_escrow_tests::test_cannot_cancel_with_wrong_escrow_ata(test_state).await
+            async fn test_cannot_cancel_with_wrong_escrow_ata(test_state: &mut TestState) {
+                create_order(test_state).await;
+                let (escrow, _) = create_escrow(test_state).await;
+
+                test_state.test_arguments.escrow_amount += 1;
+                create_order(test_state).await;
+
+                let (_, escrow_ata_2) = create_escrow(test_state).await;
+
+                let transaction = SrcProgram::get_cancel_tx(test_state, &escrow, &escrow_ata_2);
+
+                test_state
+                    .client
+                    .process_transaction(transaction)
+                    .await
+                    .expect_error((
+                        0,
+                        ProgramError::Custom(ErrorCode::ConstraintTokenOwner.into()),
+                    ))
             }
 
             #[test_context(TestState)]
             #[tokio::test]
             async fn test_cannot_cancel_before_cancellation_start(test_state: &mut TestState) {
+                create_order(test_state).await;
                 common_escrow_tests::test_cannot_cancel_before_cancellation_start(test_state).await
             }
         }
 
-        mod test_order_public_cancel {
+        mod test_escrow_public_cancel {
             use super::local_helpers::*;
             use super::*;
+
+            #[test_context(TestState)]
+            #[tokio::test]
+            async fn test_public_cancel_by_taker(test_state: &mut TestState) {
+                test_public_cancel_escrow(
+                    test_state,
+                    &test_state.recipient_wallet.keypair.insecure_clone(),
+                )
+                .await;
+            }
+
+            #[test_context(TestState)]
+            #[tokio::test]
+            async fn test_public_cancel_by_any_account(test_state: &mut TestState) {
+                let canceller = Keypair::new();
+                transfer_lamports(
+                    &mut test_state.context,
+                    WALLET_DEFAULT_LAMPORTS,
+                    &test_state.payer_kp,
+                    &canceller.pubkey(),
+                )
+                .await;
+
+                test_public_cancel_escrow(test_state, &canceller).await;
+            }
 
             #[test_context(TestState)]
             #[tokio::test]
             async fn test_cannot_public_cancel_before_public_cancellation_start(
                 test_state: &mut TestState,
             ) {
-                let (order, order_ata) = create_escrow(test_state).await;
-                let transaction =
-                    create_public_cancel_tx(test_state, &order, &order_ata, &test_state.payer_kp);
+                create_order(test_state).await;
+                let (escrow, escrow_ata) = create_escrow(test_state).await;
+                let transaction = create_public_escrow_cancel_tx(
+                    test_state,
+                    &escrow,
+                    &escrow_ata,
+                    &test_state.payer_kp,
+                );
 
                 set_time(
                     &mut test_state.context,
@@ -661,25 +712,26 @@ mod local_helpers {
     const DST_AMOUNT_OFFSET: usize = 205;
     const U64_SIZE: usize = size_of::<u64>();
 
-    pub fn create_public_cancel_tx<S: TokenVariant>(
+    pub fn create_public_escrow_cancel_tx<S: TokenVariant>(
         test_state: &TestStateBase<SrcProgram, S>,
-        order: &Pubkey,
-        order_ata: &Pubkey,
+        escrow: &Pubkey,
+        escrow_ata: &Pubkey,
         canceller: &Keypair,
     ) -> Transaction {
         let instruction_data =
-            InstructionData::data(&cross_chain_escrow_src::instruction::PublicCancel {});
+            InstructionData::data(&cross_chain_escrow_src::instruction::PublicCancelEscrow {});
 
         let (creator_ata, _) = find_user_ata(test_state);
 
         let instruction: Instruction = Instruction {
             program_id: cross_chain_escrow_src::id(),
             accounts: vec![
+                AccountMeta::new(test_state.recipient_wallet.keypair.pubkey(), false),
                 AccountMeta::new(test_state.creator_wallet.keypair.pubkey(), false),
                 AccountMeta::new_readonly(test_state.token, false),
                 AccountMeta::new(canceller.pubkey(), true),
-                AccountMeta::new(*order, false),
-                AccountMeta::new(*order_ata, false),
+                AccountMeta::new(*escrow, false),
+                AccountMeta::new(*escrow_ata, false),
                 AccountMeta::new(creator_ata, false),
                 AccountMeta::new_readonly(S::get_token_program_id(), false),
                 AccountMeta::new_readonly(system_program_id, false),
@@ -768,6 +820,74 @@ mod local_helpers {
             test_state.client.get_balance(order_ata).await.unwrap() - wrapped_sol
         );
     }
+
+    pub async fn test_public_cancel_escrow<S: TokenVariant>(
+        test_state: &mut TestStateBase<SrcProgram, S>,
+        canceller: &Keypair,
+    ) {
+        create_order(test_state).await;
+        let (escrow, escrow_ata) = create_escrow(test_state).await;
+
+        let transaction =
+            create_public_escrow_cancel_tx(test_state, &escrow, &escrow_ata, canceller);
+
+        set_time(
+            &mut test_state.context,
+            test_state.init_timestamp
+                + DEFAULT_PERIOD_DURATION * PeriodType::PublicCancellation as u32,
+        );
+
+        let escrow_data_len = <SrcProgram as EscrowVariant<Token2022>>::get_escrow_data_len();
+        let rent_lamports = get_min_rent_for_size(&mut test_state.client, escrow_data_len).await;
+
+        let token_account_rent =
+            get_min_rent_for_size(&mut test_state.client, S::get_token_account_size()).await;
+
+        let (creator_ata, _) = find_user_ata(test_state);
+
+        let balance_changes: Vec<BalanceChange> = if canceller
+            != &test_state.recipient_wallet.keypair
+        {
+            [
+                token_change(creator_ata, DEFAULT_ESCROW_AMOUNT),
+                native_change(canceller.pubkey(), test_state.test_arguments.safety_deposit),
+                native_change(
+                    test_state.recipient_wallet.keypair.pubkey(),
+                    rent_lamports + token_account_rent - test_state.test_arguments.safety_deposit,
+                ),
+            ]
+            .to_vec()
+        } else {
+            [
+                token_change(creator_ata, DEFAULT_ESCROW_AMOUNT),
+                native_change(
+                    test_state.recipient_wallet.keypair.pubkey(),
+                    rent_lamports + token_account_rent,
+                ),
+            ]
+            .to_vec()
+        };
+
+        test_state
+            .expect_balance_change(transaction, &balance_changes)
+            .await;
+
+        // Assert accounts were closed
+        assert!(test_state
+            .client
+            .get_account(escrow)
+            .await
+            .unwrap()
+            .is_none());
+
+        // Assert escrow_ata was closed
+        assert!(test_state
+            .client
+            .get_account(escrow_ata)
+            .await
+            .unwrap()
+            .is_none());
+    }
 }
 
 // Native Mint (wrapped SOL) is always owned by the SPL Token program
@@ -777,7 +897,7 @@ mod test_native_src {
     use solana_program_pack::Pack;
 
     use super::*;
-    use crate::local_helpers::create_public_cancel_tx;
+    use crate::local_helpers::create_public_escrow_cancel_tx;
 
     #[test_context(TestState)]
     #[tokio::test]
@@ -864,61 +984,8 @@ mod test_native_src {
     async fn test_cancel(test_state: &mut TestState) {
         test_state.token = NATIVE_MINT;
         test_state.test_arguments.asset_is_native = true;
+        create_order(test_state).await;
         common_escrow_tests::test_cancel_native(test_state).await
-    }
-
-    #[test_context(TestState)]
-    #[tokio::test]
-    async fn test_public_cancel_by_creator(test_state: &mut TestState) {
-        test_state.token = NATIVE_MINT;
-        test_state.test_arguments.asset_is_native = true;
-
-        let (escrow, escrow_ata) = create_escrow(test_state).await;
-
-        let transaction = create_public_cancel_tx(
-            test_state,
-            &escrow,
-            &escrow_ata,
-            &test_state.creator_wallet.keypair,
-        );
-
-        set_time(
-            &mut test_state.context,
-            test_state.init_timestamp
-                + DEFAULT_PERIOD_DURATION * PeriodType::PublicCancellation as u32,
-        );
-
-        let escrow_data_len = <SrcProgram as EscrowVariant<Token2022>>::get_escrow_data_len();
-        let rent_lamports = get_min_rent_for_size(&mut test_state.client, escrow_data_len).await;
-
-        let token_account_rent =
-            get_min_rent_for_size(&mut test_state.client, SplTokenAccount::LEN).await;
-
-        test_state
-            .expect_balance_change(
-                transaction,
-                &[native_change(
-                    test_state.creator_wallet.keypair.pubkey(),
-                    rent_lamports + token_account_rent + test_state.test_arguments.escrow_amount,
-                )],
-            )
-            .await;
-
-        // Assert accounts were closed
-        assert!(test_state
-            .client
-            .get_account(escrow)
-            .await
-            .unwrap()
-            .is_none());
-
-        // Assert escrow_ata was closed
-        assert!(test_state
-            .client
-            .get_account(escrow_ata)
-            .await
-            .unwrap()
-            .is_none());
     }
 
     #[test_context(TestState)]
@@ -926,7 +993,7 @@ mod test_native_src {
     async fn test_public_cancel_by_any_account(test_state: &mut TestState) {
         test_state.token = NATIVE_MINT;
         test_state.test_arguments.asset_is_native = true;
-
+        create_order(test_state).await;
         let (escrow, escrow_ata) = create_escrow(test_state).await;
 
         let canceller = Keypair::new();
@@ -938,7 +1005,8 @@ mod test_native_src {
         )
         .await;
 
-        let transaction = create_public_cancel_tx(test_state, &escrow, &escrow_ata, &canceller);
+        let transaction =
+            create_public_escrow_cancel_tx(test_state, &escrow, &escrow_ata, &canceller);
 
         set_time(
             &mut test_state.context,
@@ -959,9 +1027,12 @@ mod test_native_src {
                     native_change(canceller.pubkey(), test_state.test_arguments.safety_deposit),
                     native_change(
                         test_state.creator_wallet.keypair.pubkey(),
+                        test_state.test_arguments.escrow_amount,
+                    ),
+                    native_change(
+                        test_state.recipient_wallet.keypair.pubkey(),
                         rent_lamports + token_account_rent
-                            - test_state.test_arguments.safety_deposit
-                            + test_state.test_arguments.escrow_amount,
+                            - test_state.test_arguments.safety_deposit,
                     ),
                 ],
             )
@@ -1005,7 +1076,7 @@ mod test_wrapped_native {
     use solana_program_pack::Pack;
 
     use super::*;
-    use crate::local_helpers::create_public_cancel_tx;
+    use crate::local_helpers::create_public_escrow_cancel_tx;
 
     #[test_context(TestState)]
     #[tokio::test]
@@ -1067,72 +1138,16 @@ mod test_wrapped_native {
     #[tokio::test]
     async fn test_cancel(test_state: &mut TestState) {
         test_state.token = NATIVE_MINT;
+        create_order(test_state).await;
         common_escrow_tests::test_cancel(test_state).await
-    }
-
-    #[test_context(TestState)]
-    #[tokio::test]
-    async fn test_public_cancel_by_creator(test_state: &mut TestState) {
-        test_state.token = NATIVE_MINT;
-
-        let (escrow, escrow_ata) = create_escrow(test_state).await;
-
-        let transaction = create_public_cancel_tx(
-            test_state,
-            &escrow,
-            &escrow_ata,
-            &test_state.creator_wallet.keypair,
-        );
-
-        set_time(
-            &mut test_state.context,
-            test_state.init_timestamp
-                + DEFAULT_PERIOD_DURATION * PeriodType::PublicCancellation as u32,
-        );
-
-        let escrow_data_len = <SrcProgram as EscrowVariant<Token2022>>::get_escrow_data_len();
-        let rent_lamports = get_min_rent_for_size(&mut test_state.client, escrow_data_len).await;
-
-        let token_account_rent =
-            get_min_rent_for_size(&mut test_state.client, SplTokenAccount::LEN).await;
-
-        test_state
-            .expect_balance_change(
-                transaction,
-                &[
-                    native_change(
-                        test_state.creator_wallet.keypair.pubkey(),
-                        rent_lamports + token_account_rent,
-                    ),
-                    token_change(
-                        test_state.creator_wallet.native_token_account,
-                        test_state.test_arguments.escrow_amount,
-                    ),
-                ],
-            )
-            .await;
-
-        // Assert accounts were closed
-        assert!(test_state
-            .client
-            .get_account(escrow)
-            .await
-            .unwrap()
-            .is_none());
-
-        // Assert escrow_ata was closed
-        assert!(test_state
-            .client
-            .get_account(escrow_ata)
-            .await
-            .unwrap()
-            .is_none());
     }
 
     #[test_context(TestState)]
     #[tokio::test]
     async fn test_public_cancel_by_any_account(test_state: &mut TestState) {
         test_state.token = NATIVE_MINT;
+
+        create_order(test_state).await;
 
         let (escrow, escrow_ata) = create_escrow(test_state).await;
 
@@ -1145,7 +1160,8 @@ mod test_wrapped_native {
         )
         .await;
 
-        let transaction = create_public_cancel_tx(test_state, &escrow, &escrow_ata, &canceller);
+        let transaction =
+            create_public_escrow_cancel_tx(test_state, &escrow, &escrow_ata, &canceller);
 
         set_time(
             &mut test_state.context,
@@ -1164,14 +1180,14 @@ mod test_wrapped_native {
                 transaction,
                 &[
                     native_change(canceller.pubkey(), test_state.test_arguments.safety_deposit),
-                    native_change(
-                        test_state.creator_wallet.keypair.pubkey(),
-                        rent_lamports + token_account_rent
-                            - test_state.test_arguments.safety_deposit,
-                    ),
                     token_change(
                         test_state.creator_wallet.native_token_account,
                         test_state.test_arguments.escrow_amount,
+                    ),
+                    native_change(
+                        test_state.recipient_wallet.keypair.pubkey(),
+                        rent_lamports + token_account_rent
+                            - test_state.test_arguments.safety_deposit,
                     ),
                 ],
             )

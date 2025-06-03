@@ -110,14 +110,15 @@ impl<S: TokenVariant> EscrowVariant<S> for SrcProgram {
         escrow_ata: &Pubkey,
     ) -> Transaction {
         let instruction_data =
-            InstructionData::data(&cross_chain_escrow_src::instruction::Cancel {});
+            InstructionData::data(&cross_chain_escrow_src::instruction::CancelEscrow {});
 
         let (creator_ata, _) = find_user_ata(test_state);
 
         let instruction: Instruction = Instruction {
             program_id: cross_chain_escrow_src::id(),
             accounts: vec![
-                AccountMeta::new(test_state.creator_wallet.keypair.pubkey(), true),
+                AccountMeta::new(test_state.recipient_wallet.keypair.pubkey(), true),
+                AccountMeta::new(test_state.creator_wallet.keypair.pubkey(), false),
                 AccountMeta::new_readonly(test_state.token, false),
                 AccountMeta::new(*escrow, false),
                 AccountMeta::new(*escrow_ata, false),
@@ -133,7 +134,7 @@ impl<S: TokenVariant> EscrowVariant<S> for SrcProgram {
             Some(&test_state.payer_kp.pubkey()),
             &[
                 &test_state.context.payer,
-                &test_state.creator_wallet.keypair,
+                &test_state.recipient_wallet.keypair,
             ],
             test_state.context.last_blockhash,
         )
