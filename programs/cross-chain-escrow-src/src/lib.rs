@@ -1071,7 +1071,8 @@ fn get_dst_amount(dst_amount: u64, data: &AuctionData) -> Result<u64> {
     Ok(result)
 }
 
-fn calculate_premium(
+// declared as `pub` to use in testing
+pub fn calculate_premium(
     timestamp: u32,
     auction_start_time: u32,
     auction_duration: u32,
