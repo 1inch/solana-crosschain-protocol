@@ -221,27 +221,27 @@ pub mod cross_chain_escrow_src {
         )
     }
 
-    pub fn cancel(ctx: Context<Cancel>) -> Result<()> {
-        // let now = utils::get_current_timestamp()?;
-        // require!(
-        //     now >= ctx.accounts.order.cancellation_start,
-        //     EscrowError::InvalidTime
-        // );
+    pub fn cancel_escrow(ctx: Context<CancelEscrow>) -> Result<()> {
+        let now = utils::get_current_timestamp()?;
+        require!(
+            now >= ctx.accounts.escrow.cancellation_start(),
+            EscrowError::InvalidTime
+        );
 
-        // // In a standard cancel, the rent recipient receives the entire rent amount, including the safety deposit,
-        // // because they initially covered the entire rent during escrow creation.
+        // In a standard cancel, the taker receives the entire rent amount, including the safety deposit,
+        // because they initially covered the entire rent during escrow creation.
 
-        // common::escrow::cancel(
-        //     &ctx.accounts.order,
-        //     ctx.bumps.order,
-        //     &ctx.accounts.order_ata,
-        //     ctx.accounts.creator_ata.as_deref(),
-        //     &ctx.accounts.mint,
-        //     &ctx.accounts.token_program,
-        //     &ctx.accounts.creator,
-        //     &ctx.accounts.creator,
-        // )
-        Ok(())
+        common::escrow::cancel(
+            &ctx.accounts.escrow,
+            ctx.bumps.escrow,
+            &ctx.accounts.escrow_ata,
+            ctx.accounts.maker_ata.as_deref(),
+            &ctx.accounts.mint,
+            &ctx.accounts.token_program,
+            &ctx.accounts.taker,
+            &ctx.accounts.maker,
+            &ctx.accounts.taker,
+        )
     }
 
     pub fn cancel_by_resolver(
@@ -267,7 +267,6 @@ pub mod cross_chain_escrow_src {
             EscrowError::InconsistentNativeTrait
         );
 
-        let order_hash = order.order_hash;
 
         let seeds = [
             "order".as_bytes(),
@@ -336,29 +335,66 @@ pub mod cross_chain_escrow_src {
         Ok(())
     }
 
-    pub fn public_cancel(ctx: Context<PublicCancel>) -> Result<()> {
-        // let now = utils::get_current_timestamp()?;
-        // // require!(
-        // //     now >= ctx.accounts.order.public_cancellation_start(),
-        // //     EscrowError::InvalidTime
-        // // );
+    pub fn public_cancel_escrow(ctx: Context<PublicCancelEscrow>) -> Result<()> {
+        let now = utils::get_current_timestamp()?;
+        require!(
+            now >= ctx.accounts.escrow.public_cancellation_start,
+            EscrowError::InvalidTime
+        );
 
-        // common::escrow::cancel(
-        //     &ctx.accounts.order,
-        //     ctx.bumps.order,
-        //     &ctx.accounts.order_ata,
-        //     ctx.accounts.creator_ata.as_deref(),
-        //     &ctx.accounts.mint,
-        //     &ctx.accounts.token_program,
-        //     &ctx.accounts.creator,
-        //     &ctx.accounts.payer,
-        // )
-
-        Ok(())
+        common::escrow::cancel(
+            &ctx.accounts.escrow,
+            ctx.bumps.escrow,
+            &ctx.accounts.escrow_ata,
+            ctx.accounts.maker_ata.as_deref(),
+            &ctx.accounts.mint,
+            &ctx.accounts.token_program,
+            &ctx.accounts.taker,
+            &ctx.accounts.maker,
+            &ctx.accounts.payer,
+        )
     }
 
-    pub fn rescue_funds(
-        ctx: Context<RescueFunds>,
+    pub fn rescue_funds_for_escrow(
+        ctx: Context<RescueFundsForEscrow>,
+        order_hash: [u8; 32],
+        hashlock: [u8; 32],
+        maker: Pubkey,
+        token: Pubkey,
+        amount: u64,
+        safety_deposit: u64,
+        rescue_start: u32,
+        rescue_amount: u64,
+    ) -> Result<()> {
+        let taker_pubkey = ctx.accounts.taker.key();
+        let seeds = [
+            "escrow".as_bytes(),
+            order_hash.as_ref(),
+            hashlock.as_ref(),
+            maker.as_ref(),
+            taker_pubkey.as_ref(),
+            token.as_ref(),
+            &amount.to_be_bytes(),
+            &safety_deposit.to_be_bytes(),
+            &rescue_start.to_be_bytes(),
+            &[ctx.bumps.escrow],
+        ];
+
+        common::escrow::rescue_funds(
+            &ctx.accounts.escrow,
+            rescue_start,
+            &ctx.accounts.escrow_ata,
+            &ctx.accounts.taker,
+            &ctx.accounts.taker_ata,
+            &ctx.accounts.mint,
+            &ctx.accounts.token_program,
+            rescue_amount,
+            &seeds,
+        )
+    }
+
+    pub fn rescue_funds_for_order(
+        ctx: Context<RescueFundsForOrder>,
         order_hash: [u8; 32],
         hashlock: [u8; 32],
         order_creator: Pubkey,
@@ -368,22 +404,28 @@ pub mod cross_chain_escrow_src {
         rescue_start: u32,
         rescue_amount: u64,
     ) -> Result<()> {
+        let seeds = [
+            "order".as_bytes(),
+            order_hash.as_ref(),
+            hashlock.as_ref(),
+            order_creator.as_ref(),
+            order_mint.as_ref(),
+            &order_amount.to_be_bytes(),
+            &safety_deposit.to_be_bytes(),
+            &rescue_start.to_be_bytes(),
+            &[ctx.bumps.order],
+        ];
+
         common::escrow::rescue_funds(
             &ctx.accounts.order,
-            order_hash,
-            hashlock,
-            order_creator,
-            order_mint,
-            order_amount,
-            safety_deposit,
             rescue_start,
-            ctx.bumps.order,
             &ctx.accounts.order_ata,
-            &ctx.accounts.recipient,
-            &ctx.accounts.recipient_ata,
+            &ctx.accounts.resolver,
+            &ctx.accounts.resolver_ata,
             &ctx.accounts.mint,
             &ctx.accounts.token_program,
             rescue_amount,
+            &seeds,
         )
     }
 }
@@ -602,44 +644,50 @@ pub struct PublicWithdraw<'info> {
 }
 
 #[derive(Accounts)]
-pub struct Cancel<'info> {
-    /// CHECK: Currently only used for the token-authority check and to receive lamports if the token is native
+pub struct CancelEscrow<'info> {
+    #[account(
+        mut, // Needed because this account receives lamports from rent
+        constraint = taker.key() == escrow.taker @ EscrowError::InvalidAccount
+    )]
+    taker: Signer<'info>,
+    /// CHECK: this account is used only to receive lamports and to check its pubkey to match the one stored in the escrow account
     #[account(
         mut, // Needed because this account receives lamports if the token is native
-        constraint = creator.key() == order.creator @ EscrowError::InvalidAccount
+        constraint = maker.key() == escrow.maker @ EscrowError::InvalidAccount
     )]
-    creator: Signer<'info>,
+    maker: AccountInfo<'info>,
     mint: Box<InterfaceAccount<'info, Mint>>,
     #[account(
             mut,
             seeds = [
             "escrow".as_bytes(),
-            order.order_hash.as_ref(),
-            order.hashlock.as_ref(),
-            order.creator.as_ref(),
-            mint.key().as_ref(),
-            order.amount.to_be_bytes().as_ref(),
-            order.safety_deposit.to_be_bytes().as_ref(),
-            order.rescue_start.to_be_bytes().as_ref(),
-            ],
-            bump,
-        )]
-    order: Box<Account<'info, Order>>,
+            escrow.order_hash.as_ref(),
+            escrow.hashlock.as_ref(),
+            escrow.maker.as_ref(),
+            taker.key().as_ref(),
+            escrow.token.key().as_ref(),
+            escrow.amount.to_be_bytes().as_ref(), // TODO: Must be replaced with the actual amount when partial fills are implemented.
+            escrow.safety_deposit.to_be_bytes().as_ref(),
+            escrow.rescue_start.to_be_bytes().as_ref(),
+        ],
+        bump,
+    )]
+    escrow: Box<Account<'info, EscrowSrc>>,
     #[account(
-                mut,
-                associated_token::mint = mint,
-                associated_token::authority = order,
-                associated_token::token_program = token_program
-            )]
-    order_ata: Box<InterfaceAccount<'info, TokenAccount>>,
+        mut,
+        associated_token::mint = mint,
+        associated_token::authority = escrow,
+        associated_token::token_program = token_program
+    )]
+    escrow_ata: Box<InterfaceAccount<'info, TokenAccount>>,
     #[account(
-                    mut,
-                    associated_token::mint = mint,
-                    associated_token::authority = creator,
-                    associated_token::token_program = token_program
-                )]
+        mut,
+        associated_token::mint = mint,
+        associated_token::authority = maker,
+        associated_token::token_program = token_program
+    )]
     // Optional if the token is native
-    creator_ata: Option<Box<InterfaceAccount<'info, TokenAccount>>>,
+    maker_ata: Option<Box<InterfaceAccount<'info, TokenAccount>>>,
     token_program: Interface<'info, TokenInterface>,
     system_program: Program<'info, System>,
 }
@@ -691,13 +739,19 @@ pub struct CancelOrderbyResolver<'info> {
 }
 
 #[derive(Accounts)]
-pub struct PublicCancel<'info> {
+pub struct PublicCancelEscrow<'info> {
     /// CHECK: this account is used only to receive lamports and to check its pubkey to match the one stored in the escrow account
     #[account(
-        mut, // Needed because this account receives lamports (safety deposit and from closed accounts)
-        constraint = creator.key() == order.creator @ EscrowError::InvalidAccount
+        mut, // Needed because this account receives lamports from rent
+        constraint = taker.key() == escrow.taker @ EscrowError::InvalidAccount
     )]
-    creator: AccountInfo<'info>,
+    taker: AccountInfo<'info>,
+    #[account(
+        mut, // Needed because this account receives lamports if the token is native
+        constraint = maker.key() == escrow.maker @ EscrowError::InvalidAccount
+    )]
+    /// CHECK: this account is used only to receive lamports and to check its pubkey to match the one stored in the escrow account
+    maker: AccountInfo<'info>,
     mint: Box<InterfaceAccount<'info, Mint>>,
     #[account(mut)]
     payer: Signer<'info>,
@@ -705,48 +759,91 @@ pub struct PublicCancel<'info> {
             mut,
             seeds = [
             "escrow".as_bytes(),
-            order.order_hash.as_ref(),
-            order.hashlock.as_ref(),
-            order.creator.as_ref(),
-            mint.key().as_ref(),
-            order.amount.to_be_bytes().as_ref(),
-            order.safety_deposit.to_be_bytes().as_ref(),
-            order.rescue_start.to_be_bytes().as_ref(),
-            ],
-            bump,
-        )]
-    order: Box<Account<'info, Order>>,
+            escrow.order_hash.as_ref(),
+            escrow.hashlock.as_ref(),
+            escrow.maker.as_ref(),
+            taker.key().as_ref(),
+            escrow.token.key().as_ref(),
+            escrow.amount.to_be_bytes().as_ref(), // TODO: Must be replaced with the actual amount when partial fills are implemented.
+            escrow.safety_deposit.to_be_bytes().as_ref(),
+            escrow.rescue_start.to_be_bytes().as_ref(),
+        ],
+        bump,
+    )]
+    escrow: Box<Account<'info, EscrowSrc>>,
     #[account(
-                mut,
-                associated_token::mint = mint,
-                associated_token::authority = order,
-                associated_token::token_program = token_program
-            )]
-    order_ata: Box<InterfaceAccount<'info, TokenAccount>>,
+        mut,
+        associated_token::mint = mint,
+        associated_token::authority = escrow,
+        associated_token::token_program = token_program
+    )]
+    escrow_ata: Box<InterfaceAccount<'info, TokenAccount>>,
     #[account(
-                    mut,
-                    associated_token::mint = mint,
-                    associated_token::authority = creator,
-                    associated_token::token_program = token_program
-                )]
+        mut,
+        associated_token::mint = mint,
+        associated_token::authority = escrow.maker,
+        associated_token::token_program = token_program
+    )]
     // Optional if the token is native
-    creator_ata: Option<Box<InterfaceAccount<'info, TokenAccount>>>,
+    maker_ata: Option<Box<InterfaceAccount<'info, TokenAccount>>>,
+    token_program: Interface<'info, TokenInterface>,
+    system_program: Program<'info, System>,
+}
+
+#[derive(Accounts)]
+#[instruction(order_hash: [u8; 32], hashlock: [u8; 32], maker: Pubkey, token: Pubkey, amount: u64, safety_deposit: u64, rescue_start: u32)]
+pub struct RescueFundsForEscrow<'info> {
+    #[account(
+        mut, // Needed because this account receives lamports from closed token account.
+    )]
+    taker: Signer<'info>,
+    mint: Box<InterfaceAccount<'info, Mint>>,
+    /// CHECK: We don't accept escrow as 'Account<'info, Escrow>' because it may be already closed at the time of rescue funds.
+    #[account(
+            seeds = [
+            "escrow".as_bytes(),
+            order_hash.as_ref(),
+            hashlock.as_ref(),
+            maker.as_ref(),
+            taker.key().as_ref(),
+            token.as_ref(),
+            amount.to_be_bytes().as_ref(),
+            safety_deposit.to_be_bytes().as_ref(),
+            rescue_start.to_be_bytes().as_ref(),
+        ],
+        bump,
+    )]
+    escrow: AccountInfo<'info>,
+    #[account(
+        mut,
+        associated_token::mint = mint,
+        associated_token::authority = escrow,
+        associated_token::token_program = token_program
+    )]
+    escrow_ata: Box<InterfaceAccount<'info, TokenAccount>>,
+    #[account(
+        mut,
+        associated_token::mint = mint,
+        associated_token::authority = taker,
+        associated_token::token_program = token_program
+    )]
+    taker_ata: Box<InterfaceAccount<'info, TokenAccount>>,
     token_program: Interface<'info, TokenInterface>,
     system_program: Program<'info, System>,
 }
 
 #[derive(Accounts)]
 #[instruction(order_hash: [u8; 32], hashlock: [u8; 32], order_creator: Pubkey, order_mint: Pubkey, order_amount: u64, safety_deposit: u64, rescue_start: u32)]
-pub struct RescueFunds<'info> {
+pub struct RescueFundsForOrder<'info> {
     #[account(
         mut, // Needed because this account receives lamports from closed token account.
     )]
-    recipient: Signer<'info>,
+    resolver: Signer<'info>,
     mint: Box<InterfaceAccount<'info, Mint>>,
-    /// CHECK: We don't accept escrow as 'Account<'info, Escrow>' because it may be already closed at the time of rescue funds.
+    /// CHECK: We don't accept order as 'Account<'info, Order>' because it may be already closed at the time of rescue funds.
     #[account(
-            seeds = [
-            "escrow".as_bytes(),
+        seeds = [
+            "order".as_bytes(),
             order_hash.as_ref(),
             hashlock.as_ref(),
             order_creator.as_ref(),
@@ -766,12 +863,12 @@ pub struct RescueFunds<'info> {
             )]
     order_ata: Box<InterfaceAccount<'info, TokenAccount>>,
     #[account(
-                    mut,
-                    associated_token::mint = mint,
-                    associated_token::authority = recipient,
-                    associated_token::token_program = token_program
-                )]
-    recipient_ata: Box<InterfaceAccount<'info, TokenAccount>>,
+        mut,
+        associated_token::mint = mint,
+        associated_token::authority = resolver,
+        associated_token::token_program = token_program
+    )]
+    resolver_ata: Box<InterfaceAccount<'info, TokenAccount>>,
     token_program: Interface<'info, TokenInterface>,
     system_program: Program<'info, System>,
 }
