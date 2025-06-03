@@ -30,4 +30,6 @@ pub enum EscrowError {
     OrderHasExpired,
     #[msg("Dutch auction data hash mismatch")]
     DutchAuctionDataHashMismatch,
+    #[msg("Invalid cancellation fee")]
+    InvalidCancellationFee,
 }

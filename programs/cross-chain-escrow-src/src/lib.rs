@@ -46,6 +46,11 @@ pub mod cross_chain_escrow_src {
             .checked_add(expiration_duration)
             .ok_or(ProgramError::ArithmeticOverflow)?;
 
+        require!(
+            ctx.accounts.order_ata.to_account_info().lamports() >= max_cancellation_premium,
+            EscrowError::InvalidCancellationFee
+        );
+
         common::escrow::create(
             EscrowSrc::INIT_SPACE + constants::DISCRIMINATOR_BYTES, // Needed to check the safety deposit amount validity
             &ctx.accounts.creator,
