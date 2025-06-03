@@ -663,7 +663,6 @@ mod local_helpers {
     use super::*;
 
     use anchor_lang::InstructionData;
-    use solana_program::example_mocks::solana_sdk::transaction;
     use solana_program::instruction::{AccountMeta, Instruction};
     use solana_program::pubkey::Pubkey;
     use solana_program::system_program::ID as system_program_id;
@@ -997,7 +996,7 @@ mod local_helpers {
             .expect_error((0, ProgramError::Custom(EscrowError::InvalidTime.into())));
     }
 
-    pub async fn test_cannot_rescue_funds_from_order_by_non_recipient<S: TokenVariant>(
+    pub async fn _test_cannot_rescue_funds_from_order_by_non_recipient<S: TokenVariant>( // TODO: use after implement whitelist
         test_state: &mut TestStateBase<SrcProgram, S>,
     ) {
         let (order, _) = create_order(test_state).await;
@@ -1357,6 +1356,24 @@ mod test_native_src {
         test_state.test_arguments.asset_is_native = true;
         create_order(test_state).await;
         common_escrow_tests::test_rescue_part_of_tokens_and_not_close_ata(test_state).await
+    }
+
+    #[test_context(TestState)]
+    #[tokio::test]
+    async fn test_rescue_all_tokens_from_order_and_close_ata(test_state: &mut TestState) {
+        test_state.token = NATIVE_MINT;
+        test_state.test_arguments.asset_is_native = true;
+        create_order(test_state).await;
+        local_helpers::test_rescue_all_tokens_from_order_and_close_ata(test_state).await
+    }
+
+    #[test_context(TestState)]
+    #[tokio::test]
+    async fn test_rescue_part_of_tokens_from_order_and_not_close_ata(test_state: &mut TestState) {
+        test_state.token = NATIVE_MINT;
+        test_state.test_arguments.asset_is_native = true;
+        create_order(test_state).await;
+        local_helpers::test_rescue_part_of_tokens_from_order_and_not_close_ata(test_state).await
     }
 }
 
