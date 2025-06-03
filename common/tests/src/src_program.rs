@@ -341,11 +341,17 @@ pub fn get_cancel_order_tx<T: EscrowVariant<S>, S: TokenVariant>(
     test_state: &TestStateBase<T, S>,
     order: &Pubkey,
     order_ata: &Pubkey,
+    opt_creator_ata: Option<&Pubkey>,
 ) -> Transaction {
     let instruction_data =
         InstructionData::data(&cross_chain_escrow_src::instruction::CancelOrder {});
 
-    let (creator_ata, _) = find_user_ata(test_state);
+    let creator_ata = if let Some(ata) = opt_creator_ata {
+        *ata
+    } else {
+        let (creator_ata, _) = find_user_ata(test_state);
+        creator_ata
+    };
 
     let instruction: Instruction = Instruction {
         program_id: cross_chain_escrow_src::id(),
@@ -373,13 +379,19 @@ pub fn get_cancel_order_by_resolver_tx<T: EscrowVariant<S>, S: TokenVariant>(
     test_state: &TestStateBase<T, S>,
     order: &Pubkey,
     order_ata: &Pubkey,
+    opt_creator_ata: Option<&Pubkey>,
 ) -> Transaction {
     let reward_limit = test_state.test_arguments.reward_limit;
     let instruction_data = InstructionData::data(
         &cross_chain_escrow_src::instruction::CancelOrderByResolver { reward_limit },
     );
 
-    let (creator_ata, _) = find_user_ata(test_state);
+    let creator_ata = if let Some(ata) = opt_creator_ata {
+        *ata
+    } else {
+        let (creator_ata, _) = find_user_ata(test_state);
+        creator_ata
+    };
 
     let instruction: Instruction = Instruction {
         program_id: cross_chain_escrow_src::id(),
