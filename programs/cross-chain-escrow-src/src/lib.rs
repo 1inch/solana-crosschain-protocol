@@ -1,6 +1,7 @@
 use anchor_lang::prelude::*;
 use anchor_lang::solana_program::hash::hashv;
 use anchor_spl::associated_token::{AssociatedToken, ID as ASSOCIATED_TOKEN_PROGRAM_ID};
+use anchor_spl::token::spl_token::native_mint;
 use anchor_spl::token_interface::{
     close_account, CloseAccount, Mint, TokenAccount, TokenInterface,
 };
@@ -242,6 +243,60 @@ pub mod cross_chain_escrow_src {
             &ctx.accounts.maker,
             &ctx.accounts.taker,
         )
+    }
+
+    pub fn cancel_order(ctx: Context<CancelOrderbyResolver>) -> Result<()> {
+        let order = ctx.accounts.order.clone();
+        require!(
+            ctx.accounts.mint.key() == native_mint::id() || !ctx.accounts.order.asset_is_native,
+            EscrowError::InconsistentNativeTrait
+        );
+
+        require!(
+            ctx.accounts.order.asset_is_native == ctx.accounts.creator_ata.is_none(),
+            EscrowError::InconsistentNativeTrait
+        );
+
+        let seeds = [
+            "order".as_bytes(),
+            &order.order_hash,
+            &order.hashlock,
+            order.creator.as_ref(),
+            order.token.as_ref(),
+            &order.amount.to_be_bytes(),
+            &order.safety_deposit.to_be_bytes(),
+            &order.rescue_start.to_be_bytes(),
+            &[ctx.bumps.order],
+        ];
+
+        if !order.asset_is_native {
+            uni_transfer(
+                &UniTransferParams::TokenTransfer {
+                    from: ctx.accounts.order_ata.to_account_info(),
+                    authority: ctx.accounts.order.to_account_info(),
+                    to: ctx
+                        .accounts
+                        .creator_ata
+                        .as_ref()
+                        .ok_or(EscrowError::MissingCreatorAta)?
+                        .to_account_info(),
+                    mint: *ctx.accounts.mint.clone(),
+                    amount: ctx.accounts.order_ata.amount,
+                    program: ctx.accounts.token_program.clone(),
+                },
+                Some(&[&seeds]),
+            )?;
+        };
+
+        close_account(CpiContext::new_with_signer(
+            ctx.accounts.token_program.to_account_info(),
+            CloseAccount {
+                account: ctx.accounts.order_ata.to_account_info(),
+                destination: ctx.accounts.creator.to_account_info(),
+                authority: ctx.accounts.order.to_account_info(),
+            },
+            &[&seeds],
+        ))
     }
 
     pub fn cancel_order_by_resolver(
@@ -687,6 +742,46 @@ pub struct CancelEscrow<'info> {
     )]
     // Optional if the token is native
     maker_ata: Option<Box<InterfaceAccount<'info, TokenAccount>>>,
+    token_program: Interface<'info, TokenInterface>,
+    system_program: Program<'info, System>,
+}
+
+#[derive(Accounts)]
+pub struct CancelOrder<'info> {
+    /// Account that created the order
+    #[account(mut, signer)]
+    creator: Signer<'info>,
+    mint: Box<InterfaceAccount<'info, Mint>>,
+    #[account(
+        mut,
+        seeds = [
+        "order".as_bytes(),
+        order.order_hash.as_ref(),
+        order.hashlock.as_ref(),
+        order.creator.as_ref(),
+        order.token.key().as_ref(),
+        order.amount.to_be_bytes().as_ref(),
+        order.safety_deposit.to_be_bytes().as_ref(),
+        order.rescue_start.to_be_bytes().as_ref(),
+        ],
+        bump,
+    )]
+    order: Box<Account<'info, Order>>,
+    #[account(
+        mut,
+        associated_token::mint = mint,
+        associated_token::authority = order,
+        associated_token::token_program = token_program
+    )]
+    order_ata: Box<InterfaceAccount<'info, TokenAccount>>,
+    #[account(
+        mut,
+        associated_token::mint = mint,
+        associated_token::authority = creator,
+        associated_token::token_program = token_program
+    )]
+    // Optional if the token is native
+    creator_ata: Option<Box<InterfaceAccount<'info, TokenAccount>>>,
     token_program: Interface<'info, TokenInterface>,
     system_program: Program<'info, System>,
 }

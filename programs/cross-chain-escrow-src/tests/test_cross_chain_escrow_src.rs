@@ -661,10 +661,11 @@ run_for_tokens!(
                 escrow: &Pubkey,
                 escrow_ata: &Pubkey,
             ) -> Transaction {
-                let instruction_data =
-                    InstructionData::data(&cross_chain_escrow_src::instruction::CancelByResolver {
+                let instruction_data = InstructionData::data(
+                    &cross_chain_escrow_src::instruction::CancelOrderByResolver {
                         reward_limit: 100,
-                    });
+                    },
+                );
 
                 let (creator_ata, _) = find_user_ata(test_state);
 
