@@ -692,7 +692,6 @@ pub struct RescueFundsForOrder<'info> {
             order_hash.as_ref(),
             hashlock.as_ref(),
             order_creator.as_ref(),
-            recipient.key().as_ref(),
             order_mint.as_ref(),
             order_amount.to_be_bytes().as_ref(),
             safety_deposit.to_be_bytes().as_ref(),
