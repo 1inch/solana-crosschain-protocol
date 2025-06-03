@@ -245,7 +245,7 @@ pub mod cross_chain_escrow_src {
         )
     }
 
-    pub fn cancel_order(ctx: Context<CancelOrderbyResolver>) -> Result<()> {
+    pub fn cancel_order(ctx: Context<CancelOrder>) -> Result<()> {
         let order = ctx.accounts.order.clone();
         require!(
             ctx.accounts.mint.key() == native_mint::id() || !ctx.accounts.order.asset_is_native,
@@ -308,10 +308,6 @@ pub mod cross_chain_escrow_src {
     ) -> Result<()> {
         let order = ctx.accounts.order.clone();
         let now = utils::get_current_timestamp()?;
-        require!(
-            now >= ctx.accounts.order.cancellation_duration,
-            EscrowError::InvalidTime
-        );
 
         require!(now >= order.expiration_time, EscrowError::OrderNotExpired);
 
