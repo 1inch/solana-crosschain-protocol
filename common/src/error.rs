@@ -24,4 +24,6 @@ pub enum EscrowError {
     InconsistentNativeTrait,
     #[msg("Cancel by resolver is forbidden")]
     CancelOrderByResolverIsForbidden,
+    #[msg("Order not expired")]
+    OrderNotExpired,
 }

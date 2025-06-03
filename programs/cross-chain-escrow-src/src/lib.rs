@@ -50,6 +50,9 @@ pub mod cross_chain_escrow_src {
         asset_is_native: bool,
         dst_amount: u64,
         dutch_auction_data: AuctionData,
+        max_cancellation_premium: u64,
+        expiration_time: u32,
+        cancellation_auction_duration: u32,
     ) -> Result<()> {
         let now = utils::get_current_timestamp()?;
 
@@ -98,9 +101,9 @@ pub mod cross_chain_escrow_src {
             rent_recipient: ctx.accounts.creator.key(),
             asset_is_native,
             dst_amount: get_dst_amount(dst_amount, &dutch_auction_data)?,
-            max_cancellation_premium: 0,      // TODO@sras
-            expiration_time: 0,               // TODO@sras
-            cancellation_auction_duration: 0, // TODO@sras
+            max_cancellation_premium,
+            expiration_time,
+            cancellation_auction_duration,
         });
 
         Ok(())
@@ -189,12 +192,11 @@ pub mod cross_chain_escrow_src {
             EscrowError::CancelOrderByResolverIsForbidden
         );
 
-        // Not sure if order expiration should be included.
         let current_timestamp = Clock::get()?.unix_timestamp;
-        //require!(
-        //    current_timestamp >= order.expiration_time as i64,
-        //    FusionError::OrderNotExpired
-        //);
+        require!(
+            current_timestamp >= order.expiration_time as i64,
+            EscrowError::OrderNotExpired
+        );
         require!(
             order.asset_is_native == ctx.accounts.creator_ata.is_none(),
             EscrowError::InconsistentNativeTrait
@@ -266,8 +268,6 @@ pub mod cross_chain_escrow_src {
             None,
         );
 
-        ////
-
         Ok(())
     }
 
@@ -322,7 +322,7 @@ pub mod cross_chain_escrow_src {
 }
 
 #[derive(Accounts)]
-#[instruction(order_hash: [u8; 32], hashlock: [u8; 32], amount: u64, safety_deposit: u64, recipient: Pubkey, finality_duration: u32, withdrawal_duration: u32, public_withdrawal_duration: u32, cancellation_duration: u32, rescue_start: u32)]
+#[instruction(order_hash: [u8; 32], hashlock: [u8; 32], amount: u64, safety_deposit: u64, recipient: Pubkey, finality_duration: u32, withdrawal_duration: u32, public_withdrawal_duration: u32, cancellation_duration: u32, rescue_start: u32, asset_is_native: bool, dst_amount: u64, dutch_auction_data: AuctionData, max_cancellation_premium: u64, expiration_time: u32, cancellation_auction_duration: u32)]
 pub struct Create<'info> {
     #[account(
         mut, // Needed because this account transfers lamports if the token is native and to pay for the order creation
@@ -520,7 +520,7 @@ pub struct CancelByResolver<'info> {
         mut, // Needed because this account receives lamports if the token is native
         constraint = creator.key() == order.creator @ EscrowError::InvalidAccount
     )]
-    creator: Signer<'info>,
+    creator: AccountInfo<'info>,
     mint: Box<InterfaceAccount<'info, Mint>>,
     #[account(
             mut,
@@ -664,8 +664,8 @@ pub struct Order {
     asset_is_native: bool,
     dst_amount: u64,
     max_cancellation_premium: u64,
-    expiration_time: u64,
-    cancellation_auction_duration: u64,
+    expiration_time: u32,
+    cancellation_auction_duration: u32,
 }
 
 impl EscrowBase for Order {

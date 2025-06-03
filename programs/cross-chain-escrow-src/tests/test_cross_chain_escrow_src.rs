@@ -337,6 +337,114 @@ run_for_tokens!(
             }
         }
 
+        mod test_order_cancel_by_resolver {
+            use super::*;
+
+            #[test_context(TestState)]
+            #[tokio::test]
+            async fn test_cancel_by_resolver(test_state: &mut TestState) {
+                let (escrow, escrow_ata) = create_escrow(test_state).await;
+                let transaction = get_cancel_by_resolver_tx(test_state, &escrow, &escrow_ata);
+
+                set_time(
+                    &mut test_state.context,
+                    test_state.init_timestamp
+                        + DEFAULT_PERIOD_DURATION * PeriodType::Cancellation as u32,
+                );
+
+                let token_account_rent = get_min_rent_for_size(
+                    &mut test_state.client,
+                    get_token_account_len(PhantomData::<TestState>),
+                )
+                .await;
+                let escrow_rent = get_min_rent_for_size(
+                    &mut test_state.client,
+                    <SrcProgram as EscrowVariant<Token2022>>::get_escrow_data_len(),
+                )
+                .await;
+
+                let (creator_ata, _) = find_user_ata(test_state);
+
+                test_state
+                    .expect_balance_change(
+                        transaction,
+                        &[
+                            native_change(
+                                test_state.creator_wallet.keypair.pubkey(),
+                                escrow_rent + token_account_rent,
+                            ),
+                            token_change(creator_ata, test_state.test_arguments.escrow_amount),
+                        ],
+                    )
+                    .await;
+
+                let acc_lookup_result = test_state.client.get_account(escrow_ata).await.unwrap();
+                assert!(acc_lookup_result.is_none());
+
+                let acc_lookup_result = test_state.client.get_account(escrow).await.unwrap();
+                assert!(acc_lookup_result.is_none());
+            }
+
+            use anchor_lang::prelude::AccountMeta;
+            use anchor_lang::InstructionData;
+            use solana_sdk::instruction::Instruction;
+            use solana_sdk::pubkey::Pubkey;
+            use solana_sdk::transaction::Transaction;
+
+            use solana_program::system_program::ID as system_program_id;
+            use std::marker::PhantomData;
+
+            fn get_token_account_len<T, S: TokenVariant>(
+                _: PhantomData<TestStateBase<T, S>>,
+            ) -> usize {
+                S::get_token_account_size()
+            }
+
+            fn get_token_program_id<T, S: TokenVariant>(
+                _: PhantomData<TestStateBase<T, S>>,
+            ) -> Pubkey {
+                S::get_token_program_id()
+            }
+
+            fn get_cancel_by_resolver_tx(
+                test_state: &TestState,
+                escrow: &Pubkey,
+                escrow_ata: &Pubkey,
+            ) -> Transaction {
+                let instruction_data =
+                    InstructionData::data(&cross_chain_escrow_src::instruction::CancelByResolver {
+                        reward_limit: 100,
+                    });
+
+                let (creator_ata, _) = find_user_ata(test_state);
+
+                let instruction: Instruction = Instruction {
+                    program_id: cross_chain_escrow_src::id(),
+                    accounts: vec![
+                        AccountMeta::new(test_state.recipient_wallet.keypair.pubkey(), true),
+                        AccountMeta::new(test_state.creator_wallet.keypair.pubkey(), false),
+                        AccountMeta::new_readonly(test_state.token, false),
+                        AccountMeta::new(*escrow, false),
+                        AccountMeta::new(*escrow_ata, false),
+                        AccountMeta::new(creator_ata, false),
+                        AccountMeta::new_readonly(
+                            get_token_program_id(PhantomData::<TestState>),
+                            false,
+                        ),
+                        AccountMeta::new_readonly(system_program_id, false),
+                    ],
+                    data: instruction_data,
+                };
+
+                Transaction::new_signed_with_payer(
+                    &[instruction],
+                    Some(&test_state.recipient_wallet.keypair.pubkey()),
+                    &[&test_state.recipient_wallet.keypair],
+                    test_state.context.last_blockhash,
+                )
+            }
+        }
+
         mod test_order_public_cancel {
             use super::local_helpers::*;
             use super::*;
