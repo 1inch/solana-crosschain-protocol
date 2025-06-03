@@ -504,7 +504,7 @@ pub struct PublicWithdraw<'info> {
 #[derive(Accounts)]
 pub struct CancelEscrow<'info> {
     #[account(
-        mut, // Needed because this account receives lamports if the token is native
+        mut, // Needed because this account receives lamports from rent
         constraint = taker.key() == escrow.taker @ EscrowError::InvalidAccount
     )]
     taker: Signer<'info>,
@@ -554,7 +554,7 @@ pub struct CancelEscrow<'info> {
 pub struct PublicCancelEscrow<'info> {
     /// CHECK: this account is used only to receive lamports and to check its pubkey to match the one stored in the escrow account
     #[account(
-        mut, // Needed because this account receives lamports if the token is native
+        mut, // Needed because this account receives lamports from rent
         constraint = taker.key() == escrow.taker @ EscrowError::InvalidAccount
     )]
     taker: AccountInfo<'info>,
