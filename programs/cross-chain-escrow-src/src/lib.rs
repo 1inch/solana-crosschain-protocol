@@ -566,9 +566,9 @@ pub struct CreateEscrow<'info> {
             order.amount.to_be_bytes().as_ref(),
             order.safety_deposit.to_be_bytes().as_ref(),
             order.rescue_start.to_be_bytes().as_ref(),
-            ],
-            bump,
-        )]
+        ],
+        bump,
+    )]
     order: Box<Account<'info, Order>>,
     /// Account to store orders tokens
     #[account(
@@ -950,9 +950,9 @@ pub struct RescueFundsForOrder<'info> {
             order_amount.to_be_bytes().as_ref(),
             safety_deposit.to_be_bytes().as_ref(),
             rescue_start.to_be_bytes().as_ref(),
-            ],
-            bump,
-        )]
+        ],
+        bump,
+    )]
     order: AccountInfo<'info>,
     #[account(
         mut,
