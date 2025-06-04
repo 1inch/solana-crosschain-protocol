@@ -85,6 +85,7 @@ pub mod cross_chain_escrow_src {
             dutch_auction_data_hash,
             max_cancellation_premium,
             cancellation_auction_duration,
+            last_validated: 0,
         });
 
         Ok(())
@@ -93,6 +94,9 @@ pub mod cross_chain_escrow_src {
     pub fn create_escrow(
         ctx: Context<CreateEscrow>,
         dutch_auction_data: AuctionData,
+        hashlock: [u8; 32],
+        merkle_proof: Vec<[u8; 32]>,
+        index: u32,
     ) -> Result<()> {
         let order = &ctx.accounts.order;
         let escrow = &mut ctx.accounts.escrow;
@@ -105,6 +109,10 @@ pub mod cross_chain_escrow_src {
             calculated_hash == order.dutch_auction_data_hash,
             EscrowError::DutchAuctionDataHashMismatch
         );
+
+        // TODO: validate merkle proof
+
+        // TODO: save index to last_validated
 
         let withdrawal_start = now
             .checked_add(order.finality_duration)
@@ -992,6 +1000,7 @@ pub struct Order {
     dutch_auction_data_hash: [u8; 32],
     max_cancellation_premium: u64,
     cancellation_auction_duration: u32,
+    last_validated: u32,
 }
 
 #[account]
