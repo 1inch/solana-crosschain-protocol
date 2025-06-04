@@ -47,6 +47,8 @@ pub const WALLET_DEFAULT_LAMPORTS: u64 = 10 * LAMPORTS_PER_SOL;
 pub const WALLET_DEFAULT_TOKENS: u64 = 1000000000;
 
 pub const DEFAULT_PERIOD_DURATION: u32 = 100;
+pub const DEFAULT_PARTS_AMOUNT: usize = 4;
+pub const DEFAULT_SECRETS_AMOUNT: usize = DEFAULT_PARTS_AMOUNT + 1;
 
 pub enum PeriodType {
     Finality = 0,
