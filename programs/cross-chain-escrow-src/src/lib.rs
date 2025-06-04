@@ -251,14 +251,14 @@ pub mod cross_chain_escrow_src {
     }
 
     pub fn cancel_order(ctx: Context<CancelOrder>) -> Result<()> {
-        let order = ctx.accounts.order.clone();
+        let order = &ctx.accounts.order;
         require!(
-            ctx.accounts.mint.key() == native_mint::id() || !ctx.accounts.order.asset_is_native,
+            ctx.accounts.mint.key() == native_mint::id() || !order.asset_is_native,
             EscrowError::InconsistentNativeTrait
         );
 
         require!(
-            ctx.accounts.order.asset_is_native == ctx.accounts.creator_ata.is_none(),
+            order.asset_is_native == ctx.accounts.creator_ata.is_none(),
             EscrowError::InconsistentNativeTrait
         );
 
@@ -278,7 +278,7 @@ pub mod cross_chain_escrow_src {
             uni_transfer(
                 &UniTransferParams::TokenTransfer {
                     from: ctx.accounts.order_ata.to_account_info(),
-                    authority: ctx.accounts.order.to_account_info(),
+                    authority: order.to_account_info(),
                     to: ctx
                         .accounts
                         .creator_ata
@@ -298,7 +298,7 @@ pub mod cross_chain_escrow_src {
             CloseAccount {
                 account: ctx.accounts.order_ata.to_account_info(),
                 destination: ctx.accounts.creator.to_account_info(),
-                authority: ctx.accounts.order.to_account_info(),
+                authority: order.to_account_info(),
             },
             &[&seeds],
         ))?;
