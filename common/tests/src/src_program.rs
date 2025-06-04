@@ -148,6 +148,9 @@ impl<S: TokenVariant> EscrowVariant<S> for SrcProgram {
         let instruction_data =
             InstructionData::data(&cross_chain_escrow_src::instruction::CreateEscrow {
                 dutch_auction_data: test_state.test_arguments.dutch_auction_data.clone(),
+                hashlock: test_state.hashlock.to_bytes(),
+                merkle_proof: test_state.test_arguments.merkle_proof.clone(),
+                index: test_state.test_arguments.index,
             });
 
         let (order, order_ata) = get_order_addresses(test_state);

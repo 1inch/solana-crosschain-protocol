@@ -79,6 +79,8 @@ pub struct TestArgs {
     pub max_cancellation_premium: u64,
     pub cancellation_auction_duration: u32,
     pub reward_limit: u64,
+    pub merkle_proof: Vec<[u8; 32]>,
+    pub index: u32,
 }
 
 pub fn get_default_testargs(nowsecs: u32) -> TestArgs {
@@ -105,6 +107,8 @@ pub fn get_default_testargs(nowsecs: u32) -> TestArgs {
         max_cancellation_premium: DEFAULT_ESCROW_AMOUNT.mul(50_u64 * 100).div(100_u64 * 100),
         cancellation_auction_duration: DEFAULT_PERIOD_DURATION,
         reward_limit: DEFAULT_ESCROW_AMOUNT.mul(50_u64 * 100).div(100_u64 * 100),
+        merkle_proof: Vec::<[u8; 32]>::new(),
+        index: 1,
     }
 }
 
