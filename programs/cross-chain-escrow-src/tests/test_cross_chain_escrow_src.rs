@@ -1413,11 +1413,6 @@ mod local_helpers {
         let (order, order_ata) = create_order(test_state).await;
         let transaction = get_cancel_order_tx(test_state, &order, &order_ata, None);
 
-        set_time(
-            &mut test_state.context,
-            test_state.init_timestamp + DEFAULT_PERIOD_DURATION * PeriodType::Cancellation as u32,
-        );
-
         let token_account_rent =
             get_min_rent_for_size(&mut test_state.client, S::get_token_account_size()).await;
         let order_rent = get_min_rent_for_size(&mut test_state.client, get_order_data_len()).await;
