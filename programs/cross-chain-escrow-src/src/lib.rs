@@ -499,11 +499,11 @@ pub struct Create<'info> {
     /// CHECK: check is not necessary as token is only used as a constraint to creator_ata and order
     mint: Box<InterfaceAccount<'info, Mint>>,
     #[account(
-            mut,
-            associated_token::mint = mint,
-            associated_token::authority = creator,
-            associated_token::token_program = token_program
-        )]
+        mut,
+        associated_token::mint = mint,
+        associated_token::authority = creator,
+        associated_token::token_program = token_program
+    )]
     /// Account to store creator's tokens (Optional if the token is native)
     creator_ata: Option<Box<InterfaceAccount<'info, TokenAccount>>>,
     /// Account to store order details
@@ -526,12 +526,12 @@ pub struct Create<'info> {
     order: Box<Account<'info, Order>>,
     /// Account to store escrowed tokens
     #[account(
-                    init,
-                    payer = creator,
-                    associated_token::mint = mint,
-                    associated_token::authority = order,
-                    associated_token::token_program = token_program
-                )]
+        init,
+        payer = creator,
+        associated_token::mint = mint,
+        associated_token::authority = order,
+        associated_token::token_program = token_program
+    )]
     order_ata: Box<InterfaceAccount<'info, TokenAccount>>,
 
     #[account(address = ASSOCIATED_TOKEN_PROGRAM_ID)]
@@ -572,11 +572,11 @@ pub struct CreateEscrow<'info> {
     order: Box<Account<'info, Order>>,
     /// Account to store orders tokens
     #[account(
-                mut,
-                associated_token::mint = mint,
-                associated_token::authority = order,
-                associated_token::token_program = token_program
-            )]
+        mut,
+        associated_token::mint = mint,
+        associated_token::authority = order,
+        associated_token::token_program = token_program
+    )]
     order_ata: Box<InterfaceAccount<'info, TokenAccount>>,
 
     /// Account to store escrow details
@@ -669,8 +669,8 @@ pub struct PublicWithdraw<'info> {
     payer: Signer<'info>,
     mint: Box<InterfaceAccount<'info, Mint>>,
     #[account(
-            mut,
-            seeds = [
+        mut,
+        seeds = [
             "escrow".as_bytes(),
             escrow.order_hash.as_ref(),
             escrow.hashlock.as_ref(),
@@ -717,8 +717,8 @@ pub struct CancelEscrow<'info> {
     maker: AccountInfo<'info>,
     mint: Box<InterfaceAccount<'info, Mint>>,
     #[account(
-            mut,
-            seeds = [
+        mut,
+        seeds = [
             "escrow".as_bytes(),
             escrow.order_hash.as_ref(),
             escrow.hashlock.as_ref(),
@@ -760,14 +760,14 @@ pub struct CancelOrder<'info> {
     #[account(
         mut,
         seeds = [
-        "order".as_bytes(),
-        order.order_hash.as_ref(),
-        order.hashlock.as_ref(),
-        order.creator.as_ref(),
-        order.token.key().as_ref(),
-        order.amount.to_be_bytes().as_ref(),
-        order.safety_deposit.to_be_bytes().as_ref(),
-        order.rescue_start.to_be_bytes().as_ref(),
+            "order".as_bytes(),
+            order.order_hash.as_ref(),
+            order.hashlock.as_ref(),
+            order.creator.as_ref(),
+            order.token.key().as_ref(),
+            order.amount.to_be_bytes().as_ref(),
+            order.safety_deposit.to_be_bytes().as_ref(),
+            order.rescue_start.to_be_bytes().as_ref(),
         ],
         bump,
     )]
@@ -804,8 +804,8 @@ pub struct CancelOrderbyResolver<'info> {
     creator: AccountInfo<'info>,
     mint: Box<InterfaceAccount<'info, Mint>>,
     #[account(
-            mut,
-            seeds = [
+        mut,
+        seeds = [
             "order".as_bytes(),
             order.order_hash.as_ref(),
             order.hashlock.as_ref(),
@@ -814,23 +814,23 @@ pub struct CancelOrderbyResolver<'info> {
             order.amount.to_be_bytes().as_ref(),
             order.safety_deposit.to_be_bytes().as_ref(),
             order.rescue_start.to_be_bytes().as_ref(),
-            ],
-            bump,
-        )]
+        ],
+        bump,
+    )]
     order: Box<Account<'info, Order>>,
     #[account(
-                mut,
-                associated_token::mint = mint,
-                associated_token::authority = order,
-                associated_token::token_program = token_program
-            )]
+        mut,
+        associated_token::mint = mint,
+        associated_token::authority = order,
+        associated_token::token_program = token_program
+    )]
     order_ata: Box<InterfaceAccount<'info, TokenAccount>>,
     #[account(
-                    mut,
-                    associated_token::mint = mint,
-                    associated_token::authority = creator,
-                    associated_token::token_program = token_program
-                )]
+        mut,
+        associated_token::mint = mint,
+        associated_token::authority = creator,
+        associated_token::token_program = token_program
+    )]
     // Optional if the token is native
     creator_ata: Option<Box<InterfaceAccount<'info, TokenAccount>>>,
     token_program: Interface<'info, TokenInterface>,
@@ -855,8 +855,8 @@ pub struct PublicCancelEscrow<'info> {
     #[account(mut)]
     payer: Signer<'info>,
     #[account(
-            mut,
-            seeds = [
+        mut,
+        seeds = [
             "escrow".as_bytes(),
             escrow.order_hash.as_ref(),
             escrow.hashlock.as_ref(),
@@ -899,7 +899,7 @@ pub struct RescueFundsForEscrow<'info> {
     mint: Box<InterfaceAccount<'info, Mint>>,
     /// CHECK: We don't accept escrow as 'Account<'info, Escrow>' because it may be already closed at the time of rescue funds.
     #[account(
-            seeds = [
+        seeds = [
             "escrow".as_bytes(),
             order_hash.as_ref(),
             hashlock.as_ref(),
@@ -955,11 +955,11 @@ pub struct RescueFundsForOrder<'info> {
         )]
     order: AccountInfo<'info>,
     #[account(
-                mut,
-                associated_token::mint = mint,
-                associated_token::authority = order,
-                associated_token::token_program = token_program
-            )]
+        mut,
+        associated_token::mint = mint,
+        associated_token::authority = order,
+        associated_token::token_program = token_program
+    )]
     order_ata: Box<InterfaceAccount<'info, TokenAccount>>,
     #[account(
         mut,
