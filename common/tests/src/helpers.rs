@@ -37,6 +37,7 @@ use solana_sdk::{
     transaction::{Transaction, TransactionError},
 };
 use std::marker::PhantomData;
+use std::ops::{Div, Mul};
 use std::time::{SystemTime, UNIX_EPOCH};
 use test_context::AsyncTestContext;
 
@@ -75,6 +76,9 @@ pub struct TestArgs {
     pub asset_is_native: bool,
     pub dst_amount: u64,
     pub dutch_auction_data: cross_chain_escrow_src::AuctionData,
+    pub max_cancellation_premium: u64,
+    pub cancellation_auction_duration: u32,
+    pub reward_limit: u64,
 }
 
 pub fn get_default_testargs(nowsecs: u32) -> TestArgs {
@@ -98,6 +102,9 @@ pub fn get_default_testargs(nowsecs: u32) -> TestArgs {
             initial_rate_bump: 0,
             points_and_time_deltas: vec![],
         },
+        max_cancellation_premium: DEFAULT_ESCROW_AMOUNT.mul(50_u64 * 100).div(100_u64 * 100),
+        cancellation_auction_duration: DEFAULT_PERIOD_DURATION,
+        reward_limit: DEFAULT_ESCROW_AMOUNT.mul(50_u64 * 100).div(100_u64 * 100),
     }
 }
 
