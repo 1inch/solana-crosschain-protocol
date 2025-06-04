@@ -1,10 +1,11 @@
 use crate::helpers::{
-    deregister, get_whitelist_access_address, init_whitelist, register, register_deregister_data,
-    set_authority, set_authority_data, TestState,
+    deregister, init_whitelist, register, register_deregister_data, set_authority,
+    set_authority_data, TestState,
 };
 use anchor_lang::{prelude::ProgramError, AccountDeserialize, InstructionData, Space};
 use common::constants::DISCRIMINATOR_BYTES;
 use common_tests::helpers::*;
+use common_tests::whitelist::get_whitelist_access_address;
 use solana_program_test::tokio;
 use solana_sdk::signer::Signer;
 
