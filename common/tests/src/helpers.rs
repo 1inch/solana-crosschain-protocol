@@ -80,6 +80,8 @@ pub struct TestArgs {
     pub cancellation_auction_duration: u32,
     pub reward_limit: u64,
     pub merkle_proof: Vec<[u8; 32]>,
+    pub merkle_root: Hash,
+    pub merkle_leaf: Hash,
     pub index: u32,
 }
 
@@ -108,6 +110,8 @@ pub fn get_default_testargs(nowsecs: u32) -> TestArgs {
         cancellation_auction_duration: DEFAULT_PERIOD_DURATION,
         reward_limit: DEFAULT_ESCROW_AMOUNT.mul(50_u64 * 100).div(100_u64 * 100),
         merkle_proof: Vec::<[u8; 32]>::new(),
+        merkle_root: Hash::default(),
+        merkle_leaf: Hash::default(),
         index: 1,
     }
 }
