@@ -5,7 +5,7 @@ use anchor_spl::token::spl_token::native_mint;
 use anchor_spl::token_interface::{
     close_account, CloseAccount, Mint, TokenAccount, TokenInterface,
 };
-pub use auction::{calculate_rate_bump, AuctionData};
+pub use auction::{calculate_premium, calculate_rate_bump, AuctionData};
 pub use common::constants;
 use common::error::EscrowError;
 use common::escrow::{uni_transfer, EscrowBase, UniTransferParams};
@@ -311,7 +311,7 @@ pub mod cross_chain_escrow_src {
         ctx: Context<CancelOrderbyResolver>,
         reward_limit: u64,
     ) -> Result<()> {
-        let order = ctx.accounts.order.clone();
+        let order = &ctx.accounts.order;
         let now = utils::get_current_timestamp()?;
 
         require!(now >= order.expiration_time, EscrowError::OrderNotExpired);
@@ -343,7 +343,7 @@ pub mod cross_chain_escrow_src {
             uni_transfer(
                 &UniTransferParams::TokenTransfer {
                     from: ctx.accounts.order_ata.to_account_info(),
-                    authority: ctx.accounts.order.to_account_info(),
+                    authority: order.to_account_info(),
                     to: ctx
                         .accounts
                         .creator_ata
@@ -374,7 +374,7 @@ pub mod cross_chain_escrow_src {
             CloseAccount {
                 account: ctx.accounts.order_ata.to_account_info(),
                 destination: ctx.accounts.resolver.to_account_info(),
-                authority: ctx.accounts.order.to_account_info(),
+                authority: order.to_account_info(),
             },
             &[&seeds],
         ))?;
@@ -1069,23 +1069,4 @@ fn get_dst_amount(dst_amount: u64, data: &AuctionData) -> Result<u64> {
         .mul_div_ceil(constants::BASE_1E5 + rate_bump, constants::BASE_1E5)
         .ok_or(ProgramError::ArithmeticOverflow)?;
     Ok(result)
-}
-
-// declared as `pub` to use in testing
-pub fn calculate_premium(
-    timestamp: u32,
-    auction_start_time: u32,
-    auction_duration: u32,
-    max_cancellation_premium: u64,
-) -> u64 {
-    if timestamp <= auction_start_time {
-        return 0;
-    }
-
-    let time_elapsed = timestamp - auction_start_time;
-    if time_elapsed >= auction_duration {
-        return max_cancellation_premium;
-    }
-
-    (time_elapsed as u64 * max_cancellation_premium) / auction_duration as u64
 }
