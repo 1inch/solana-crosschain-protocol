@@ -1,8 +1,5 @@
 [workspace]
-members = [
-    "common",
-    "programs/*"
-]
+members = ["common", "programs/*", "svm-merkle-tree"]
 resolver = "2"
 
 [profile.release]

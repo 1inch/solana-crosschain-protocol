@@ -24,6 +24,7 @@ anchor-lang = "0.31.1"
 anchor-spl = "0.31.1"
 common = { path = "../../common" }
 muldiv = "1.0.1"
+svm-merkle-tree = { path = "../../svm-merkle-tree" }
 
 [dev-dependencies]
 solana-program = "2.1.0"
