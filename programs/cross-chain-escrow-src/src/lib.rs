@@ -95,7 +95,7 @@ pub mod cross_chain_escrow_src {
     pub fn create_escrow(
         ctx: Context<CreateEscrow>,
         dutch_auction_data: AuctionData,
-        hashlock: [u8; 32], // Leaf of merkle tree if partially filled
+        hashlock: [u8; 32], // Secret of the index in the merkle tree
         merkle_proof: Vec<[u8; 32]>,
         index: u32,
     ) -> Result<()> {
@@ -113,13 +113,18 @@ pub mod cross_chain_escrow_src {
 
         // TODO: validate merkle proof
         require!(
-            merkle_tree::merkle_tree_helpers::merkle_verify(merkle_proof, order.hashlock, hashlock),
+            merkle_tree::merkle_tree_helpers::merkle_verify(
+                merkle_proof,
+                order.hashlock,
+                index,
+                &hashlock
+            ),
             EscrowError::InvalidMerkleProof
         );
 
         // TODO: save index to last_validated
 
-        order.last_validated = index;
+        order.last_validated = index + 1;
 
         let withdrawal_start = now
             .checked_add(order.finality_duration)
