@@ -1,18 +1,16 @@
-use solana_program::keccak::{hashv, Hash};
+use solana_program::keccak::hashv;
 
-/// Hashes a pair of leaves, sorting them before hashing.
-pub fn hash_leaf_pairs(left: &Hash, right: &Hash) -> Hash {
-    let (first, second) = if left.to_bytes() < right.to_bytes() {
+pub fn hash_leaf_pairs(left: &[u8; 32], right: &[u8; 32]) -> [u8; 32] {
+    let (first, second) = if left < right {
         (left, right)
     } else {
         (right, left)
     };
-    hashv(&[first.as_ref(), second.as_ref()])
+    hashv(&[first.as_ref(), second.as_ref()]).0
 }
 
-/// Computes the next level of a Merkle tree.
-pub fn hash_level(data: &[Hash]) -> Vec<Hash> {
-    let mut result = Vec::with_capacity((data.len() + 1) / 2);
+pub fn hash_level(data: &[[u8; 32]]) -> Vec<[u8; 32]> {
+    let mut result = Vec::with_capacity(data.len().div_ceil(2));
 
     let mut i = 0;
     while i + 1 < data.len() {
@@ -20,9 +18,8 @@ pub fn hash_level(data: &[Hash]) -> Vec<Hash> {
         i += 2;
     }
 
-    // Handle odd length by pairing last element with zero hash
     if data.len() % 2 == 1 {
-        result.push(hash_leaf_pairs(&data[data.len() - 1], &Hash::default()));
+        result.push(hash_leaf_pairs(&data[data.len() - 1], &[0u8; 32]));
     }
 
     result
@@ -72,8 +69,7 @@ pub fn log2_ceil_bit_magic(mut x: u128) -> u32 {
     }
 }
 
-/// Calculates the Merkle root from a list of leaves.
-pub fn get_root(mut data: Vec<Hash>) -> Hash {
+pub fn get_root(mut data: Vec<[u8; 32]>) -> [u8; 32] {
     assert!(data.len() > 1, "won't generate root for single leaf");
 
     while data.len() > 1 {
@@ -83,21 +79,17 @@ pub fn get_root(mut data: Vec<Hash>) -> Hash {
     data[0]
 }
 
-/// Generates a Merkle proof for the node at the given index.
-pub fn get_proof(mut data: Vec<Hash>, mut node: usize) -> Vec<Hash> {
+pub fn get_proof(mut data: Vec<[u8; 32]>, mut node: usize) -> Vec<[u8; 32]> {
     let cap: usize = log2_ceil_bit_magic(data.len() as u128).try_into().unwrap();
     let mut result = Vec::with_capacity(cap);
 
     while data.len() > 1 {
         let sibling = if node & 1 == 1 {
-            // Left sibling
-            data[node - 1].clone()
+            data[node - 1]
         } else if node + 1 == data.len() {
-            // No right sibling, pad with zero
-            Hash::default()
+            [0u8; 32]
         } else {
-            // Right sibling
-            data[node + 1].clone()
+            data[node + 1]
         };
         result.push(sibling);
         node /= 2;

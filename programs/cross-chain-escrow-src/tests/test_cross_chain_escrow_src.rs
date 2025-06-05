@@ -17,7 +17,7 @@ use solana_sdk::signer::keypair::Keypair;
 use test_context::test_context;
 
 mod merkle_tree_test_helpers;
-use merkle_tree_test_helpers::{get_root, get_proof};
+use merkle_tree_test_helpers::{get_proof, get_root};
 
 run_for_tokens!(
     (TokenSPL, token_spl_tests),
@@ -881,7 +881,7 @@ mod local_helpers {
     use solana_program::instruction::{AccountMeta, Instruction};
     use solana_program::pubkey::Pubkey;
     use solana_program::system_program::ID as system_program_id;
-    use solana_sdk::keccak::{hashv, Hash};
+    use solana_sdk::keccak::hashv;
     use solana_sdk::signature::Signer;
     use solana_sdk::transaction::Transaction;
 
@@ -1731,8 +1731,8 @@ mod local_helpers {
     }
 
     pub struct MerkleHashes {
-        pub leaves: Vec<Hash>,
-        pub hashed_secrets: Vec<Hash>,
+        pub leaves: Vec<[u8; 32]>,
+        pub hashed_secrets: Vec<[u8; 32]>,
     }
 
     pub fn compute_merkle_root() -> MerkleHashes {
@@ -1742,11 +1742,11 @@ mod local_helpers {
         for i in 0..DEFAULT_SECRETS_AMOUNT {
             let i_bytes = (i as u64).to_be_bytes();
             let hashed_bytes = hashv(&[&i_bytes]).0;
-            let hashed_secret = hashv(&[&hashed_bytes]);
+            let hashed_secret = hashv(&[&hashed_bytes]).0;
             hashed_secrets.push(hashed_secret);
 
-            let pair_data = [&i_bytes[..], &hashed_secret.0[..]];
-            let hashed_pair = hashv(&pair_data); // Hashed index to bytes and hashed secret
+            let pair_data = [&i_bytes[..], &hashed_secret[..]];
+            let hashed_pair = hashv(&pair_data).0;
             leaves.push(hashed_pair);
         }
 
@@ -2321,6 +2321,7 @@ mod test_partial_fill_escrow_creation {
 
     use super::*;
     use cross_chain_escrow_src::merkle_tree::MerkleProof;
+    use solana_sdk::keccak::{hashv, Hash};
 
     #[test_context(TestState)]
     #[tokio::test]
@@ -2329,21 +2330,22 @@ mod test_partial_fill_escrow_creation {
         let index_to_validate: usize = 0;
         let hashed_secret = merkle_hashes.hashed_secrets[index_to_validate];
 
-        // Incorrect proof for leaf 0
+        let root = get_root(merkle_hashes.leaves.clone());
+        let proof_hashes = get_proof(merkle_hashes.leaves.clone(), index_to_validate);
+
         let proof = MerkleProof {
-            proof: vec![merkle_hashes.leaves[1].0, merkle_hashes.h34.0],
-            index: 0,
-            hashed_secret: merkle_hashes.hashed_secrets[0].to_bytes(),
+            proof: proof_hashes,
+            index: index_to_validate as u32,
+            hashed_secret,
         };
 
-        test_state.hashlock = merkle_hashes.root;
+        test_state.hashlock = Hash::new_from_array(root);
         test_state.test_arguments.allow_multiple_fills = true;
         let (order, order_ata) = create_order(test_state).await;
 
         test_state.test_arguments.merkle_proof = Some(proof);
         create_escrow(test_state).await;
 
-        // Check that the order accounts have not been closed.
         let acc_lookup_result = test_state.client.get_account(order).await.unwrap();
         assert!(acc_lookup_result.is_some());
 
@@ -2355,12 +2357,15 @@ mod test_partial_fill_escrow_creation {
     #[tokio::test]
     async fn test_create_escrow_fails_with_incorrect_merkle_root(test_state: &mut TestState) {
         let merkle_hashes = compute_merkle_root();
+        let index_to_validate: usize = 0;
+        let hashed_secret = merkle_hashes.hashed_secrets[index_to_validate];
 
-        // Incorrect proof for leaf 0
+        let proof_hashes = get_proof(merkle_hashes.leaves.clone(), index_to_validate);
+
         let proof = MerkleProof {
-            proof: vec![merkle_hashes.leaves[2].0, merkle_hashes.h34.0],
-            index: 0,
-            hashed_secret: merkle_hashes.hashed_secrets[0].to_bytes(),
+            proof: proof_hashes,
+            index: index_to_validate as u32,
+            hashed_secret,
         };
 
         test_state.hashlock = hashv(&[b"incorrect_root"]);
@@ -2369,66 +2374,75 @@ mod test_partial_fill_escrow_creation {
 
         test_state.test_arguments.merkle_proof = Some(proof);
 
-    //     let (_, _, transaction) = create_escrow_data(test_state);
+        let (_, _, transaction) = create_escrow_data(test_state);
 
-    //     test_state
-    //         .client
-    //         .process_transaction(transaction)
-    //         .await
-    //         .expect_error((
-    //             0,
-    //             ProgramError::Custom(EscrowError::InvalidMerkleProof.into()),
-    //         ));
-    // }
+        test_state
+            .client
+            .process_transaction(transaction)
+            .await
+            .expect_error((
+                0,
+                ProgramError::Custom(EscrowError::InvalidMerkleProof.into()),
+            ));
+    }
 
     #[test_context(TestState)]
     #[tokio::test]
     async fn test_create_escrow_fails_with_incorrect_merkle_proof(test_state: &mut TestState) {
         let merkle_hashes = compute_merkle_root();
+        let index_to_validate: usize = 0;
+        let hashed_secret = merkle_hashes.hashed_secrets[index_to_validate];
+
+        let root = get_root(merkle_hashes.leaves.clone());
+        let incorrect_proof_hashes = get_proof(merkle_hashes.leaves.clone(), 1);
 
         let proof = MerkleProof {
-            proof: vec![merkle_hashes.leaves[2].0, merkle_hashes.h34.0],
+            proof: incorrect_proof_hashes,
             index: 0,
-            hashed_secret: merkle_hashes.hashed_secrets[0].to_bytes(),
+            hashed_secret,
         };
 
-        test_state.hashlock = merkle_hashes.root;
+        test_state.hashlock = Hash::new_from_array(root);
         test_state.test_arguments.allow_multiple_fills = true;
         create_order(test_state).await;
 
         test_state.test_arguments.merkle_proof = Some(proof);
 
-    //     let (_, _, transaction) = create_escrow_data(test_state);
+        let (_, _, transaction) = create_escrow_data(test_state);
 
-    //     test_state
-    //         .client
-    //         .process_transaction(transaction)
-    //         .await
-    //         .expect_error((
-    //             0,
-    //             ProgramError::Custom(EscrowError::InvalidMerkleProof.into()),
-    //         ));
-    // }
+        test_state
+            .client
+            .process_transaction(transaction)
+            .await
+            .expect_error((
+                0,
+                ProgramError::Custom(EscrowError::InvalidMerkleProof.into()),
+            ));
+    }
 
     #[test_context(TestState)]
     #[tokio::test]
     async fn test_create_escrow_fails_with_incorrect_secret_for_leaf(test_state: &mut TestState) {
         let merkle_hashes = compute_merkle_root();
+        let index_to_validate: usize = 0;
+
+        let root = get_root(merkle_hashes.leaves.clone());
+        let proof_hashes = get_proof(merkle_hashes.leaves.clone(), index_to_validate);
 
         // Incorrect secret for leaf 0
         let proof = MerkleProof {
-            proof: vec![merkle_hashes.leaves[2].0, merkle_hashes.h34.0],
+            proof: proof_hashes,
             index: 0,
-            hashed_secret: merkle_hashes.hashed_secrets[1].to_bytes(),
+            hashed_secret: merkle_hashes.hashed_secrets[1],
         };
 
-        test_state.hashlock = merkle_hashes.root;
+        test_state.hashlock = Hash::new_from_array(root);
         test_state.test_arguments.allow_multiple_fills = true;
         create_order(test_state).await;
 
         test_state.test_arguments.merkle_proof = Some(proof);
 
-    //     let (_, _, transaction) = create_escrow_data(test_state);
+        let (_, _, transaction) = create_escrow_data(test_state);
 
         test_state
             .client
@@ -2445,7 +2459,8 @@ mod test_partial_fill_escrow_creation {
     async fn test_create_escrow_fails_without_merkle_proof(test_state: &mut TestState) {
         let merkle_hashes = compute_merkle_root();
 
-        test_state.hashlock = merkle_hashes.root;
+        let root: [u8; 32] = get_root(merkle_hashes.leaves.clone());
+        test_state.hashlock = Hash::new_from_array(root);
         test_state.test_arguments.allow_multiple_fills = true;
         create_order(test_state).await;
 
@@ -2467,14 +2482,19 @@ mod test_partial_fill_escrow_creation {
         test_state: &mut TestState,
     ) {
         let merkle_hashes = compute_merkle_root();
+        let index_to_validate: usize = 0;
+        let hashed_secret = merkle_hashes.hashed_secrets[index_to_validate];
 
-        test_state.hashlock = merkle_hashes.root;
+        let root = get_root(merkle_hashes.leaves.clone());
+        test_state.hashlock = Hash::new_from_array(root);
+        let proof_hashes = get_proof(merkle_hashes.leaves.clone(), index_to_validate);
+
         create_order(test_state).await;
 
         let proof = MerkleProof {
-            proof: vec![merkle_hashes.leaves[1].0, merkle_hashes.h34.0],
+            proof: proof_hashes,
             index: 0,
-            hashed_secret: merkle_hashes.hashed_secrets[0].to_bytes(),
+            hashed_secret,
         };
 
         test_state.test_arguments.merkle_proof = Some(proof);
