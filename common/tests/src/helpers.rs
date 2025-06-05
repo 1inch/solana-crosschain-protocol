@@ -56,12 +56,15 @@ pub enum PeriodType {
     PublicCancellation = 4,
 }
 
+pub const DEFAULT_SECRET: &[u8; 14] = b"default_secret";
 pub const DEFAULT_ESCROW_AMOUNT: u64 = 100000;
 pub const DEFAULT_DST_ESCROW_AMOUNT: u64 = 1000;
 pub const DEFAULT_RESCUE_AMOUNT: u64 = 100;
 pub const DEFAULT_SAFETY_DEPOSIT: u64 = 25;
 
 pub struct TestArgs {
+    pub escrow_hashlock: Hash,
+    pub order_amount: u64,
     pub escrow_amount: u64,
     pub safety_deposit: u64,
     pub finality_duration: u32,
@@ -83,6 +86,8 @@ pub struct TestArgs {
 
 pub fn get_default_testargs(nowsecs: u32) -> TestArgs {
     TestArgs {
+        escrow_hashlock: hash(hash(DEFAULT_SECRET).as_ref()),
+        order_amount: DEFAULT_ESCROW_AMOUNT,
         escrow_amount: DEFAULT_ESCROW_AMOUNT,
         safety_deposit: DEFAULT_SAFETY_DEPOSIT,
         finality_duration: DEFAULT_PERIOD_DURATION,
@@ -432,7 +437,7 @@ where
 
         set_time(&mut context, timestamp);
         let token = S::deploy_spl_token(&mut context).await.pubkey();
-        let secret = hash(b"default_secret").to_bytes();
+        let secret = hash(DEFAULT_SECRET).to_bytes();
         let payer_kp = context.payer.insecure_clone();
         let creator_wallet = create_wallet::<S>(
             &mut context,
@@ -495,7 +500,7 @@ pub fn get_escrow_addresses<T: EscrowVariant<S>, S: TokenVariant>(
         &[
             b"escrow",
             test_state.order_hash.as_ref(),
-            test_state.hashlock.as_ref(),
+            test_state.test_arguments.escrow_hashlock.as_ref(),
             creator.as_ref(),
             test_state.recipient_wallet.keypair.pubkey().as_ref(),
             test_state.token.as_ref(),

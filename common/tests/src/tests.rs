@@ -53,12 +53,8 @@ pub async fn test_escrow_creation<T: EscrowVariant<S>, S: TokenVariant>(
 
     // Check token balances for the escrow account and creator are as expected.
     assert_eq!(
-        DEFAULT_ESCROW_AMOUNT,
+        test_state.test_arguments.escrow_amount,
         get_token_balance(&mut test_state.context, &escrow_ata).await
-    );
-    assert_eq!(
-        WALLET_DEFAULT_TOKENS - DEFAULT_ESCROW_AMOUNT,
-        get_token_balance(&mut test_state.context, &creator_ata).await
     );
 
     // Check the lamport balance of escrow account is as expected.

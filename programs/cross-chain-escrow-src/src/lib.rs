@@ -92,6 +92,8 @@ pub mod cross_chain_escrow_src {
 
     pub fn create_escrow(
         ctx: Context<CreateEscrow>,
+        amount: u64,
+        hashlock: [u8; 32],
         dutch_auction_data: AuctionData,
     ) -> Result<()> {
         let order = &ctx.accounts.order;
@@ -137,7 +139,7 @@ pub mod cross_chain_escrow_src {
                 authority: order.to_account_info(),
                 to: ctx.accounts.escrow_ata.to_account_info(),
                 mint: *ctx.accounts.mint.clone(),
-                amount: order.amount,
+                amount,
                 program: ctx.accounts.token_program.clone(),
             },
             Some(&[&seeds]),
@@ -145,11 +147,11 @@ pub mod cross_chain_escrow_src {
 
         escrow.set_inner(EscrowSrc {
             order_hash: order.order_hash,
-            hashlock: order.hashlock,
+            hashlock,
             maker: order.creator,
             taker: ctx.accounts.taker.key(),
             token: order.token,
-            amount: order.amount,
+            amount: amount,
             safety_deposit: order.safety_deposit,
             withdrawal_start,
             public_withdrawal_start,
@@ -160,19 +162,21 @@ pub mod cross_chain_escrow_src {
             dst_amount: get_dst_amount(order.dst_amount, &dutch_auction_data)?,
         });
 
-        // Close the order_ata account
-        close_account(CpiContext::new_with_signer(
-            ctx.accounts.token_program.to_account_info(),
-            CloseAccount {
-                account: ctx.accounts.order_ata.to_account_info(),
-                destination: ctx.accounts.maker.to_account_info(),
-                authority: order.to_account_info(),
-            },
-            &[&seeds],
-        ))?;
+        if ctx.accounts.order_ata.amount == amount {
+            // Close the order_ata account
+            close_account(CpiContext::new_with_signer(
+                ctx.accounts.token_program.to_account_info(),
+                CloseAccount {
+                    account: ctx.accounts.order_ata.to_account_info(),
+                    destination: ctx.accounts.maker.to_account_info(),
+                    authority: order.to_account_info(),
+                },
+                &[&seeds],
+            ))?;
 
-        // Close the order account
-        order.close(ctx.accounts.maker.to_account_info())?;
+            // Close the order account
+            order.close(ctx.accounts.maker.to_account_info())?;
+        }
 
         Ok(())
     }
@@ -542,6 +546,7 @@ pub struct Create<'info> {
 }
 
 #[derive(Accounts)]
+#[instruction(amount: u64, hashlock: [u8; 32])]
 pub struct CreateEscrow<'info> {
     #[account(mut)]
     taker: Signer<'info>,
@@ -587,11 +592,11 @@ pub struct CreateEscrow<'info> {
         seeds = [
             "escrow".as_bytes(),
             order.order_hash.as_ref(),
-            order.hashlock.as_ref(),
+            hashlock.as_ref(),
             order.creator.as_ref(),
             taker.key().as_ref(),
             order.token.key().as_ref(),
-            order.amount.to_be_bytes().as_ref(), // TODO: Must be replaced with the actual amount when partial fills are implemented.
+            amount.to_be_bytes().as_ref(),
             order.safety_deposit.to_be_bytes().as_ref(),
             order.rescue_start.to_be_bytes().as_ref(),
         ],

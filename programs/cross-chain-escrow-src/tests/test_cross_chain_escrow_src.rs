@@ -10,6 +10,7 @@ use common_tests::src_program::{
 };
 use common_tests::tests as common_escrow_tests;
 use cross_chain_escrow_src::calculate_premium;
+use solana_program::keccak::hash;
 use solana_program_test::tokio;
 use solana_sdk::clock::Clock;
 use solana_sdk::signature::Signer;
@@ -195,8 +196,12 @@ run_for_tokens!(
             #[test_context(TestState)]
             #[tokio::test]
             async fn test_escrow_creation(test_state: &mut TestState) {
-                create_order(test_state).await;
+                let (order_pda, order_ata) = create_order(test_state).await;
                 common_escrow_tests::test_escrow_creation(test_state).await;
+                let mut acc_lookup_result = test_state.client.get_account(order_pda).await.unwrap();
+                assert!(acc_lookup_result.is_none());
+                acc_lookup_result = test_state.client.get_account(order_ata).await.unwrap();
+                assert!(acc_lookup_result.is_none());
             }
 
             #[test_context(TestState)]
@@ -217,6 +222,38 @@ run_for_tokens!(
 
                 create_order(test_state).await;
                 common_escrow_tests::test_escrow_creation(test_state).await
+            }
+
+            #[test_context(TestState)]
+            #[tokio::test]
+            async fn test_escrow_creation_partial(test_state: &mut TestState) {
+                test_state.test_arguments.escrow_amount = DEFAULT_ESCROW_AMOUNT / 2;
+                let (order_pda, order_ata) = create_order(test_state).await;
+                common_escrow_tests::test_escrow_creation(test_state).await;
+                let mut acc_lookup_result = test_state.client.get_account(order_pda).await.unwrap();
+                assert!(acc_lookup_result.is_some());
+                acc_lookup_result = test_state.client.get_account(order_ata).await.unwrap();
+                assert!(acc_lookup_result.is_some());
+            }
+
+            #[test_context(TestState)]
+            #[tokio::test]
+            async fn test_escrow_creation_multiple(test_state: &mut TestState) {
+                let (order_pda, order_ata) = create_order(test_state).await;
+                test_state.test_arguments.escrow_amount = DEFAULT_ESCROW_AMOUNT / 2;
+                common_escrow_tests::test_escrow_creation(test_state).await;
+                let mut acc_lookup_result = test_state.client.get_account(order_pda).await.unwrap();
+                assert!(acc_lookup_result.is_some());
+                acc_lookup_result = test_state.client.get_account(order_ata).await.unwrap();
+                assert!(acc_lookup_result.is_some());
+
+                test_state.test_arguments.escrow_hashlock = hash("new secret".as_ref());
+                common_escrow_tests::test_escrow_creation(test_state).await;
+
+                let mut acc_lookup_result = test_state.client.get_account(order_pda).await.unwrap();
+                assert!(acc_lookup_result.is_none());
+                acc_lookup_result = test_state.client.get_account(order_ata).await.unwrap();
+                assert!(acc_lookup_result.is_none());
             }
 
             #[test_context(TestState)]
