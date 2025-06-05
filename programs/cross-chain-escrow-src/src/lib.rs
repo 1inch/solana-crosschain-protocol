@@ -13,6 +13,7 @@ use common::utils;
 use muldiv::MulDiv;
 
 pub mod auction;
+pub mod merkle_tree;
 
 declare_id!("6NwMYeUmigiMDjhYeYpbxC6Kc63NzZy1dfGd7fGcdkVS");
 
@@ -23,7 +24,7 @@ pub mod cross_chain_escrow_src {
     pub fn create(
         ctx: Context<Create>,
         order_hash: [u8; 32],
-        hashlock: [u8; 32],
+        hashlock: [u8; 32], // Root of merkle tree if partially filled
         amount: u64,
         safety_deposit: u64,
         finality_duration: u32,
@@ -94,11 +95,11 @@ pub mod cross_chain_escrow_src {
     pub fn create_escrow(
         ctx: Context<CreateEscrow>,
         dutch_auction_data: AuctionData,
-        hashlock: [u8; 32],
+        hashlock: [u8; 32], // Secret of the index in the merkle tree
         merkle_proof: Vec<[u8; 32]>,
         index: u32,
     ) -> Result<()> {
-        let order = &ctx.accounts.order;
+        let order = &mut ctx.accounts.order;
         let escrow = &mut ctx.accounts.escrow;
 
         let now = utils::get_current_timestamp()?;
@@ -110,9 +111,17 @@ pub mod cross_chain_escrow_src {
             EscrowError::DutchAuctionDataHashMismatch
         );
 
-        // TODO: validate merkle proof
+        require!(
+            merkle_tree::merkle_tree_helpers::merkle_verify(
+                merkle_proof,
+                order.hashlock,
+                index,
+                &hashlock
+            ),
+            EscrowError::InvalidMerkleProof
+        );
 
-        // TODO: save index to last_validated
+        order.last_validated = index + 1;
 
         let withdrawal_start = now
             .checked_add(order.finality_duration)
@@ -168,19 +177,21 @@ pub mod cross_chain_escrow_src {
             dst_amount: get_dst_amount(order.dst_amount, &dutch_auction_data)?,
         });
 
+        //TODO! Add a check to ensure the order is not partially filled
+
         // Close the order_ata account
-        close_account(CpiContext::new_with_signer(
-            ctx.accounts.token_program.to_account_info(),
-            CloseAccount {
-                account: ctx.accounts.order_ata.to_account_info(),
-                destination: ctx.accounts.maker.to_account_info(),
-                authority: order.to_account_info(),
-            },
-            &[&seeds],
-        ))?;
+        // close_account(CpiContext::new_with_signer(
+        //     ctx.accounts.token_program.to_account_info(),
+        //     CloseAccount {
+        //         account: ctx.accounts.order_ata.to_account_info(),
+        //         destination: ctx.accounts.maker.to_account_info(),
+        //         authority: order.to_account_info(),
+        //     },
+        //     &[&seeds],
+        // ))?;
 
         // Close the order account
-        order.close(ctx.accounts.maker.to_account_info())?;
+        // order.close(ctx.accounts.maker.to_account_info())?;
 
         Ok(())
     }

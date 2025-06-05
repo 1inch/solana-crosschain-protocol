@@ -878,6 +878,7 @@ mod local_helpers {
     use solana_program::instruction::{AccountMeta, Instruction};
     use solana_program::pubkey::Pubkey;
     use solana_program::system_program::ID as system_program_id;
+    use solana_sdk::keccak::{hashv, Hash};
     use solana_sdk::signature::Signer;
     use solana_sdk::transaction::Transaction;
 
@@ -1725,6 +1726,56 @@ mod local_helpers {
     ) -> TestStateBase<SrcProgram, S> {
         <TestStateBase<SrcProgram, S> as test_context::AsyncTestContext>::setup().await
     }
+
+    pub struct MerkleHashes {
+        pub leaves: Vec<Hash>,
+        // pub h12: Hash,
+        pub h34: Hash,
+        pub root: Hash,
+        pub hashed_secrets: Vec<Hash>,
+    }
+
+    pub fn compute_merkle_root() -> MerkleHashes {
+        let mut leaves = Vec::with_capacity(DEFAULT_SECRETS_AMOUNT);
+        let mut hashed_secrets = Vec::with_capacity(DEFAULT_SECRETS_AMOUNT);
+
+        for i in 0..DEFAULT_SECRETS_AMOUNT {
+            let i_bytes = (i as u64).to_be_bytes();
+            let hashed_bytes = hashv(&[&i_bytes]).0;
+            let hashed_secret = hashv(&[&hashed_bytes]);
+            hashed_secrets.push(hashed_secret);
+
+            let pair_data = [&i_bytes[..], &hashed_secret.0[..]];
+            let hashed_pair = hashv(&pair_data); // Hashed index to bytes and hashed secret
+            leaves.push(hashed_pair);
+        }
+
+        let h12 = if leaves[0] <= leaves[1] {
+            hashv(&[&leaves[0].0, &leaves[1].0])
+        } else {
+            hashv(&[&leaves[1].0, &leaves[0].0])
+        };
+
+        let h34 = if leaves[2] <= leaves[3] {
+            hashv(&[&leaves[2].0, &leaves[3].0])
+        } else {
+            hashv(&[&leaves[3].0, &leaves[2].0])
+        };
+
+        let root = if h12 <= h34 {
+            hashv(&[&h12.0, &h34.0])
+        } else {
+            hashv(&[&h34.0, &h12.0])
+        };
+
+        MerkleHashes {
+            leaves,
+            // h12,
+            h34,
+            root,
+            hashed_secrets,
+        }
+    }
 }
 
 // Native Mint (wrapped SOL) is always owned by the SPL Token program
@@ -2283,5 +2334,122 @@ mod test_wrapped_native {
         test_state.token = NATIVE_MINT;
         create_order(test_state).await;
         common_escrow_tests::test_rescue_part_of_tokens_and_not_close_ata(test_state).await
+    }
+}
+
+mod test_partial_fill_escrow_creation {
+    use crate::local_helpers::compute_merkle_root;
+
+    use super::*;
+    use solana_sdk::keccak::hashv;
+
+    #[test_context(TestState)]
+    #[tokio::test]
+    async fn test_create_escrow_with_merkle_proof_and_leaf_validation(test_state: &mut TestState) {
+        let index_to_validate = 0; // Index of the leaf to validate
+        let merkle_hashes = compute_merkle_root();
+
+        // Proof of leaf 1
+        let proof = vec![merkle_hashes.leaves[1].0, merkle_hashes.h34.0];
+
+        let hashed_secret = merkle_hashes.hashed_secrets[index_to_validate as usize];
+
+        test_state.hashlock = merkle_hashes.root;
+        create_order(test_state).await;
+
+        test_state.test_arguments.merkle_proof = proof;
+        test_state.test_arguments.merkle_leaf = hashed_secret;
+        test_state.test_arguments.index = index_to_validate;
+        create_escrow(test_state).await;
+    }
+
+    #[test_context(TestState)]
+    #[tokio::test]
+    async fn test_create_escrow_fails_with_incorrect_merkle_root(test_state: &mut TestState) {
+        let index_to_validate = 0; // Index of the leaf to validate
+        let merkle_hashes = compute_merkle_root();
+
+        let proof = vec![merkle_hashes.leaves[1].0, merkle_hashes.h34.0];
+
+        let hashed_secret = merkle_hashes.hashed_secrets[index_to_validate as usize];
+
+        test_state.hashlock = hashv(&[b"incorrect_root"]);
+
+        create_order(test_state).await;
+
+        test_state.test_arguments.merkle_proof = proof;
+        test_state.test_arguments.merkle_leaf = hashed_secret;
+        test_state.test_arguments.index = index_to_validate;
+
+        let (_, _, transaction) = create_escrow_data(test_state);
+
+        test_state
+            .client
+            .process_transaction(transaction)
+            .await
+            .expect_error((
+                0,
+                ProgramError::Custom(EscrowError::InvalidMerkleProof.into()),
+            ));
+    }
+
+    #[test_context(TestState)]
+    #[tokio::test]
+    async fn test_create_escrow_fails_with_incorrect_merkle_proof(test_state: &mut TestState) {
+        let index_to_validate = 0; // Index of the leaf to validate
+        let merkle_hashes = compute_merkle_root();
+
+        // Incorrect proof for leaf 0
+        let proof = vec![merkle_hashes.leaves[2].0, merkle_hashes.h34.0];
+
+        let hashed_secret = merkle_hashes.hashed_secrets[index_to_validate as usize];
+
+        test_state.hashlock = merkle_hashes.root;
+        create_order(test_state).await;
+
+        test_state.test_arguments.merkle_proof = proof;
+        test_state.test_arguments.merkle_leaf = hashed_secret;
+        test_state.test_arguments.index = index_to_validate;
+
+        let (_, _, transaction) = create_escrow_data(test_state);
+
+        test_state
+            .client
+            .process_transaction(transaction)
+            .await
+            .expect_error((
+                0,
+                ProgramError::Custom(EscrowError::InvalidMerkleProof.into()),
+            ));
+    }
+
+    #[test_context(TestState)]
+    #[tokio::test]
+    async fn test_create_escrow_fails_with_incorrect_secret_for_leaf(test_state: &mut TestState) {
+        let index_to_validate: u64 = 0; // Index of the leaf to validate
+        let merkle_hashes = compute_merkle_root();
+
+        // Correct proof for leaf 0
+        let proof = vec![merkle_hashes.leaves[1].0, merkle_hashes.h34.0];
+
+        let hashed_secret = hashv(&[b"incorrect_secret"]); // or some other source
+
+        test_state.hashlock = merkle_hashes.root;
+        create_order(test_state).await;
+
+        test_state.test_arguments.merkle_proof = proof;
+        test_state.test_arguments.merkle_leaf = hashed_secret;
+        test_state.test_arguments.index = index_to_validate as u32;
+
+        let (_, _, transaction) = create_escrow_data(test_state);
+
+        test_state
+            .client
+            .process_transaction(transaction)
+            .await
+            .expect_error((
+                0,
+                ProgramError::Custom(EscrowError::InvalidMerkleProof.into()),
+            ));
     }
 }

@@ -32,4 +32,6 @@ pub enum EscrowError {
     DutchAuctionDataHashMismatch,
     #[msg("Invalid cancellation fee")]
     InvalidCancellationFee,
+    #[msg("Invalid merkle proof")]
+    InvalidMerkleProof,
 }
