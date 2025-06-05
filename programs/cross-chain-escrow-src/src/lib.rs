@@ -295,6 +295,7 @@ pub mod cross_chain_escrow_src {
             &[ctx.bumps.order],
         ];
 
+        // TODO!: Check and close if last secret has been provided (fully filled)
         if !order.asset_is_native {
             uni_transfer(
                 &UniTransferParams::TokenTransfer {
