@@ -26,6 +26,7 @@ pub mod cross_chain_escrow_src {
         order_hash: [u8; 32],
         hashlock: [u8; 32], // Root of merkle tree if partially filled
         amount: u64,
+        parts_amount: u32,
         safety_deposit: u64,
         finality_duration: u32,
         withdrawal_duration: u32,
@@ -75,6 +76,8 @@ pub mod cross_chain_escrow_src {
             creator: ctx.accounts.creator.key(),
             token: ctx.accounts.mint.key(),
             amount,
+            remaining_amount: amount,
+            parts_amount,
             safety_deposit,
             finality_duration,
             withdrawal_duration,
@@ -96,6 +99,7 @@ pub mod cross_chain_escrow_src {
 
     pub fn create_escrow(
         ctx: Context<CreateEscrow>,
+        amount: u64,
         dutch_auction_data: AuctionData,
         merkle_proof: Option<crate::merkle_tree::MerkleProof>,
     ) -> Result<()> {
@@ -117,7 +121,18 @@ pub mod cross_chain_escrow_src {
                     proof.verify(order.hashlock),
                     EscrowError::InvalidMerkleProof
                 );
+                require!(
+                    is_valid_partial_fill(
+                        amount,
+                        order.remaining_amount,
+                        order.amount,
+                        order.parts_amount as u64,
+                        proof.index as u64,
+                    ),
+                    EscrowError::InvalidPartialFill
+                );
                 order.last_validated = proof.index + 1;
+                order.remaining_amount -= amount;
             }
             (false, None) => {
                 // single fill, no merkle proof expected — OK
@@ -179,8 +194,7 @@ pub mod cross_chain_escrow_src {
             dst_amount: get_dst_amount(order.dst_amount, &dutch_auction_data)?,
         });
 
-        // TODO!: Check and close if last secret has been provided (fully filled)
-        if !order.allow_multiple_fills {
+        if !order.allow_multiple_fills || order.remaining_amount == 0 {
             // Close the order ATA
             close_account(CpiContext::new_with_signer(
                 ctx.accounts.token_program.to_account_info(),
@@ -1002,6 +1016,8 @@ pub struct Order {
     creator: Pubkey,
     token: Pubkey,
     amount: u64,
+    remaining_amount: u64,
+    parts_amount: u32,
     safety_deposit: u64,
     finality_duration: u32,
     withdrawal_duration: u32,
@@ -1093,4 +1109,32 @@ fn get_dst_amount(dst_amount: u64, data: &AuctionData) -> Result<u64> {
         .mul_div_ceil(constants::BASE_1E5 + rate_bump, constants::BASE_1E5)
         .ok_or(ProgramError::ArithmeticOverflow)?;
     Ok(result)
+}
+
+fn is_valid_partial_fill(
+    making_amount: u64,
+    remaining_making_amount: u64,
+    order_making_amount: u64,
+    parts_amount: u64,
+    validated_index: u64,
+) -> bool {
+    let calculated_index = ((order_making_amount - remaining_making_amount + making_amount - 1)
+        * parts_amount)
+        / order_making_amount;
+
+    if remaining_making_amount == making_amount {
+        // If the order is filled to completion, a secret with index i + 1 must be used
+        // where i is the index of the secret for the last part.
+        return calculated_index + 2 == validated_index;
+    } else if order_making_amount != remaining_making_amount {
+        // Calculate the previous fill index only if this is not the first fill.
+        let prev_calculated_index = ((order_making_amount - remaining_making_amount - 1)
+            * parts_amount)
+            / order_making_amount;
+        if calculated_index == prev_calculated_index {
+            return false;
+        }
+    }
+
+    calculated_index + 1 == validated_index
 }
