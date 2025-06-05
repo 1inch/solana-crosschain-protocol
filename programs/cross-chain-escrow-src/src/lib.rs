@@ -111,7 +111,6 @@ pub mod cross_chain_escrow_src {
             EscrowError::DutchAuctionDataHashMismatch
         );
 
-        // TODO: validate merkle proof
         require!(
             merkle_tree::merkle_tree_helpers::merkle_verify(
                 merkle_proof,
@@ -121,8 +120,6 @@ pub mod cross_chain_escrow_src {
             ),
             EscrowError::InvalidMerkleProof
         );
-
-        // TODO: save index to last_validated
 
         order.last_validated = index + 1;
 

@@ -1,5 +1,4 @@
 pub mod merkle_tree_helpers {
-    use solana_program::keccak;
     use solana_program::keccak::hashv;
 
     pub fn merkle_verify(
@@ -11,7 +10,7 @@ pub mod merkle_tree_helpers {
         let leaf = hash_leaf(index as u64, hashed_secret);
         let mut computed_hash = leaf;
         for proof_element in proof.into_iter() {
-            computed_hash = keccak::hashv(&[
+            computed_hash = hashv(&[
                 std::cmp::min(&proof_element, &computed_hash),
                 std::cmp::max(&proof_element, &computed_hash),
             ])
