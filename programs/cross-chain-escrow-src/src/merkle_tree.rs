@@ -1,27 +1,34 @@
-pub mod merkle_tree_helpers {
-    use solana_program::keccak::hashv;
+use anchor_lang::prelude::*;
+use solana_program::keccak::hashv;
+#[account]
+pub struct MerkleProof {
+    pub proof: Vec<[u8; 32]>,
+    pub index: u32,
+    pub hashed_secret: [u8; 32],
+}
 
-    pub fn merkle_verify(
-        proof: Vec<[u8; 32]>,
-        root: [u8; 32],
-        index: u32,
-        hashed_secret: &[u8; 32],
-    ) -> bool {
-        let leaf = hash_leaf(index as u64, hashed_secret);
+impl MerkleProof {
+    /// Verifies the Merkle proof against the provided Merkle root.
+    pub fn verify(&self, root: [u8; 32]) -> bool {
+        let leaf = self.hash_leaf();
         let mut computed_hash = leaf;
-        for proof_element in proof.into_iter() {
+
+        for proof_element in &self.proof {
             computed_hash = hashv(&[
-                std::cmp::min(&proof_element, &computed_hash),
-                std::cmp::max(&proof_element, &computed_hash),
+                std::cmp::min(proof_element, &computed_hash),
+                std::cmp::max(proof_element, &computed_hash),
             ])
             .0;
         }
+
         computed_hash == root
     }
 
-    fn hash_leaf(idx: u64, hashed_secret: &[u8; 32]) -> [u8; 32] {
-        let i_bytes = idx.to_be_bytes();
-        let pair_data = [&i_bytes, &hashed_secret[..]];
+    /// Computes the hash of the leaf using index and hashed_secret.
+    fn hash_leaf(&self) -> [u8; 32] {
+        let i_bytes = self.index as u64;
+        let i_bytes = i_bytes.to_be_bytes();
+        let pair_data = [&i_bytes, &self.hashed_secret[..]];
 
         hashv(&pair_data).0
     }
