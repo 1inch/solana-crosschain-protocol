@@ -17,6 +17,7 @@ use anchor_spl::token_2022::spl_token_2022::{
 
 use async_trait::async_trait;
 use common::constants::RESCUE_DELAY;
+use cross_chain_escrow_src::merkle_tree::MerkleProof;
 use solana_program::{
     instruction::Instruction,
     keccak::{hash, Hash},
@@ -81,10 +82,9 @@ pub struct TestArgs {
     pub max_cancellation_premium: u64,
     pub cancellation_auction_duration: u32,
     pub reward_limit: u64,
-    pub merkle_proof: Vec<[u8; 32]>,
+    pub merkle_proof: Option<MerkleProof>,
     pub merkle_root: Hash,
-    pub merkle_leaf: Hash,
-    pub index: u32,
+    pub allow_multiple_fills: bool,
 }
 
 pub fn get_default_testargs(nowsecs: u32) -> TestArgs {
@@ -111,10 +111,9 @@ pub fn get_default_testargs(nowsecs: u32) -> TestArgs {
         max_cancellation_premium: DEFAULT_ESCROW_AMOUNT.mul(50_u64 * 100).div(100_u64 * 100),
         cancellation_auction_duration: DEFAULT_PERIOD_DURATION,
         reward_limit: DEFAULT_ESCROW_AMOUNT.mul(50_u64 * 100).div(100_u64 * 100),
-        merkle_proof: Vec::<[u8; 32]>::new(),
+        merkle_proof: None,
         merkle_root: Hash::default(),
-        merkle_leaf: Hash::default(),
-        index: 1,
+        allow_multiple_fills: false,
     }
 }
 

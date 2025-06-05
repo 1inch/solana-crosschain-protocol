@@ -38,6 +38,7 @@ pub mod cross_chain_escrow_src {
         dutch_auction_data_hash: [u8; 32],
         max_cancellation_premium: u64,
         cancellation_auction_duration: u32,
+        allow_multiple_fills: bool,
     ) -> Result<()> {
         let now = utils::get_current_timestamp()?;
 
@@ -87,6 +88,7 @@ pub mod cross_chain_escrow_src {
             max_cancellation_premium,
             cancellation_auction_duration,
             last_validated: 0,
+            allow_multiple_fills,
         });
 
         Ok(())
@@ -95,33 +97,33 @@ pub mod cross_chain_escrow_src {
     pub fn create_escrow(
         ctx: Context<CreateEscrow>,
         dutch_auction_data: AuctionData,
-        hashlock: [u8; 32], // Secret of the index in the merkle tree
-        merkle_proof: Vec<[u8; 32]>,
-        index: u32,
+        merkle_proof: Option<crate::merkle_tree::MerkleProof>,
     ) -> Result<()> {
         let order = &mut ctx.accounts.order;
         let escrow = &mut ctx.accounts.escrow;
-
         let now = utils::get_current_timestamp()?;
 
         require!(now < order.expiration_time, EscrowError::OrderHasExpired);
+
         let calculated_hash = hashv(&[&dutch_auction_data.try_to_vec()?]).to_bytes();
         require!(
             calculated_hash == order.dutch_auction_data_hash,
             EscrowError::DutchAuctionDataHashMismatch
         );
 
-        require!(
-            merkle_tree::merkle_tree_helpers::merkle_verify(
-                merkle_proof,
-                order.hashlock,
-                index,
-                &hashlock
-            ),
-            EscrowError::InvalidMerkleProof
-        );
-
-        order.last_validated = index + 1;
+        match (order.allow_multiple_fills, &merkle_proof) {
+            (true, Some(proof)) => {
+                require!(
+                    proof.verify(order.hashlock),
+                    EscrowError::InvalidMerkleProof
+                );
+                order.last_validated = proof.index + 1;
+            }
+            (false, None) => {
+                // single fill, no merkle proof expected — OK
+            }
+            _ => return Err(EscrowError::InconsistentMerkleProofTrait.into()),
+        }
 
         let withdrawal_start = now
             .checked_add(order.finality_duration)
@@ -177,21 +179,22 @@ pub mod cross_chain_escrow_src {
             dst_amount: get_dst_amount(order.dst_amount, &dutch_auction_data)?,
         });
 
-        //TODO! Add a check to ensure the order is not partially filled
+        // TODO!: Check and close if last secret has been provided (fully filled)
+        if !order.allow_multiple_fills {
+            // Close the order ATA
+            close_account(CpiContext::new_with_signer(
+                ctx.accounts.token_program.to_account_info(),
+                CloseAccount {
+                    account: ctx.accounts.order_ata.to_account_info(),
+                    destination: ctx.accounts.maker.to_account_info(),
+                    authority: order.to_account_info(),
+                },
+                &[&seeds],
+            ))?;
 
-        // Close the order_ata account
-        // close_account(CpiContext::new_with_signer(
-        //     ctx.accounts.token_program.to_account_info(),
-        //     CloseAccount {
-        //         account: ctx.accounts.order_ata.to_account_info(),
-        //         destination: ctx.accounts.maker.to_account_info(),
-        //         authority: order.to_account_info(),
-        //     },
-        //     &[&seeds],
-        // ))?;
-
-        // Close the order account
-        // order.close(ctx.accounts.maker.to_account_info())?;
+            // Close the order account
+            order.close(ctx.accounts.maker.to_account_info())?;
+        }
 
         Ok(())
     }
@@ -1012,6 +1015,7 @@ pub struct Order {
     max_cancellation_premium: u64,
     cancellation_auction_duration: u32,
     last_validated: u32,
+    allow_multiple_fills: bool,
 }
 
 #[account]
