@@ -25,47 +25,17 @@ pub fn hash_level(data: &[[u8; 32]]) -> Vec<[u8; 32]> {
     result
 }
 
-pub fn log2_ceil_bit_magic(mut x: u128) -> u32 {
+fn log2_ceil(x: u128) -> u32 {
     if x <= 1 {
         return 0;
     }
-
-    let mut msb = 0;
-    let original_x = x;
-
-    if x >= 1 << 64 {
-        x >>= 64;
-        msb += 64;
-    }
-    if x >= 1 << 32 {
-        x >>= 32;
-        msb += 32;
-    }
-    if x >= 1 << 16 {
-        x >>= 16;
-        msb += 16;
-    }
-    if x >= 1 << 8 {
-        x >>= 8;
-        msb += 8;
-    }
-    if x >= 1 << 4 {
-        x >>= 4;
-        msb += 4;
-    }
-    if x >= 1 << 2 {
-        x >>= 2;
-        msb += 2;
-    }
-    if x >= 1 << 1 {
-        msb += 1;
-    }
-
-    let lsb = original_x & (!original_x + 1);
-    if lsb == original_x && msb > 0 {
-        msb
+    let is_power_of_two = x.is_power_of_two();
+    let lz = x.leading_zeros();
+    let bits = 128 - lz;
+    if is_power_of_two {
+        bits - 1
     } else {
-        msb + 1
+        bits
     }
 }
 
@@ -80,7 +50,7 @@ pub fn get_root(mut data: Vec<[u8; 32]>) -> [u8; 32] {
 }
 
 pub fn get_proof(mut data: Vec<[u8; 32]>, mut node: usize) -> Vec<[u8; 32]> {
-    let cap: usize = log2_ceil_bit_magic(data.len() as u128).try_into().unwrap();
+    let cap: usize = log2_ceil(data.len() as u128).try_into().unwrap();
     let mut result = Vec::with_capacity(cap);
 
     while data.len() > 1 {
