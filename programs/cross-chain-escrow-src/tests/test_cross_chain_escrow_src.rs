@@ -2358,10 +2358,17 @@ mod test_partial_fill_escrow_creation {
 
         test_state.hashlock = merkle_hashes.root;
         test_state.test_arguments.allow_multiple_fills = true;
-        create_order(test_state).await;
+        let (order, order_ata) = create_order(test_state).await;
 
         test_state.test_arguments.merkle_proof = Some(proof);
         create_escrow(test_state).await;
+
+        // Check that the order accounts have not been closed.
+        let acc_lookup_result = test_state.client.get_account(order).await.unwrap();
+        assert!(acc_lookup_result.is_some());
+
+        let acc_lookup_result = test_state.client.get_account(order_ata).await.unwrap();
+        assert!(acc_lookup_result.is_some());
     }
 
     #[test_context(TestState)]
@@ -2450,6 +2457,57 @@ mod test_partial_fill_escrow_creation {
             .expect_error((
                 0,
                 ProgramError::Custom(EscrowError::InvalidMerkleProof.into()),
+            ));
+    }
+
+    #[test_context(TestState)]
+    #[tokio::test]
+    async fn test_create_escrow_fails_without_merkle_proof(test_state: &mut TestState) {
+        let merkle_hashes = compute_merkle_root();
+
+        test_state.hashlock = merkle_hashes.root;
+        test_state.test_arguments.allow_multiple_fills = true;
+        create_order(test_state).await;
+
+        let (_, _, transaction) = create_escrow_data(test_state);
+
+        test_state
+            .client
+            .process_transaction(transaction)
+            .await
+            .expect_error((
+                0,
+                ProgramError::Custom(EscrowError::InconsistentMerkleProofTrait.into()),
+            ));
+    }
+
+    #[test_context(TestState)]
+    #[tokio::test]
+    async fn test_create_escrow_fails_if_multiple_fills_are_false_and_merkle_proof_is_provided(
+        test_state: &mut TestState,
+    ) {
+        let merkle_hashes = compute_merkle_root();
+
+        test_state.hashlock = merkle_hashes.root;
+        create_order(test_state).await;
+
+        let proof = MerkleProof {
+            proof: vec![merkle_hashes.leaves[1].0, merkle_hashes.h34.0],
+            index: 0,
+            hashed_secret: merkle_hashes.hashed_secrets[0].to_bytes(),
+        };
+
+        test_state.test_arguments.merkle_proof = Some(proof);
+
+        let (_, _, transaction) = create_escrow_data(test_state);
+
+        test_state
+            .client
+            .process_transaction(transaction)
+            .await
+            .expect_error((
+                0,
+                ProgramError::Custom(EscrowError::InconsistentMerkleProofTrait.into()),
             ));
     }
 }
