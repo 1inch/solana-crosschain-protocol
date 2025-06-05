@@ -2346,6 +2346,7 @@ mod test_partial_fill_escrow_creation {
         test_state.test_arguments.merkle_proof = Some(proof);
         create_escrow(test_state).await;
 
+        // Check that the order accounts have not been closed.
         let acc_lookup_result = test_state.client.get_account(order).await.unwrap();
         assert!(acc_lookup_result.is_some());
 
