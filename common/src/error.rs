@@ -34,4 +34,6 @@ pub enum EscrowError {
     InvalidCancellationFee,
     #[msg("Invalid merkle proof")]
     InvalidMerkleProof,
+    #[msg("Inconsistent merkle proof trait")]
+    InconsistentMerkleProofTrait,
 }

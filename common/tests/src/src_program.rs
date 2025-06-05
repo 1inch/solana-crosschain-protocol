@@ -148,9 +148,7 @@ impl<S: TokenVariant> EscrowVariant<S> for SrcProgram {
         let instruction_data =
             InstructionData::data(&cross_chain_escrow_src::instruction::CreateEscrow {
                 dutch_auction_data: test_state.test_arguments.dutch_auction_data.clone(),
-                hashlock: test_state.test_arguments.merkle_leaf.to_bytes(), // Using leaf as hashlock for partial fills
                 merkle_proof: test_state.test_arguments.merkle_proof.clone(),
-                index: test_state.test_arguments.index,
             });
 
         let (order, order_ata) = get_order_addresses(test_state);
@@ -310,6 +308,7 @@ pub fn get_create_order_tx<T: EscrowVariant<S>, S: TokenVariant>(
         .to_bytes(),
         max_cancellation_premium: test_state.test_arguments.max_cancellation_premium,
         cancellation_auction_duration: test_state.test_arguments.cancellation_auction_duration,
+        allow_multiple_fills: test_state.test_arguments.allow_multiple_fills,
     });
 
     let (creator_ata, _) = find_user_ata(test_state);
