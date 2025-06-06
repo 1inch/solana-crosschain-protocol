@@ -99,7 +99,6 @@ pub mod cross_chain_escrow_src {
             dutch_auction_data_hash,
             max_cancellation_premium,
             cancellation_auction_duration,
-            last_validated: 0,
             allow_multiple_fills,
         });
 
@@ -141,7 +140,6 @@ pub mod cross_chain_escrow_src {
                     ),
                     EscrowError::InvalidPartialFill
                 );
-                order.last_validated = proof.index + 1;
             }
             (false, None) => {
                 // single fill, no merkle proof expected — OK
@@ -1042,7 +1040,6 @@ pub struct Order {
     dutch_auction_data_hash: [u8; 32],
     max_cancellation_premium: u64,
     cancellation_auction_duration: u32,
-    last_validated: u32,
     allow_multiple_fills: bool,
 }
 
