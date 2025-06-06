@@ -962,10 +962,11 @@ mod local_helpers {
     use super::*;
 
     use anchor_lang::InstructionData;
+    use cross_chain_escrow_src::merkle_tree::MerkleProof;
     use solana_program::instruction::{AccountMeta, Instruction};
     use solana_program::pubkey::Pubkey;
     use solana_program::system_program::ID as system_program_id;
-    use solana_sdk::keccak::hashv;
+    use solana_sdk::keccak::{hashv, Hash};
     use solana_sdk::signature::Signer;
     use solana_sdk::transaction::Transaction;
 
@@ -1802,6 +1803,52 @@ mod local_helpers {
             .await;
     }
 
+    pub async fn create_order_for_partial_fill(test_state: &mut TestState) -> (Pubkey, Pubkey) {
+        test_state.test_arguments.order_parts_amount = DEFAULT_PARTS_AMOUNT_FOR_MULTIPLE;
+        let merkle_hashes = compute_merkle_root(test_state);
+        let root = get_root(merkle_hashes.leaves.clone());
+        test_state.hashlock = Hash::new_from_array(root);
+        test_state.test_arguments.allow_multiple_fills = true;
+        create_order(test_state).await
+    }
+
+    pub async fn create_escrow_for_partial_fill_data(
+        test_state: &mut TestState,
+        escrow_amount: u64,
+    ) -> (Pubkey, Pubkey, Transaction) {
+        let merkle_hashes = compute_merkle_root(test_state);
+        let index_to_validate = get_index_for_escrow_amount(test_state, escrow_amount);
+        test_state.test_arguments.escrow_amount = escrow_amount;
+
+        let hashed_secret = merkle_hashes.hashed_secrets[index_to_validate];
+        let proof_hashes = get_proof(merkle_hashes.leaves.clone(), index_to_validate);
+        let proof = MerkleProof {
+            proof: proof_hashes,
+            index: index_to_validate as u32,
+            hashed_secret,
+        };
+
+        test_state.test_arguments.merkle_proof = Some(proof);
+        create_escrow_data(test_state)
+    }
+
+    pub async fn create_escrow_for_partial_fill(
+        test_state: &mut TestState,
+        escrow_amount: u64,
+    ) -> (Pubkey, Pubkey) {
+        let (escrow, escrow_ata, transaction) =
+            create_escrow_for_partial_fill_data(test_state, escrow_amount).await;
+
+        test_state
+            .client
+            .process_transaction(transaction)
+            .await
+            .expect_success();
+
+        test_state.test_arguments.order_remining_amount -= test_state.test_arguments.escrow_amount;
+        (escrow, escrow_ata)
+    }
+
     use std::marker::PhantomData;
 
     pub fn get_token_account_len<T, S: TokenVariant>(_: PhantomData<TestStateBase<T, S>>) -> usize {
@@ -1819,7 +1866,7 @@ mod local_helpers {
         pub hashed_secrets: Vec<[u8; 32]>,
     }
 
-    pub fn compute_merkle_root<T, S: TokenVariant>(
+    pub fn compute_merkle_root<T: EscrowVariant<S>, S: TokenVariant>(
         test_state: &TestStateBase<T, S>,
     ) -> MerkleHashes {
         let secret_amount = (test_state.test_arguments.order_parts_amount + 1) as usize;
@@ -1843,15 +1890,18 @@ mod local_helpers {
         }
     }
 
-    pub fn get_escrow_amount_for_index(
-        test_state: &TestStateBase<SrcProgram, TokenSPL>,
-        index: usize,
-    ) -> u64 {
-        let parts = test_state.test_arguments.order_parts_amount;
-        if index as u64 >= parts {
-            return DEFAULT_ESCROW_AMOUNT;
+    pub fn get_index_for_escrow_amount<T: EscrowVariant<S>, S: TokenVariant>(
+        test_state: &TestStateBase<T, S>,
+        escrow_amount: u64,
+    ) -> usize {
+        if escrow_amount == test_state.test_arguments.order_remining_amount {
+            return test_state.test_arguments.order_parts_amount as usize;
         }
-        DEFAULT_ESCROW_AMOUNT / parts / 2 + DEFAULT_ESCROW_AMOUNT / parts * index as u64
+        ((test_state.test_arguments.order_amount - test_state.test_arguments.order_remining_amount
+            + escrow_amount
+            - 1)
+            * test_state.test_arguments.order_parts_amount
+            / test_state.test_arguments.order_amount) as usize
     }
 }
 
@@ -2415,7 +2465,10 @@ mod test_wrapped_native {
 }
 
 mod test_partial_fill_escrow_creation {
-    use crate::local_helpers::{compute_merkle_root, get_escrow_amount_for_index};
+    use crate::local_helpers::{
+        compute_merkle_root, create_escrow_for_partial_fill, create_escrow_for_partial_fill_data,
+        create_order_for_partial_fill,
+    };
 
     use super::*;
     use cross_chain_escrow_src::merkle_tree::MerkleProof;
@@ -2424,28 +2477,27 @@ mod test_partial_fill_escrow_creation {
     #[test_context(TestState)]
     #[tokio::test]
     async fn test_create_escrow_with_merkle_proof_and_leaf_validation(test_state: &mut TestState) {
-        test_state.test_arguments.order_parts_amount = DEFAULT_PARTS_AMOUNT_FOR_MULTIPLE;
-        let merkle_hashes = compute_merkle_root(test_state);
-        let index_to_validate: usize = 3;
-        test_state.test_arguments.escrow_amount =
-            get_escrow_amount_for_index(test_state, index_to_validate);
-        let hashed_secret = merkle_hashes.hashed_secrets[index_to_validate];
+        let (order, order_ata) = create_order_for_partial_fill(test_state).await;
 
-        let root = get_root(merkle_hashes.leaves.clone());
-        let proof_hashes = get_proof(merkle_hashes.leaves.clone(), index_to_validate);
+        let escrow_amount = DEFAULT_ESCROW_AMOUNT / DEFAULT_PARTS_AMOUNT_FOR_MULTIPLE * 3;
+        create_escrow_for_partial_fill(test_state, escrow_amount).await;
 
-        let proof = MerkleProof {
-            proof: proof_hashes,
-            index: index_to_validate as u32,
-            hashed_secret,
-        };
+        // Check that the order accounts have not been closed.
+        let acc_lookup_result = test_state.client.get_account(order).await.unwrap();
+        assert!(acc_lookup_result.is_some());
 
-        test_state.hashlock = Hash::new_from_array(root);
-        test_state.test_arguments.allow_multiple_fills = true;
-        let (order, order_ata) = create_order(test_state).await;
+        let acc_lookup_result = test_state.client.get_account(order_ata).await.unwrap();
+        assert!(acc_lookup_result.is_some());
+    }
 
-        test_state.test_arguments.merkle_proof = Some(proof);
-        create_escrow(test_state).await;
+    #[test_context(TestState)]
+    #[tokio::test]
+    async fn test_create_two_escrow_for_separate_parts(test_state: &mut TestState) {
+        let (order, order_ata) = create_order_for_partial_fill(test_state).await;
+
+        let escrow_amount = DEFAULT_ESCROW_AMOUNT / DEFAULT_PARTS_AMOUNT_FOR_MULTIPLE;
+        create_escrow_for_partial_fill(test_state, escrow_amount).await;
+        create_escrow_for_partial_fill(test_state, escrow_amount).await;
 
         // Check that the order accounts have not been closed.
         let acc_lookup_result = test_state.client.get_account(order).await.unwrap();
@@ -2460,28 +2512,9 @@ mod test_partial_fill_escrow_creation {
     async fn test_create_escrow_with_merkle_proof_and_leaf_validation_for_full_fill(
         test_state: &mut TestState,
     ) {
-        test_state.test_arguments.order_parts_amount = DEFAULT_PARTS_AMOUNT_FOR_MULTIPLE;
-        let merkle_hashes = compute_merkle_root(test_state);
-        let index_to_validate: usize = 4;
-        test_state.test_arguments.escrow_amount =
-            get_escrow_amount_for_index(test_state, index_to_validate);
-        let hashed_secret = merkle_hashes.hashed_secrets[index_to_validate];
+        let (order, order_ata) = create_order_for_partial_fill(test_state).await;
 
-        let root = get_root(merkle_hashes.leaves.clone());
-        let proof_hashes = get_proof(merkle_hashes.leaves.clone(), index_to_validate);
-
-        let proof = MerkleProof {
-            proof: proof_hashes,
-            index: index_to_validate as u32,
-            hashed_secret,
-        };
-
-        test_state.hashlock = Hash::new_from_array(root);
-        test_state.test_arguments.allow_multiple_fills = true;
-        let (order, order_ata) = create_order(test_state).await;
-
-        test_state.test_arguments.merkle_proof = Some(proof);
-        create_escrow(test_state).await;
+        create_escrow_for_partial_fill(test_state, DEFAULT_ESCROW_AMOUNT).await;
 
         // Check that the order accounts have been closed.
         let acc_lookup_result = test_state.client.get_account(order).await.unwrap();
@@ -2489,6 +2522,72 @@ mod test_partial_fill_escrow_creation {
 
         let acc_lookup_result = test_state.client.get_account(order_ata).await.unwrap();
         assert!(acc_lookup_result.is_none());
+    }
+
+    #[test_context(TestState)]
+    #[tokio::test]
+    async fn test_create_two_escrow_for_full_order(test_state: &mut TestState) {
+        let (order, order_ata) = create_order_for_partial_fill(test_state).await;
+
+        let escrow_amount = DEFAULT_ESCROW_AMOUNT / DEFAULT_PARTS_AMOUNT_FOR_MULTIPLE * 2;
+        create_escrow_for_partial_fill(test_state, escrow_amount).await;
+        create_escrow_for_partial_fill(
+            test_state,
+            DEFAULT_ESCROW_AMOUNT - escrow_amount, // full fill
+        )
+        .await;
+
+        // Check that the order accounts have been closed.
+        let acc_lookup_result = test_state.client.get_account(order).await.unwrap();
+        assert!(acc_lookup_result.is_none());
+
+        let acc_lookup_result = test_state.client.get_account(order_ata).await.unwrap();
+        assert!(acc_lookup_result.is_none());
+    }
+
+    #[test_context(TestState)]
+    #[tokio::test]
+    async fn test_create_escrow_fails_if_second_escrow_amount_too_large(
+        test_state: &mut TestState,
+    ) {
+        create_order_for_partial_fill(test_state).await;
+
+        let escrow_amount = DEFAULT_ESCROW_AMOUNT / DEFAULT_PARTS_AMOUNT_FOR_MULTIPLE * 3;
+        create_escrow_for_partial_fill(test_state, escrow_amount).await;
+        let (_, _, transaction) = create_escrow_for_partial_fill_data(
+            test_state,
+            DEFAULT_ESCROW_AMOUNT - escrow_amount + 1,
+        )
+        .await;
+
+        test_state
+            .client
+            .process_transaction(transaction)
+            .await
+            .expect_error((0, ProgramError::Custom(EscrowError::InvalidAmount.into())));
+    }
+
+    #[test_context(TestState)]
+    #[tokio::test]
+    async fn test_create_escrow_fails_if_second_escrow_have_same_proof_index(
+        test_state: &mut TestState,
+    ) {
+        create_order_for_partial_fill(test_state).await;
+
+        let escrow_amount = DEFAULT_ESCROW_AMOUNT / DEFAULT_PARTS_AMOUNT_FOR_MULTIPLE + 1;
+        create_escrow_for_partial_fill(test_state, escrow_amount).await;
+        let so_small_escrow_amount = 1;
+        let (_, _, transaction) =
+            create_escrow_for_partial_fill_data(test_state, so_small_escrow_amount).await;
+
+        test_state
+            .client
+            .process_transaction(transaction)
+            .await
+            .expect_error((
+                0,
+                ProgramError::Custom(EscrowError::InvalidPartialFill.into()),
+            ));
     }
 
     #[test_context(TestState)]
