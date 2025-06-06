@@ -65,6 +65,8 @@ pub const DEFAULT_RESCUE_AMOUNT: u64 = 100;
 pub const DEFAULT_SAFETY_DEPOSIT: u64 = 25;
 
 pub struct TestArgs {
+    pub order_amount: u64,
+    pub order_parts_amount: u64,
     pub escrow_amount: u64,
     pub safety_deposit: u64,
     pub finality_duration: u32,
@@ -89,7 +91,9 @@ pub struct TestArgs {
 
 pub fn get_default_testargs(nowsecs: u32) -> TestArgs {
     TestArgs {
+        order_amount: DEFAULT_ESCROW_AMOUNT,
         escrow_amount: DEFAULT_ESCROW_AMOUNT,
+        order_parts_amount: DEFAULT_PARTS_AMOUNT,
         safety_deposit: DEFAULT_SAFETY_DEPOSIT,
         finality_duration: DEFAULT_PERIOD_DURATION,
         withdrawal_duration: DEFAULT_PERIOD_DURATION,
