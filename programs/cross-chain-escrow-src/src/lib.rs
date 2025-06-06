@@ -142,7 +142,6 @@ pub mod cross_chain_escrow_src {
                     EscrowError::InvalidPartialFill
                 );
                 order.last_validated = proof.index + 1;
-                order.remaining_amount -= amount;
             }
             (false, None) => {
                 // single fill, no merkle proof expected — OK
@@ -204,7 +203,7 @@ pub mod cross_chain_escrow_src {
             dst_amount: get_dst_amount(order.dst_amount, &dutch_auction_data)?,
         });
 
-        if !order.allow_multiple_fills || order.remaining_amount == 0 {
+        if !order.allow_multiple_fills || order.remaining_amount == amount {
             // Close the order ATA
             close_account(CpiContext::new_with_signer(
                 ctx.accounts.token_program.to_account_info(),
@@ -218,6 +217,8 @@ pub mod cross_chain_escrow_src {
 
             // Close the order account
             order.close(ctx.accounts.maker.to_account_info())?;
+        } else {
+            order.remaining_amount -= amount;
         }
 
         Ok(())
