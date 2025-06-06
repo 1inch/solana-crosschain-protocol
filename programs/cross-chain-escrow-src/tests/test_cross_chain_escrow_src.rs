@@ -173,6 +173,81 @@ run_for_tokens!(
                         ProgramError::Custom(EscrowError::InvalidCancellationFee.into()),
                     ));
             }
+
+            #[test_context(TestState)]
+            #[tokio::test]
+            async fn test_order_creation_fails_with_incorrect_parts_without_allow_multiples_fills(
+                test_state: &mut TestState,
+            ) {
+                test_state.test_arguments.order_parts_amount = 2;
+                let (_, _, transaction) = create_order_data(test_state);
+
+                test_state
+                    .client
+                    .process_transaction(transaction)
+                    .await
+                    .expect_error((
+                        0,
+                        ProgramError::Custom(EscrowError::InvalidPartsAmount.into()),
+                    ));
+            }
+
+            #[test_context(TestState)]
+            #[tokio::test]
+            async fn test_order_creation_fails_with_zero_parts_without_allow_multiples_fills(
+                test_state: &mut TestState,
+            ) {
+                test_state.test_arguments.order_parts_amount = 0;
+                let (_, _, transaction) = create_order_data(test_state);
+
+                test_state
+                    .client
+                    .process_transaction(transaction)
+                    .await
+                    .expect_error((
+                        0,
+                        ProgramError::Custom(EscrowError::InvalidPartsAmount.into()),
+                    ));
+            }
+
+            #[test_context(TestState)]
+            #[tokio::test]
+            async fn test_order_creation_fails_with_zero_parts_for_allow_multiples_fills(
+                test_state: &mut TestState,
+            ) {
+                test_state.test_arguments.order_parts_amount = 0;
+                test_state.test_arguments.allow_multiple_fills = true;
+                let (_, _, transaction) = create_order_data(test_state);
+
+                test_state
+                    .client
+                    .process_transaction(transaction)
+                    .await
+                    .expect_error((
+                        0,
+                        ProgramError::Custom(EscrowError::InvalidPartsAmount.into()),
+                    ));
+            }
+
+            #[test_context(TestState)]
+            #[tokio::test]
+            async fn test_order_creation_fails_with_incorrect_parts_for_allow_multiples_fills(
+                test_state: &mut TestState,
+            ) {
+                test_state.test_arguments.order_parts_amount =
+                    test_state.test_arguments.order_amount + 1;
+                test_state.test_arguments.allow_multiple_fills = true;
+                let (_, _, transaction) = create_order_data(test_state);
+
+                test_state
+                    .client
+                    .process_transaction(transaction)
+                    .await
+                    .expect_error((
+                        0,
+                        ProgramError::Custom(EscrowError::InvalidPartsAmount.into()),
+                    ));
+            }
         }
 
         mod test_escrow_creation {
