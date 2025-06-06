@@ -10,6 +10,10 @@ pub enum EscrowError {
     InvalidSecret,
     #[msg("Invalid account")]
     InvalidAccount,
+    #[msg("Invalid amount")]
+    InvalidAmount,
+    #[msg("Invalid parts amount")]
+    InvalidPartsAmount,
     #[msg("Invalid creation time")]
     InvalidCreationTime,
     #[msg("Invalid time")]

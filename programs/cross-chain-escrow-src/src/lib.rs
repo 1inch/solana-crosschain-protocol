@@ -26,7 +26,7 @@ pub mod cross_chain_escrow_src {
         order_hash: [u8; 32],
         hashlock: [u8; 32], // Root of merkle tree if partially filled
         amount: u64,
-        parts_amount: u32,
+        parts_amount: u64,
         safety_deposit: u64,
         finality_duration: u32,
         withdrawal_duration: u32,
@@ -53,6 +53,15 @@ pub mod cross_chain_escrow_src {
             ctx.accounts.order_ata.to_account_info().lamports() >= max_cancellation_premium,
             EscrowError::InvalidCancellationFee
         );
+
+        if allow_multiple_fills {
+            require!(
+                parts_amount > 2 && parts_amount <= amount,
+                EscrowError::InvalidPartsAmount
+            );
+        } else {
+            require!(parts_amount == 1, EscrowError::InvalidPartsAmount);
+        }
 
         common::escrow::create(
             EscrowSrc::INIT_SPACE + constants::DISCRIMINATOR_BYTES, // Needed to check the safety deposit amount validity
@@ -106,6 +115,7 @@ pub mod cross_chain_escrow_src {
         let order = &mut ctx.accounts.order;
         let escrow = &mut ctx.accounts.escrow;
         let now = utils::get_current_timestamp()?;
+        require!(amount <= order.remaining_amount, EscrowError::InvalidAmount);
 
         require!(now < order.expiration_time, EscrowError::OrderHasExpired);
 
@@ -126,8 +136,8 @@ pub mod cross_chain_escrow_src {
                         amount,
                         order.remaining_amount,
                         order.amount,
-                        order.parts_amount as u64,
-                        proof.index as u64,
+                        order.parts_amount,
+                        (proof.index + 1) as u64,
                     ),
                     EscrowError::InvalidPartialFill
                 );
@@ -526,7 +536,7 @@ pub mod cross_chain_escrow_src {
 }
 
 #[derive(Accounts)]
-#[instruction(order_hash: [u8; 32], hashlock: [u8; 32], amount: u64, safety_deposit: u64, finality_duration: u32, withdrawal_duration: u32, public_withdrawal_duration: u32, cancellation_duration: u32, rescue_start: u32)]
+#[instruction(order_hash: [u8; 32], hashlock: [u8; 32], amount: u64, parts_amount: u64, safety_deposit: u64, finality_duration: u32, withdrawal_duration: u32, public_withdrawal_duration: u32, cancellation_duration: u32, rescue_start: u32)]
 pub struct Create<'info> {
     #[account(
         mut, // Needed because this account transfers lamports if the token is native and to pay for the order creation
@@ -578,6 +588,7 @@ pub struct Create<'info> {
 }
 
 #[derive(Accounts)]
+#[instruction(amount: u64)]
 pub struct CreateEscrow<'info> {
     #[account(mut)]
     taker: Signer<'info>,
@@ -627,7 +638,7 @@ pub struct CreateEscrow<'info> {
             order.creator.as_ref(),
             taker.key().as_ref(),
             order.token.key().as_ref(),
-            order.amount.to_be_bytes().as_ref(), // TODO: Must be replaced with the actual amount when partial fills are implemented.
+            amount.to_be_bytes().as_ref(),
             order.safety_deposit.to_be_bytes().as_ref(),
             order.rescue_start.to_be_bytes().as_ref(),
         ],
@@ -1017,7 +1028,7 @@ pub struct Order {
     token: Pubkey,
     amount: u64,
     remaining_amount: u64,
-    parts_amount: u32,
+    parts_amount: u64,
     safety_deposit: u64,
     finality_duration: u32,
     withdrawal_duration: u32,
