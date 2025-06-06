@@ -464,6 +464,23 @@ run_for_tokens!(
                     .await
                     .expect_error((0, ProgramError::Custom(EscrowError::OrderHasExpired.into())));
             }
+
+            #[test_context(TestState)]
+            #[tokio::test]
+            async fn test_escrow_creation_fails_when_escrow_amount_is_too_large(
+                test_state: &mut TestState,
+            ) {
+                create_order(test_state).await;
+                test_state.test_arguments.escrow_amount =
+                    test_state.test_arguments.order_amount + 1;
+                let (_, _, transaction) = create_escrow_data(test_state);
+
+                test_state
+                    .client
+                    .process_transaction(transaction)
+                    .await
+                    .expect_error((0, ProgramError::Custom(EscrowError::InvalidAmount.into())));
+            }
         }
 
         mod test_escrow_withdraw {
