@@ -681,9 +681,10 @@ run_for_tokens!(
                 let (escrow, _) = create_escrow(test_state).await;
 
                 test_state.test_arguments.order_amount += 1;
+                test_state.test_arguments.order_remaining_amount += 1;
+                test_state.test_arguments.escrow_amount += 1;
                 create_order(test_state).await;
 
-                test_state.test_arguments.escrow_amount += 1;
                 let (_, escrow_ata_2) = create_escrow(test_state).await;
 
                 let transaction = SrcProgram::get_cancel_tx(test_state, &escrow, &escrow_ata_2);
@@ -1845,7 +1846,7 @@ mod local_helpers {
             .await
             .expect_success();
 
-        test_state.test_arguments.order_remining_amount -= test_state.test_arguments.escrow_amount;
+        test_state.test_arguments.order_remaining_amount -= escrow_amount;
         (escrow, escrow_ata)
     }
 
@@ -1894,10 +1895,11 @@ mod local_helpers {
         test_state: &TestStateBase<T, S>,
         escrow_amount: u64,
     ) -> usize {
-        if escrow_amount == test_state.test_arguments.order_remining_amount {
+        if escrow_amount == test_state.test_arguments.order_remaining_amount {
             return test_state.test_arguments.order_parts_amount as usize;
         }
-        ((test_state.test_arguments.order_amount - test_state.test_arguments.order_remining_amount
+        ((test_state.test_arguments.order_amount
+            - test_state.test_arguments.order_remaining_amount
             + escrow_amount
             - 1)
             * test_state.test_arguments.order_parts_amount

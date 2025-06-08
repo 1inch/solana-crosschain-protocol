@@ -178,7 +178,7 @@ pub mod cross_chain_escrow_src {
                 authority: order.to_account_info(),
                 to: ctx.accounts.escrow_ata.to_account_info(),
                 mint: *ctx.accounts.mint.clone(),
-                amount: amount,
+                amount,
                 program: ctx.accounts.token_program.clone(),
             },
             Some(&[&seeds]),
