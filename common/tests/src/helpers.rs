@@ -67,7 +67,7 @@ pub const DEFAULT_SAFETY_DEPOSIT: u64 = 25;
 pub struct TestArgs {
     pub order_amount: u64,
     pub order_parts_amount: u64,
-    pub order_remining_amount: u64,
+    pub order_remaining_amount: u64,
     pub escrow_amount: u64,
     pub safety_deposit: u64,
     pub finality_duration: u32,
@@ -93,7 +93,7 @@ pub struct TestArgs {
 pub fn get_default_testargs(nowsecs: u32) -> TestArgs {
     TestArgs {
         order_amount: DEFAULT_ESCROW_AMOUNT,
-        order_remining_amount: DEFAULT_ESCROW_AMOUNT,
+        order_remaining_amount: DEFAULT_ESCROW_AMOUNT,
         escrow_amount: DEFAULT_ESCROW_AMOUNT,
         order_parts_amount: DEFAULT_PARTS_AMOUNT,
         safety_deposit: DEFAULT_SAFETY_DEPOSIT,
@@ -425,6 +425,8 @@ pub trait EscrowVariant<S: TokenVariant> {
     ) -> Transaction;
 
     fn get_escrow_data_len() -> usize;
+
+    fn get_escrow_pda_address(test_state: &TestStateBase<Self, S>, creator: &Pubkey) -> Pubkey;
 }
 
 impl<T, S> AsyncTestContext for TestStateBase<T, S>
@@ -505,33 +507,7 @@ pub fn get_escrow_addresses<T: EscrowVariant<S>, S: TokenVariant>(
     test_state: &TestStateBase<T, S>,
     creator: Pubkey,
 ) -> (Pubkey, Pubkey) {
-    let (program_id, _) = T::get_program_spec();
-    let (escrow_pda, _) = Pubkey::find_program_address(
-        &[
-            b"escrow",
-            test_state.order_hash.as_ref(),
-            test_state.hashlock.as_ref(),
-            creator.as_ref(),
-            test_state.recipient_wallet.keypair.pubkey().as_ref(),
-            test_state.token.as_ref(),
-            test_state
-                .test_arguments
-                .escrow_amount
-                .to_be_bytes()
-                .as_ref(),
-            test_state
-                .test_arguments
-                .safety_deposit
-                .to_be_bytes()
-                .as_ref(),
-            test_state
-                .test_arguments
-                .rescue_start
-                .to_be_bytes()
-                .as_ref(),
-        ],
-        &program_id,
-    );
+    let escrow_pda = T::get_escrow_pda_address(test_state, &creator);
     let escrow_ata = spl_associated_token_account::get_associated_token_address_with_program_id(
         &escrow_pda,
         &test_state.token,

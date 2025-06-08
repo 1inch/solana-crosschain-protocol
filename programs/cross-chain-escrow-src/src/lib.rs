@@ -178,7 +178,7 @@ pub mod cross_chain_escrow_src {
                 authority: order.to_account_info(),
                 to: ctx.accounts.escrow_ata.to_account_info(),
                 mint: *ctx.accounts.mint.clone(),
-                amount: order.amount,
+                amount: amount,
                 program: ctx.accounts.token_program.clone(),
             },
             Some(&[&seeds]),
@@ -198,6 +198,7 @@ pub mod cross_chain_escrow_src {
             public_cancellation_start,
             rescue_start: order.rescue_start,
             asset_is_native: order.asset_is_native,
+            order_remaining_amount: order.remaining_amount,
             dst_amount: get_dst_amount(order.dst_amount, &dutch_auction_data)?,
         });
 
@@ -587,7 +588,6 @@ pub struct Create<'info> {
 }
 
 #[derive(Accounts)]
-#[instruction(amount: u64)]
 pub struct CreateEscrow<'info> {
     #[account(mut)]
     taker: Signer<'info>,
@@ -637,7 +637,7 @@ pub struct CreateEscrow<'info> {
             order.creator.as_ref(),
             taker.key().as_ref(),
             order.token.key().as_ref(),
-            amount.to_be_bytes().as_ref(),
+            order.remaining_amount.to_be_bytes().as_ref(),
             order.safety_deposit.to_be_bytes().as_ref(),
             order.rescue_start.to_be_bytes().as_ref(),
         ],
@@ -678,7 +678,7 @@ pub struct Withdraw<'info> {
             escrow.maker.as_ref(),
             escrow.taker.as_ref(),
             mint.key().as_ref(),
-            escrow.amount.to_be_bytes().as_ref(),
+            escrow.order_remaining_amount.to_be_bytes().as_ref(),
             escrow.safety_deposit.to_be_bytes().as_ref(),
             escrow.rescue_start.to_be_bytes().as_ref(),
         ],
@@ -723,7 +723,7 @@ pub struct PublicWithdraw<'info> {
             escrow.maker.as_ref(),
             escrow.taker.as_ref(),
             mint.key().as_ref(),
-            escrow.amount.to_be_bytes().as_ref(),
+            escrow.order_remaining_amount.to_be_bytes().as_ref(),
             escrow.safety_deposit.to_be_bytes().as_ref(),
             escrow.rescue_start.to_be_bytes().as_ref(),
         ],
@@ -771,7 +771,7 @@ pub struct CancelEscrow<'info> {
             escrow.maker.as_ref(),
             taker.key().as_ref(),
             escrow.token.key().as_ref(),
-            escrow.amount.to_be_bytes().as_ref(), // TODO: Must be replaced with the actual amount when partial fills are implemented.
+            escrow.order_remaining_amount.to_be_bytes().as_ref(),
             escrow.safety_deposit.to_be_bytes().as_ref(),
             escrow.rescue_start.to_be_bytes().as_ref(),
         ],
@@ -1059,6 +1059,7 @@ pub struct EscrowSrc {
     public_cancellation_start: u32,
     rescue_start: u32,
     asset_is_native: bool,
+    order_remaining_amount: u64,
     dst_amount: u64,
 }
 

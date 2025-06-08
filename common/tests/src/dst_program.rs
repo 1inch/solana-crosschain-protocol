@@ -235,4 +235,35 @@ impl<S: TokenVariant> EscrowVariant<S> for DstProgram {
         cross_chain_escrow_dst::constants::DISCRIMINATOR_BYTES
             + cross_chain_escrow_dst::EscrowDst::INIT_SPACE
     }
+
+    fn get_escrow_pda_address(test_state: &TestState<S>, creator: &Pubkey) -> Pubkey {
+        let program_id = cross_chain_escrow_dst::id();
+        let (escrow_pda, _) = Pubkey::find_program_address(
+            &[
+                b"escrow",
+                test_state.order_hash.as_ref(),
+                test_state.hashlock.as_ref(),
+                creator.as_ref(),
+                test_state.recipient_wallet.keypair.pubkey().as_ref(),
+                test_state.token.as_ref(),
+                test_state
+                    .test_arguments
+                    .escrow_amount
+                    .to_be_bytes()
+                    .as_ref(),
+                test_state
+                    .test_arguments
+                    .safety_deposit
+                    .to_be_bytes()
+                    .as_ref(),
+                test_state
+                    .test_arguments
+                    .rescue_start
+                    .to_be_bytes()
+                    .as_ref(),
+            ],
+            &program_id,
+        );
+        escrow_pda
+    }
 }
