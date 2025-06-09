@@ -8,7 +8,7 @@ use anchor_spl::token_interface::{
 pub use auction::{calculate_premium, calculate_rate_bump, AuctionData};
 pub use common::constants;
 use common::error::EscrowError;
-use common::escrow::{uni_transfer, EscrowBase, UniTransferParams};
+use common::escrow::{uni_transfer, EscrowBase, EscrowType, UniTransferParams};
 use common::utils;
 use muldiv::MulDiv;
 
@@ -1060,6 +1060,10 @@ impl EscrowBase for EscrowSrc {
 
     fn asset_is_native(&self) -> bool {
         self.asset_is_native
+    }
+
+    fn escrow_type(&self) -> EscrowType {
+        EscrowType::Src
     }
 }
 

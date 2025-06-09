@@ -37,6 +37,8 @@ pub trait EscrowBase {
     fn rescue_start(&self) -> u32;
 
     fn asset_is_native(&self) -> bool;
+
+    fn escrow_type(&self) -> EscrowType;
 }
 
 pub fn create<'info>(
@@ -401,4 +403,10 @@ pub fn uni_transfer(
             transfer_checked(cpi_ctx, *amount, mint.decimals)
         }
     }
+}
+
+#[derive(AnchorSerialize, AnchorDeserialize, Clone, Copy, PartialEq)]
+pub enum EscrowType {
+    Src,
+    Dst,
 }

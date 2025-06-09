@@ -3,7 +3,7 @@ use anchor_spl::associated_token::{AssociatedToken, ID as ASSOCIATED_TOKEN_PROGR
 use anchor_spl::token_interface::{Mint, TokenAccount, TokenInterface};
 pub use common::constants;
 use common::error::EscrowError;
-use common::escrow::EscrowBase;
+use common::escrow::{EscrowBase, EscrowType};
 use common::utils;
 
 declare_id!("B9SnVJbXNd6RFNxHqPkTvdr46YPT17xunemTQfDsCNzR");
@@ -482,5 +482,9 @@ impl EscrowBase for EscrowDst {
 
     fn asset_is_native(&self) -> bool {
         self.asset_is_native
+    }
+
+    fn escrow_type(&self) -> EscrowType {
+        EscrowType::Dst
     }
 }
