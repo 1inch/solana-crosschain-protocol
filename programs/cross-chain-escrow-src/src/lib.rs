@@ -1,5 +1,5 @@
+use anchor_lang::prelude::*;
 use anchor_lang::solana_program::hash::hashv;
-use anchor_lang::{prelude::*, system_program};
 use anchor_spl::associated_token::{AssociatedToken, ID as ASSOCIATED_TOKEN_PROGRAM_ID};
 use anchor_spl::token::spl_token::native_mint;
 use anchor_spl::token_interface::{
@@ -11,6 +11,8 @@ use common::error::EscrowError;
 use common::escrow::{uni_transfer, EscrowBase, UniTransferParams};
 use common::utils;
 use muldiv::MulDiv;
+
+use crate::merkle_tree::MerkleProof;
 
 pub mod auction;
 pub mod merkle_tree;
@@ -107,7 +109,7 @@ pub mod cross_chain_escrow_src {
         ctx: Context<CreateEscrow>,
         amount: u64,
         dutch_auction_data: AuctionData,
-        merkle_proof: Option<crate::merkle_tree::MerkleProof>,
+        merkle_proof: Option<MerkleProof>,
     ) -> Result<()> {
         let order = &mut ctx.accounts.order;
         let escrow = &mut ctx.accounts.escrow;
@@ -151,16 +153,6 @@ pub mod cross_chain_escrow_src {
             _ => return Err(EscrowError::InconsistentMerkleProofTrait.into()),
         };
 
-        create_escrow_account(
-            &escrow.to_account_info(),
-            &ctx.accounts.taker,
-            order,
-            &hashed_secret,
-            amount,
-            ctx.program_id,
-            &ctx.accounts.system_program,
-        )?;
-
         let withdrawal_start = now
             .checked_add(order.finality_duration)
             .ok_or(ProgramError::ArithmeticOverflow)?;
@@ -198,7 +190,7 @@ pub mod cross_chain_escrow_src {
             Some(&[&order_seeds]),
         )?;
 
-        let escrow_data = EscrowSrc {
+        escrow.set_inner(EscrowSrc {
             order_hash: order.order_hash,
             hashlock: hashed_secret,
             maker: order.creator,
@@ -213,10 +205,7 @@ pub mod cross_chain_escrow_src {
             rescue_start: order.rescue_start,
             asset_is_native: order.asset_is_native,
             dst_amount: get_dst_amount(order.dst_amount, &dutch_auction_data)?,
-        };
-
-        escrow_data
-            .try_serialize(&mut &mut ctx.accounts.escrow.to_account_info().data.borrow_mut()[..])?;
+        });
 
         if !order.allow_multiple_fills || order.remaining_amount == amount {
             // Close the order ATA
@@ -604,6 +593,7 @@ pub struct Create<'info> {
 }
 
 #[derive(Accounts)]
+#[instruction(amount: u64, dutch_auction_data: AuctionData, merkle_proof: Option<MerkleProof>)]
 pub struct CreateEscrow<'info> {
     #[account(mut)]
     taker: Signer<'info>,
@@ -642,9 +632,25 @@ pub struct CreateEscrow<'info> {
     order_ata: Box<InterfaceAccount<'info, TokenAccount>>,
 
     /// Account to store escrow details
-    #[account(mut)]
-    /// CHECK: manually created and initialized in handler
-    escrow: UncheckedAccount<'info>,
+    #[account(
+        mut,
+        seeds = [
+            "escrow".as_bytes(),
+            escrow.order_hash.as_ref(),
+            &get_escrow_hashlock(
+                order.hashlock,
+                merkle_proof.as_ref()
+            ),
+            escrow.maker.as_ref(),
+            escrow.taker.as_ref(),
+            mint.key().as_ref(),
+            escrow.amount.to_be_bytes().as_ref(),
+            escrow.safety_deposit.to_be_bytes().as_ref(),
+            escrow.rescue_start.to_be_bytes().as_ref(),
+        ],
+        bump,
+    )]
+    escrow: Box<Account<'info, EscrowSrc>>,
     /// Account to store escrowed tokens
     #[account(
         init,
@@ -1149,54 +1155,10 @@ fn is_valid_partial_fill(
     calculated_index == validated_index
 }
 
-fn create_escrow_account<'info>(
-    escrow: &AccountInfo<'info>,
-    taker: &Signer<'info>,
-    order: &Account<Order>,
-    hashlock_seed: &[u8; 32],
-    amount: u64,
-    program_id: &Pubkey,
-    system_program_acc: &Program<'info, System>,
-) -> Result<()> {
-    let token_key = order.token.key();
-    let amount_bytes = amount.to_be_bytes();
-    let safety_deposit_bytes = order.safety_deposit.to_be_bytes();
-    let rescue_start_bytes = order.rescue_start.to_be_bytes();
-
-    let mut seeds = [
-        b"escrow".as_ref(),
-        order.order_hash.as_ref(),
-        hashlock_seed.as_ref(),
-        order.creator.as_ref(),
-        taker.key.as_ref(),
-        token_key.as_ref(),
-        &amount_bytes,
-        &safety_deposit_bytes,
-        &rescue_start_bytes,
-    ]
-    .to_vec();
-
-    let (_, bump) = Pubkey::find_program_address(&seeds, program_id);
-    let binding = [bump];
-    seeds.push(&binding);
-
-    let lamports =
-        Rent::get()?.minimum_balance(constants::DISCRIMINATOR_BYTES + EscrowSrc::INIT_SPACE);
-
-    let binding = [&seeds[..]];
-    let cpi_ctx = CpiContext::new_with_signer(
-        system_program_acc.to_account_info(),
-        system_program::CreateAccount {
-            from: taker.to_account_info(),
-            to: escrow.to_account_info(),
-        },
-        &binding,
-    );
-
-    system_program::create_account(
-        cpi_ctx,
-        lamports,
-        (constants::DISCRIMINATOR_BYTES + EscrowSrc::INIT_SPACE) as u64,
-        program_id,
-    )
+pub fn get_escrow_hashlock(order_hash: [u8; 32], merkle_proof: Option<&MerkleProof>) -> [u8; 32] {
+    if merkle_proof.is_none() {
+        order_hash
+    } else {
+        merkle_proof.unwrap().hashed_secret
+    }
 }
