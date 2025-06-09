@@ -138,7 +138,7 @@ pub mod cross_chain_escrow_src {
                         order.remaining_amount,
                         order.amount,
                         order.parts_amount,
-                        (proof.index + 1) as u64,
+                        proof.index as u64,
                     ),
                     EscrowError::InvalidPartialFill
                 );
@@ -1135,7 +1135,7 @@ fn is_valid_partial_fill(
     if remaining_making_amount == making_amount {
         // If the order is filled to completion, a secret with index i + 1 must be used
         // where i is the index of the secret for the last part.
-        return calculated_index + 2 == validated_index;
+        return calculated_index + 1 == validated_index;
     } else if order_making_amount != remaining_making_amount {
         // Calculate the previous fill index only if this is not the first fill.
         let prev_calculated_index = ((order_making_amount - remaining_making_amount - 1)
@@ -1146,7 +1146,7 @@ fn is_valid_partial_fill(
         }
     }
 
-    calculated_index + 1 == validated_index
+    calculated_index == validated_index
 }
 
 fn create_escrow_account<'info>(
