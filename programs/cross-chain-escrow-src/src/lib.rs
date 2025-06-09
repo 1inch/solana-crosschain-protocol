@@ -633,20 +633,22 @@ pub struct CreateEscrow<'info> {
 
     /// Account to store escrow details
     #[account(
-        mut,
+        init,
+        payer = taker,
+        space = constants::DISCRIMINATOR_BYTES + EscrowSrc::INIT_SPACE,
         seeds = [
             "escrow".as_bytes(),
-            escrow.order_hash.as_ref(),
+            order.order_hash.as_ref(),
             &get_escrow_hashlock(
                 order.hashlock,
-                merkle_proof
+                merkle_proof.clone()
             ),
-            escrow.maker.as_ref(),
-            escrow.taker.as_ref(),
+            order.creator.as_ref(),
+            taker.key().as_ref(),
             mint.key().as_ref(),
-            escrow.amount.to_be_bytes().as_ref(),
-            escrow.safety_deposit.to_be_bytes().as_ref(),
-            escrow.rescue_start.to_be_bytes().as_ref(),
+            amount.to_be_bytes().as_ref(),
+            order.safety_deposit.to_be_bytes().as_ref(),
+            order.rescue_start.to_be_bytes().as_ref(),
         ],
         bump,
     )]
