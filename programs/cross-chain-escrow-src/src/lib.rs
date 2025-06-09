@@ -639,7 +639,7 @@ pub struct CreateEscrow<'info> {
             escrow.order_hash.as_ref(),
             &get_escrow_hashlock(
                 order.hashlock,
-                merkle_proof.as_ref()
+                merkle_proof
             ),
             escrow.maker.as_ref(),
             escrow.taker.as_ref(),
@@ -1155,7 +1155,7 @@ fn is_valid_partial_fill(
     calculated_index == validated_index
 }
 
-pub fn get_escrow_hashlock(order_hash: [u8; 32], merkle_proof: Option<&MerkleProof>) -> [u8; 32] {
+pub fn get_escrow_hashlock(order_hash: [u8; 32], merkle_proof: Option<MerkleProof>) -> [u8; 32] {
     if merkle_proof.is_none() {
         order_hash
     } else {
