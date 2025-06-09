@@ -4,6 +4,7 @@ use anchor_lang::prelude::AccountInfo;
 use anchor_lang::solana_program::hash::hashv;
 use anchor_lang::AnchorSerialize;
 use anchor_lang::InstructionData;
+use cross_chain_escrow_src::get_escrow_hashlock;
 use solana_program_runtime::invoke_context::BuiltinFunctionWithContext;
 use solana_program_test::processor;
 use solana_sdk::{signature::Signer, signer::keypair::Keypair, transaction::Transaction};
@@ -232,11 +233,15 @@ impl<S: TokenVariant> EscrowVariant<S> for SrcProgram {
 
     fn get_escrow_pda_address(test_state: &TestState<S>, creator: &Pubkey) -> Pubkey {
         let program_id = cross_chain_escrow_src::id();
+        let hashlock = get_escrow_hashlock(
+            test_state.escrow_hashlock.to_bytes(),
+            test_state.test_arguments.merkle_proof.clone(),
+        );
         let (escrow_pda, _) = Pubkey::find_program_address(
             &[
                 b"escrow",
                 test_state.order_hash.as_ref(),
-                test_state.escrow_hashlock.as_ref(),
+                hashlock.as_ref(),
                 creator.as_ref(),
                 test_state.recipient_wallet.keypair.pubkey().as_ref(),
                 test_state.token.as_ref(),
