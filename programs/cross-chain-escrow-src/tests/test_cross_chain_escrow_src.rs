@@ -972,7 +972,7 @@ mod local_helpers {
     use solana_sdk::transaction::Transaction;
 
     /// Byte offset in the escrow account data where the `dst_amount` field is located
-    const DST_AMOUNT_OFFSET: usize = 213;
+    const DST_AMOUNT_OFFSET: usize = 205;
     const U64_SIZE: usize = size_of::<u64>();
 
     pub fn create_public_escrow_cancel_tx<S: TokenVariant>(
@@ -1830,6 +1830,7 @@ mod local_helpers {
         };
 
         test_state.test_arguments.merkle_proof = Some(proof);
+        test_state.escrow_hashlock = Hash::new_from_array(hashed_secret);
         create_escrow_data(test_state)
     }
 
