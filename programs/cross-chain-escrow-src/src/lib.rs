@@ -228,8 +228,6 @@ pub mod cross_chain_escrow_src {
         Ok(())
     }
 
-    // TODO! Fix withdrawal and cancellation logic in SOL-120, SOL-121, SOL-122
-
     pub fn withdraw(ctx: Context<Withdraw>, secret: [u8; 32]) -> Result<()> {
         let now = utils::get_current_timestamp()?;
         require!(
