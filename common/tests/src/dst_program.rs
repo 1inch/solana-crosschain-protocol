@@ -242,7 +242,7 @@ impl<S: TokenVariant> EscrowVariant<S> for DstProgram {
             &[
                 b"escrow",
                 test_state.order_hash.as_ref(),
-                test_state.hashlock.as_ref(),
+                test_state.escrow_hashlock.as_ref(),
                 creator.as_ref(),
                 test_state.recipient_wallet.keypair.pubkey().as_ref(),
                 test_state.token.as_ref(),
