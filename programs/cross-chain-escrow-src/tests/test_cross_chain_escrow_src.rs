@@ -2512,7 +2512,7 @@ mod test_partial_fill_escrow_creation {
     async fn test_create_two_escrow_for_full_order(test_state: &mut TestState) {
         let (order, order_ata) = create_order_for_partial_fill(test_state).await;
 
-        let escrow_amount = DEFAULT_ESCROW_AMOUNT / DEFAULT_PARTS_AMOUNT_FOR_MULTIPLE * 2;
+        let escrow_amount = DEFAULT_ESCROW_AMOUNT / DEFAULT_PARTS_AMOUNT_FOR_MULTIPLE;
         create_escrow_for_partial_fill(test_state, escrow_amount).await;
         create_escrow_for_partial_fill(
             test_state,
