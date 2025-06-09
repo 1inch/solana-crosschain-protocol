@@ -121,7 +121,8 @@ pub fn withdraw<'info, T>(
     escrow: &Account<'info, T>,
     escrow_bump: u8,
     escrow_ata: &InterfaceAccount<'info, TokenAccount>,
-    recipient_ata: &InterfaceAccount<'info, TokenAccount>,
+    recipient: &AccountInfo<'info>,
+    recipient_ata: Option<&InterfaceAccount<'info, TokenAccount>>,
     mint: &InterfaceAccount<'info, Mint>,
     token_program: &Interface<'info, TokenInterface>,
     rent_recipient: &AccountInfo<'info>,
@@ -150,29 +151,35 @@ where
         &[escrow_bump],
     ];
 
-    // Transfer tokens from escrow to recipient
-    uni_transfer(
-        &UniTransferParams::TokenTransfer {
-            from: escrow_ata.to_account_info(),
-            authority: escrow.to_account_info(),
-            to: recipient_ata.to_account_info(),
-            mint: mint.clone(),
-            amount: escrow.amount(),
-            program: token_program.clone(),
-        },
-        Some(&[&seeds]),
-    )?;
+    if escrow.escrow_type() == EscrowType::Dst && escrow.asset_is_native() {
+        close_and_withdraw_native_ata(escrow, escrow_ata, recipient, token_program, seeds)?;
+    } else {
+        // Transfer tokens from escrow to recipient
+        uni_transfer(
+            &UniTransferParams::TokenTransfer {
+                from: escrow_ata.to_account_info(),
+                authority: escrow.to_account_info(),
+                to: recipient_ata
+                    .ok_or(EscrowError::MissingRecipientAta)?
+                    .to_account_info(),
+                mint: mint.clone(),
+                amount: escrow.amount(),
+                program: token_program.clone(),
+            },
+            Some(&[&seeds]),
+        )?;
 
-    // Close the escrow_ata account
-    close_account(CpiContext::new_with_signer(
-        token_program.to_account_info(),
-        CloseAccount {
-            account: escrow_ata.to_account_info(),
-            destination: rent_recipient.to_account_info(),
-            authority: escrow.to_account_info(),
-        },
-        &[&seeds],
-    ))?;
+        // Close the escrow_ata account
+        close_account(CpiContext::new_with_signer(
+            token_program.to_account_info(),
+            CloseAccount {
+                account: escrow_ata.to_account_info(),
+                destination: rent_recipient.to_account_info(),
+                authority: escrow.to_account_info(),
+            },
+            &[&seeds],
+        ))?;
+    }
 
     // Close the escrow account
     close_escrow_account(escrow, safety_deposit_recipient, rent_recipient)?;

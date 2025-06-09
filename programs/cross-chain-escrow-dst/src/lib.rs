@@ -94,7 +94,8 @@ pub mod cross_chain_escrow_dst {
             &ctx.accounts.escrow,
             ctx.bumps.escrow,
             &ctx.accounts.escrow_ata,
-            &ctx.accounts.recipient_ata,
+            &ctx.accounts.recipient,
+            ctx.accounts.recipient_ata.as_deref(),
             &ctx.accounts.mint,
             &ctx.accounts.token_program,
             &ctx.accounts.creator,
@@ -118,7 +119,8 @@ pub mod cross_chain_escrow_dst {
             &ctx.accounts.escrow,
             ctx.bumps.escrow,
             &ctx.accounts.escrow_ata,
-            &ctx.accounts.recipient_ata,
+            &ctx.accounts.recipient,
+            ctx.accounts.recipient_ata.as_deref(),
             &ctx.accounts.mint,
             &ctx.accounts.token_program,
             &ctx.accounts.creator,
@@ -248,7 +250,9 @@ pub struct Withdraw<'info> {
     )]
     creator: Signer<'info>,
     /// CHECK: This account is used to check its pubkey to match the one stored in the escrow account
-    #[account(constraint = recipient.key() == escrow.recipient @ EscrowError::InvalidAccount)]
+    #[account(
+        mut, // Needed because this account receives lamports if asset is native
+        constraint = recipient.key() == escrow.recipient @ EscrowError::InvalidAccount)]
     recipient: AccountInfo<'info>,
     mint: Box<InterfaceAccount<'info, Mint>>,
     #[account(
@@ -280,7 +284,8 @@ pub struct Withdraw<'info> {
         associated_token::authority = recipient,
         associated_token::token_program = token_program
     )]
-    recipient_ata: Box<InterfaceAccount<'info, TokenAccount>>,
+    /// Optional if the token is native
+    recipient_ata: Option<Box<InterfaceAccount<'info, TokenAccount>>>,
     token_program: Interface<'info, TokenInterface>,
     system_program: Program<'info, System>,
 }
@@ -294,7 +299,9 @@ pub struct PublicWithdraw<'info> {
     )]
     creator: AccountInfo<'info>,
     /// CHECK: This account is used to check its pubkey to match the one stored in the escrow account
-    #[account(constraint = recipient.key() == escrow.recipient @ EscrowError::InvalidAccount)]
+    #[account(
+        mut, // Needed because this account receives lamports if asset is native
+        constraint = recipient.key() == escrow.recipient @ EscrowError::InvalidAccount)]
     recipient: AccountInfo<'info>,
     #[account(mut)]
     payer: Signer<'info>,
@@ -328,7 +335,8 @@ pub struct PublicWithdraw<'info> {
         associated_token::authority = recipient,
         associated_token::token_program = token_program
     )]
-    recipient_ata: Box<InterfaceAccount<'info, TokenAccount>>,
+    /// Optional if the token is native
+    recipient_ata: Option<Box<InterfaceAccount<'info, TokenAccount>>>,
     token_program: Interface<'info, TokenInterface>,
     system_program: Program<'info, System>,
 }
