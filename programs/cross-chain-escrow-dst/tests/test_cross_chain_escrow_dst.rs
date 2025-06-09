@@ -490,6 +490,32 @@ mod test_escrow_wrapped_native {
 
     #[test_context(TestState)]
     #[tokio::test]
+    async fn test_withdraw_fails_with_no_recipient_ata(test_state: &mut TestState) {
+        test_state.token = NATIVE_MINT;
+
+        let (escrow, escrow_ata) = create_escrow(test_state).await;
+
+        test_state.recipient_wallet.native_token_account = cross_chain_escrow_dst::ID_CONST;
+
+        let transaction = DstProgram::get_withdraw_tx(test_state, &escrow, &escrow_ata);
+
+        set_time(
+            &mut test_state.context,
+            test_state.init_timestamp + DEFAULT_PERIOD_DURATION * PeriodType::Withdrawal as u32,
+        );
+
+        test_state
+            .client
+            .process_transaction(transaction)
+            .await
+            .expect_error((
+                0,
+                ProgramError::Custom(EscrowError::MissingRecipientAta.into()),
+            ));
+    }
+
+    #[test_context(TestState)]
+    #[tokio::test]
     async fn test_public_withdraw_by_resolver(test_state: &mut TestState) {
         test_state.token = NATIVE_MINT;
         let withdrawer = test_state.recipient_wallet.keypair.insecure_clone();
@@ -516,6 +542,45 @@ mod test_escrow_wrapped_native {
         let rent_recipient = test_state.creator_wallet.keypair.pubkey();
         common_escrow_tests::test_public_withdraw_tokens(test_state, withdrawer, rent_recipient)
             .await
+    }
+
+    #[test_context(TestState)]
+    #[tokio::test]
+    async fn test_public_withdraw_fails_with_no_recipient_ata(test_state: &mut TestState) {
+        test_state.token = NATIVE_MINT;
+        let withdrawer = Keypair::new();
+        let payer_kp = &test_state.payer_kp;
+        let context = &mut test_state.context;
+
+        transfer_lamports(
+            context,
+            WALLET_DEFAULT_LAMPORTS,
+            payer_kp,
+            &withdrawer.pubkey(),
+        )
+        .await;
+
+        let (escrow, escrow_ata) = create_escrow(test_state).await;
+
+        test_state.recipient_wallet.native_token_account = cross_chain_escrow_dst::ID_CONST;
+
+        let transaction =
+            DstProgram::get_public_withdraw_tx(test_state, &escrow, &escrow_ata, &withdrawer);
+
+        set_time(
+            &mut test_state.context,
+            test_state.init_timestamp
+                + DEFAULT_PERIOD_DURATION * PeriodType::PublicWithdrawal as u32,
+        );
+
+        test_state
+            .client
+            .process_transaction(transaction)
+            .await
+            .expect_error((
+                0,
+                ProgramError::Custom(EscrowError::MissingRecipientAta.into()),
+            ));
     }
 
     #[test_context(TestState)]
