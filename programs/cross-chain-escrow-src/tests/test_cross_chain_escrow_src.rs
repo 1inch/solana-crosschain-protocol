@@ -2474,7 +2474,7 @@ mod test_partial_fill_escrow_creation {
 
     #[test_context(TestState)]
     #[tokio::test]
-    async fn test_create_two_escrow_for_separate_parts(test_state: &mut TestState) {
+    async fn test_create_two_escrows_for_separate_parts(test_state: &mut TestState) {
         let (order, order_ata) = create_order_for_partial_fill(test_state).await;
 
         let escrow_amount = DEFAULT_ESCROW_AMOUNT / DEFAULT_PARTS_AMOUNT_FOR_MULTIPLE;
@@ -2508,7 +2508,7 @@ mod test_partial_fill_escrow_creation {
 
     #[test_context(TestState)]
     #[tokio::test]
-    async fn test_create_two_escrow_for_full_order(test_state: &mut TestState) {
+    async fn test_create_two_escrows_for_full_order(test_state: &mut TestState) {
         let (order, order_ata) = create_order_for_partial_fill(test_state).await;
 
         let escrow_amount = DEFAULT_ESCROW_AMOUNT / DEFAULT_PARTS_AMOUNT_FOR_MULTIPLE;
