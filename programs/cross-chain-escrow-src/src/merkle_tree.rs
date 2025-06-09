@@ -26,9 +26,7 @@ impl MerkleProof {
 
     /// Computes the hash of the leaf using index and hashed_secret.
     fn hash_leaf(&self) -> [u8; 32] {
-        let i_bytes = self.index as u64;
-        let i_bytes = i_bytes.to_be_bytes();
-        let pair_data = [&i_bytes, &self.hashed_secret[..]];
+        let pair_data = [&(self.index as u64).to_be_bytes(), &self.hashed_secret[..]];
 
         hashv(&pair_data).0
     }
