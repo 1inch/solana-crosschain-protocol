@@ -2129,7 +2129,7 @@ mod test_native_src {
                     native_change(canceller.pubkey(), test_state.test_arguments.safety_deposit),
                     native_change(
                         test_state.creator_wallet.keypair.pubkey(),
-                        test_state.test_arguments.order_amount,
+                        test_state.test_arguments.escrow_amount,
                     ),
                     native_change(
                         test_state.recipient_wallet.keypair.pubkey(),
@@ -2401,7 +2401,7 @@ mod test_wrapped_native {
                     native_change(canceller.pubkey(), test_state.test_arguments.safety_deposit),
                     token_change(
                         test_state.creator_wallet.native_token_account,
-                        test_state.test_arguments.order_amount,
+                        test_state.test_arguments.escrow_amount,
                     ),
                     native_change(
                         test_state.recipient_wallet.keypair.pubkey(),
