@@ -14,6 +14,7 @@ use anchor_spl::token_2022::spl_token_2022::{
     instruction as spl2022_instruction, state::Account as SplToken2022Account,
     state::Mint as SPL2022_Mint, ID as spl2022_program_id,
 };
+use cross_chain_escrow_src::get_escrow_hashlock;
 
 use async_trait::async_trait;
 use common::constants::RESCUE_DELAY;
@@ -426,8 +427,6 @@ pub trait EscrowVariant<S: TokenVariant> {
     ) -> Transaction;
 
     fn get_escrow_data_len() -> usize;
-
-    fn get_escrow_pda_address(test_state: &TestStateBase<Self, S>, creator: &Pubkey) -> Pubkey;
 }
 
 impl<T, S> AsyncTestContext for TestStateBase<T, S>
@@ -509,7 +508,37 @@ pub fn get_escrow_addresses<T: EscrowVariant<S>, S: TokenVariant>(
     test_state: &TestStateBase<T, S>,
     creator: Pubkey,
 ) -> (Pubkey, Pubkey) {
-    let escrow_pda = T::get_escrow_pda_address(test_state, &creator);
+    let program_id = T::get_program_spec().0;
+    let hashlock = get_escrow_hashlock(
+        test_state.escrow_hashlock.to_bytes(),
+        test_state.test_arguments.merkle_proof.clone(),
+    );
+    let (escrow_pda, _) = Pubkey::find_program_address(
+        &[
+            b"escrow",
+            test_state.order_hash.as_ref(),
+            hashlock.as_ref(),
+            creator.as_ref(),
+            test_state.recipient_wallet.keypair.pubkey().as_ref(),
+            test_state.token.as_ref(),
+            test_state
+                .test_arguments
+                .escrow_amount
+                .to_be_bytes()
+                .as_ref(),
+            test_state
+                .test_arguments
+                .safety_deposit
+                .to_be_bytes()
+                .as_ref(),
+            test_state
+                .test_arguments
+                .rescue_start
+                .to_be_bytes()
+                .as_ref(),
+        ],
+        &program_id,
+    );
     let escrow_ata = spl_associated_token_account::get_associated_token_address_with_program_id(
         &escrow_pda,
         &test_state.token,
