@@ -1158,9 +1158,9 @@ fn is_valid_partial_fill(
 }
 
 pub fn get_escrow_hashlock(order_hash: [u8; 32], merkle_proof: Option<MerkleProof>) -> [u8; 32] {
-    if merkle_proof.is_none() {
-        order_hash
+    if let Some(merkle_proof) = merkle_proof {
+        merkle_proof.hashed_secret
     } else {
-        merkle_proof.unwrap().hashed_secret
+        order_hash
     }
 }
