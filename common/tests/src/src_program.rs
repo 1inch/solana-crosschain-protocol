@@ -236,13 +236,13 @@ impl<S: TokenVariant> EscrowVariant<S> for SrcProgram {
             &[
                 b"escrow",
                 test_state.order_hash.as_ref(),
-                test_state.hashlock.as_ref(),
+                test_state.escrow_hashlock.as_ref(),
                 creator.as_ref(),
                 test_state.recipient_wallet.keypair.pubkey().as_ref(),
                 test_state.token.as_ref(),
                 test_state
                     .test_arguments
-                    .order_remaining_amount
+                    .escrow_amount
                     .to_be_bytes()
                     .as_ref(),
                 test_state
