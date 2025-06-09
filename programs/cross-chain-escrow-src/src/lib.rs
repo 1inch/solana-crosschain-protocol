@@ -56,10 +56,7 @@ pub mod cross_chain_escrow_src {
         );
 
         if allow_multiple_fills {
-            require!(
-                parts_amount > 2 && parts_amount <= amount,
-                EscrowError::InvalidPartsAmount
-            );
+            require!(parts_amount >= 2, EscrowError::InvalidPartsAmount);
         } else {
             require!(parts_amount == 1, EscrowError::InvalidPartsAmount);
         }
