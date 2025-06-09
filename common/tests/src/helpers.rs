@@ -14,6 +14,7 @@ use anchor_spl::token_2022::spl_token_2022::{
     instruction as spl2022_instruction, state::Account as SplToken2022Account,
     state::Mint as SPL2022_Mint, ID as spl2022_program_id,
 };
+use cross_chain_escrow_src::get_escrow_hashlock;
 
 use async_trait::async_trait;
 use common::constants::RESCUE_DELAY;
@@ -48,8 +49,8 @@ pub const WALLET_DEFAULT_LAMPORTS: u64 = 10 * LAMPORTS_PER_SOL;
 pub const WALLET_DEFAULT_TOKENS: u64 = 1000000000;
 
 pub const DEFAULT_PERIOD_DURATION: u32 = 100;
-pub const DEFAULT_PARTS_AMOUNT: usize = 4;
-pub const DEFAULT_SECRETS_AMOUNT: usize = DEFAULT_PARTS_AMOUNT + 1;
+pub const DEFAULT_PARTS_AMOUNT: u64 = 1;
+pub const DEFAULT_PARTS_AMOUNT_FOR_MULTIPLE: u64 = 4;
 
 pub enum PeriodType {
     Finality = 0,
@@ -65,6 +66,9 @@ pub const DEFAULT_RESCUE_AMOUNT: u64 = 100;
 pub const DEFAULT_SAFETY_DEPOSIT: u64 = 25;
 
 pub struct TestArgs {
+    pub order_amount: u64,
+    pub order_parts_amount: u64,
+    pub order_remaining_amount: u64,
     pub escrow_amount: u64,
     pub safety_deposit: u64,
     pub finality_duration: u32,
@@ -89,7 +93,10 @@ pub struct TestArgs {
 
 pub fn get_default_testargs(nowsecs: u32) -> TestArgs {
     TestArgs {
+        order_amount: DEFAULT_ESCROW_AMOUNT,
+        order_remaining_amount: DEFAULT_ESCROW_AMOUNT,
         escrow_amount: DEFAULT_ESCROW_AMOUNT,
+        order_parts_amount: DEFAULT_PARTS_AMOUNT,
         safety_deposit: DEFAULT_SAFETY_DEPOSIT,
         finality_duration: DEFAULT_PERIOD_DURATION,
         withdrawal_duration: DEFAULT_PERIOD_DURATION,
@@ -126,6 +133,7 @@ pub struct TestStateBase<T: ?Sized, S: ?Sized> {
     pub secret: [u8; 32],
     pub order_hash: Hash,
     pub hashlock: Hash,
+    pub escrow_hashlock: Hash,
     pub token: Pubkey,
     pub payer_kp: Keypair,
     pub creator_wallet: Wallet,
@@ -467,6 +475,7 @@ where
             secret,
             order_hash: Hash::new_unique(),
             hashlock: hash(secret.as_ref()),
+            escrow_hashlock: hash(secret.as_ref()),
             token,
             payer_kp: payer_kp.insecure_clone(),
             creator_wallet,
@@ -499,12 +508,16 @@ pub fn get_escrow_addresses<T: EscrowVariant<S>, S: TokenVariant>(
     test_state: &TestStateBase<T, S>,
     creator: Pubkey,
 ) -> (Pubkey, Pubkey) {
-    let (program_id, _) = T::get_program_spec();
+    let program_id = T::get_program_spec().0;
+    let hashlock = get_escrow_hashlock(
+        test_state.escrow_hashlock.to_bytes(),
+        test_state.test_arguments.merkle_proof.clone(),
+    );
     let (escrow_pda, _) = Pubkey::find_program_address(
         &[
             b"escrow",
             test_state.order_hash.as_ref(),
-            test_state.hashlock.as_ref(),
+            hashlock.as_ref(),
             creator.as_ref(),
             test_state.recipient_wallet.keypair.pubkey().as_ref(),
             test_state.token.as_ref(),
@@ -546,7 +559,7 @@ pub fn create_escrow_data<T: EscrowVariant<S>, S: TokenVariant>(
 }
 
 pub async fn create_escrow<T: EscrowVariant<S>, S: TokenVariant>(
-    test_state: &mut TestStateBase<T, S>,
+    test_state: &TestStateBase<T, S>,
 ) -> (Pubkey, Pubkey) {
     let (escrow, escrow_ata, tx) = create_escrow_data(test_state);
     test_state

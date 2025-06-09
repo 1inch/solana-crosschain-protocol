@@ -12,6 +12,8 @@ use common::escrow::{uni_transfer, EscrowBase, UniTransferParams};
 use common::utils;
 use muldiv::MulDiv;
 
+use crate::merkle_tree::MerkleProof;
+
 pub mod auction;
 pub mod merkle_tree;
 
@@ -19,6 +21,7 @@ declare_id!("6NwMYeUmigiMDjhYeYpbxC6Kc63NzZy1dfGd7fGcdkVS");
 
 #[program]
 pub mod cross_chain_escrow_src {
+
     use super::*;
 
     pub fn create(
@@ -26,6 +29,7 @@ pub mod cross_chain_escrow_src {
         order_hash: [u8; 32],
         hashlock: [u8; 32], // Root of merkle tree if partially filled
         amount: u64,
+        parts_amount: u64,
         safety_deposit: u64,
         finality_duration: u32,
         withdrawal_duration: u32,
@@ -53,6 +57,12 @@ pub mod cross_chain_escrow_src {
             EscrowError::InvalidCancellationFee
         );
 
+        if allow_multiple_fills {
+            require!(parts_amount >= 2, EscrowError::InvalidPartsAmount);
+        } else {
+            require!(parts_amount == 1, EscrowError::InvalidPartsAmount);
+        }
+
         common::escrow::create(
             EscrowSrc::INIT_SPACE + constants::DISCRIMINATOR_BYTES, // Needed to check the safety deposit amount validity
             &ctx.accounts.creator,
@@ -75,6 +85,8 @@ pub mod cross_chain_escrow_src {
             creator: ctx.accounts.creator.key(),
             token: ctx.accounts.mint.key(),
             amount,
+            remaining_amount: amount,
+            parts_amount,
             safety_deposit,
             finality_duration,
             withdrawal_duration,
@@ -87,7 +99,6 @@ pub mod cross_chain_escrow_src {
             dutch_auction_data_hash,
             max_cancellation_premium,
             cancellation_auction_duration,
-            last_validated: 0,
             allow_multiple_fills,
         });
 
@@ -96,12 +107,18 @@ pub mod cross_chain_escrow_src {
 
     pub fn create_escrow(
         ctx: Context<CreateEscrow>,
+        amount: u64,
         dutch_auction_data: AuctionData,
-        merkle_proof: Option<crate::merkle_tree::MerkleProof>,
+        merkle_proof: Option<MerkleProof>,
     ) -> Result<()> {
         let order = &mut ctx.accounts.order;
         let escrow = &mut ctx.accounts.escrow;
         let now = utils::get_current_timestamp()?;
+        if order.allow_multiple_fills {
+            require!(amount <= order.remaining_amount, EscrowError::InvalidAmount);
+        } else {
+            require!(amount == order.amount, EscrowError::InvalidAmount);
+        }
 
         require!(now < order.expiration_time, EscrowError::OrderHasExpired);
 
@@ -111,19 +128,30 @@ pub mod cross_chain_escrow_src {
             EscrowError::DutchAuctionDataHashMismatch
         );
 
-        match (order.allow_multiple_fills, &merkle_proof) {
+        let hashed_secret = match (order.allow_multiple_fills, &merkle_proof) {
             (true, Some(proof)) => {
                 require!(
                     proof.verify(order.hashlock),
                     EscrowError::InvalidMerkleProof
                 );
-                order.last_validated = proof.index + 1;
+                require!(
+                    is_valid_partial_fill(
+                        amount,
+                        order.remaining_amount,
+                        order.amount,
+                        order.parts_amount,
+                        proof.index as u64,
+                    ),
+                    EscrowError::InvalidPartialFill
+                );
+                proof.hashed_secret
             }
             (false, None) => {
                 // single fill, no merkle proof expected — OK
+                order.hashlock
             }
             _ => return Err(EscrowError::InconsistentMerkleProofTrait.into()),
-        }
+        };
 
         let withdrawal_start = now
             .checked_add(order.finality_duration)
@@ -138,7 +166,7 @@ pub mod cross_chain_escrow_src {
             .checked_add(order.cancellation_duration)
             .ok_or(ProgramError::ArithmeticOverflow)?;
 
-        let seeds = [
+        let order_seeds = [
             "order".as_bytes(),
             &order.order_hash,
             &order.hashlock,
@@ -156,15 +184,15 @@ pub mod cross_chain_escrow_src {
                 authority: order.to_account_info(),
                 to: ctx.accounts.escrow_ata.to_account_info(),
                 mint: *ctx.accounts.mint.clone(),
-                amount: order.amount,
+                amount,
                 program: ctx.accounts.token_program.clone(),
             },
-            Some(&[&seeds]),
+            Some(&[&order_seeds]),
         )?;
 
         escrow.set_inner(EscrowSrc {
             order_hash: order.order_hash,
-            hashlock: order.hashlock,
+            hashlock: hashed_secret,
             maker: order.creator,
             taker: ctx.accounts.taker.key(),
             token: order.token,
@@ -179,8 +207,7 @@ pub mod cross_chain_escrow_src {
             dst_amount: get_dst_amount(order.dst_amount, &dutch_auction_data)?,
         });
 
-        // TODO!: Check and close if last secret has been provided (fully filled)
-        if !order.allow_multiple_fills {
+        if !order.allow_multiple_fills || order.remaining_amount == amount {
             // Close the order ATA
             close_account(CpiContext::new_with_signer(
                 ctx.accounts.token_program.to_account_info(),
@@ -189,17 +216,17 @@ pub mod cross_chain_escrow_src {
                     destination: ctx.accounts.maker.to_account_info(),
                     authority: order.to_account_info(),
                 },
-                &[&seeds],
+                &[&order_seeds],
             ))?;
 
             // Close the order account
             order.close(ctx.accounts.maker.to_account_info())?;
+        } else {
+            order.remaining_amount -= amount;
         }
 
         Ok(())
     }
-
-    // TODO! Fix withdrawal and cancellation logic in SOL-120, SOL-121, SOL-122
 
     pub fn withdraw(ctx: Context<Withdraw>, secret: [u8; 32]) -> Result<()> {
         let now = utils::get_current_timestamp()?;
@@ -512,7 +539,7 @@ pub mod cross_chain_escrow_src {
 }
 
 #[derive(Accounts)]
-#[instruction(order_hash: [u8; 32], hashlock: [u8; 32], amount: u64, safety_deposit: u64, finality_duration: u32, withdrawal_duration: u32, public_withdrawal_duration: u32, cancellation_duration: u32, rescue_start: u32)]
+#[instruction(order_hash: [u8; 32], hashlock: [u8; 32], amount: u64, parts_amount: u64, safety_deposit: u64, finality_duration: u32, withdrawal_duration: u32, public_withdrawal_duration: u32, cancellation_duration: u32, rescue_start: u32)]
 pub struct Create<'info> {
     #[account(
         mut, // Needed because this account transfers lamports if the token is native and to pay for the order creation
@@ -564,6 +591,7 @@ pub struct Create<'info> {
 }
 
 #[derive(Accounts)]
+#[instruction(amount: u64, dutch_auction_data: AuctionData, merkle_proof: Option<MerkleProof>)]
 pub struct CreateEscrow<'info> {
     #[account(mut)]
     taker: Signer<'info>,
@@ -609,11 +637,14 @@ pub struct CreateEscrow<'info> {
         seeds = [
             "escrow".as_bytes(),
             order.order_hash.as_ref(),
-            order.hashlock.as_ref(),
+            &get_escrow_hashlock(
+                order.hashlock,
+                merkle_proof.clone()
+            ),
             order.creator.as_ref(),
             taker.key().as_ref(),
-            order.token.key().as_ref(),
-            order.amount.to_be_bytes().as_ref(), // TODO: Must be replaced with the actual amount when partial fills are implemented.
+            mint.key().as_ref(),
+            amount.to_be_bytes().as_ref(),
             order.safety_deposit.to_be_bytes().as_ref(),
             order.rescue_start.to_be_bytes().as_ref(),
         ],
@@ -747,7 +778,7 @@ pub struct CancelEscrow<'info> {
             escrow.maker.as_ref(),
             taker.key().as_ref(),
             escrow.token.key().as_ref(),
-            escrow.amount.to_be_bytes().as_ref(), // TODO: Must be replaced with the actual amount when partial fills are implemented.
+            escrow.amount.to_be_bytes().as_ref(),
             escrow.safety_deposit.to_be_bytes().as_ref(),
             escrow.rescue_start.to_be_bytes().as_ref(),
         ],
@@ -1002,6 +1033,8 @@ pub struct Order {
     creator: Pubkey,
     token: Pubkey,
     amount: u64,
+    remaining_amount: u64,
+    parts_amount: u64,
     safety_deposit: u64,
     finality_duration: u32,
     withdrawal_duration: u32,
@@ -1014,7 +1047,6 @@ pub struct Order {
     dutch_auction_data_hash: [u8; 32],
     max_cancellation_premium: u64,
     cancellation_auction_duration: u32,
-    last_validated: u32,
     allow_multiple_fills: bool,
 }
 
@@ -1093,4 +1125,40 @@ fn get_dst_amount(dst_amount: u64, data: &AuctionData) -> Result<u64> {
         .mul_div_ceil(constants::BASE_1E5 + rate_bump, constants::BASE_1E5)
         .ok_or(ProgramError::ArithmeticOverflow)?;
     Ok(result)
+}
+
+fn is_valid_partial_fill(
+    making_amount: u64,
+    remaining_making_amount: u64,
+    order_making_amount: u64,
+    parts_amount: u64,
+    validated_index: u64,
+) -> bool {
+    let calculated_index = ((order_making_amount - remaining_making_amount + making_amount - 1)
+        * parts_amount)
+        / order_making_amount;
+
+    if remaining_making_amount == making_amount {
+        // If the order is filled to completion, a secret with index i + 1 must be used
+        // where i is the index of the secret for the last part.
+        return calculated_index + 1 == validated_index;
+    } else if order_making_amount != remaining_making_amount {
+        // Calculate the previous fill index only if this is not the first fill.
+        let prev_calculated_index = ((order_making_amount - remaining_making_amount - 1)
+            * parts_amount)
+            / order_making_amount;
+        if calculated_index == prev_calculated_index {
+            return false;
+        }
+    }
+
+    calculated_index == validated_index
+}
+
+pub fn get_escrow_hashlock(order_hash: [u8; 32], merkle_proof: Option<MerkleProof>) -> [u8; 32] {
+    if let Some(merkle_proof) = merkle_proof {
+        merkle_proof.hashed_secret
+    } else {
+        order_hash
+    }
 }
