@@ -112,7 +112,11 @@ pub mod cross_chain_escrow_src {
         let order = &mut ctx.accounts.order;
         let escrow = &mut ctx.accounts.escrow;
         let now = utils::get_current_timestamp()?;
-        require!(amount <= order.remaining_amount, EscrowError::InvalidAmount);
+        if order.allow_multiple_fills {
+            require!(amount <= order.remaining_amount, EscrowError::InvalidAmount);
+        } else {
+            require!(amount == order.amount, EscrowError::InvalidAmount);
+        }
 
         require!(now < order.expiration_time, EscrowError::OrderHasExpired);
 
