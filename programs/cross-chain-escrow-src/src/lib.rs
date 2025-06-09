@@ -214,7 +214,8 @@ pub mod cross_chain_escrow_src {
             dst_amount: get_dst_amount(order.dst_amount, &dutch_auction_data)?,
         };
 
-        escrow_data.try_serialize(&mut &mut ctx.accounts.escrow.to_account_info().data.borrow_mut()[..])?;
+        escrow_data
+            .try_serialize(&mut &mut ctx.accounts.escrow.to_account_info().data.borrow_mut()[..])?;
 
         if !order.allow_multiple_fills || order.remaining_amount == amount {
             // Close the order ATA
@@ -1171,7 +1172,8 @@ fn create_escrow_account<'info>(
         &amount_bytes,
         &safety_deposit_bytes,
         &rescue_start_bytes,
-    ].to_vec();
+    ]
+    .to_vec();
 
     let (_, bump) = Pubkey::find_program_address(&seeds, program_id);
     let binding = [bump];
