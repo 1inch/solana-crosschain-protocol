@@ -661,7 +661,6 @@ run_for_tokens!(
                 let (escrow, _) = create_escrow(test_state).await;
 
                 test_state.test_arguments.order_amount += 1;
-                test_state.test_arguments.order_remaining_amount += 1;
                 test_state.test_arguments.escrow_amount += 1;
                 create_order(test_state).await;
 
@@ -2685,6 +2684,7 @@ mod test_partial_fill_escrow_creation {
 
         let root: [u8; 32] = get_root(merkle_hashes.leaves.clone());
         test_state.hashlock = Hash::new_from_array(root);
+        test_state.escrow_hashlock = Hash::new_from_array(root);
         test_state.test_arguments.allow_multiple_fills = true;
         create_order(test_state).await;
 

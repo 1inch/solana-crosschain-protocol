@@ -366,7 +366,6 @@ pub async fn test_withdraw_does_not_work_with_wrong_escrow_ata<
 
     test_state.test_arguments.escrow_amount = new_escrow_amount;
     test_state.test_arguments.order_amount = new_escrow_amount;
-    test_state.test_arguments.order_remaining_amount = new_escrow_amount;
     let (_, escrow_ata_2) = create_escrow(test_state).await;
 
     let transaction = T::get_withdraw_tx(test_state, &escrow, &escrow_ata_2);
@@ -561,7 +560,6 @@ pub async fn test_public_withdraw_fails_with_wrong_escrow_ata<
 
     test_state.test_arguments.escrow_amount = new_escrow_amount;
     test_state.test_arguments.order_amount = new_escrow_amount;
-    test_state.test_arguments.order_remaining_amount = new_escrow_amount;
     let (_, escrow_ata_2) = create_escrow(test_state).await;
 
     let transaction = T::get_public_withdraw_tx(test_state, &escrow, &escrow_ata_2, &withdrawer);
