@@ -957,11 +957,14 @@ run_for_tokens!(
                     .await
                 }
 
-                // #[test_context(TestState)]
-                // #[tokio::test]
-                // async fn test_cannot_rescue_funds_from_order_by_non_recipient(test_state: &mut TestState) { // TODO: return after implement whitelist
-                //     local_helpers::test_cannot_rescue_funds_from_order_by_non_recipient(test_state).await
-                // }
+                #[test_context(TestState)]
+                #[tokio::test]
+                async fn test_cannot_rescue_funds_from_order_by_non_whitelisted_resolver(
+                    test_state: &mut TestState,
+                ) {
+                    local_helpers::test_cannot_rescue_funds_from_order_by_non_whitelisted_resolver(test_state)
+                        .await
+                }
 
                 #[test_context(TestState)]
                 #[tokio::test]
@@ -1488,7 +1491,7 @@ mod local_helpers {
             .expect_error((0, ProgramError::Custom(EscrowError::InvalidTime.into())));
     }
 
-    pub async fn _test_cannot_rescue_funds_from_order_by_non_recipient<S: TokenVariant>(
+    pub async fn test_cannot_rescue_funds_from_order_by_non_whitelisted_resolver<S: TokenVariant>(
         test_state: &mut TestStateBase<SrcProgram, S>,
     ) {
         let (order, _) = create_order(test_state).await;
@@ -1532,7 +1535,7 @@ mod local_helpers {
             .client
             .process_transaction(transaction)
             .await
-            .expect_error((0, ProgramError::Custom(ErrorCode::ConstraintSeeds.into())))
+            .expect_error((0, ProgramError::Custom(ErrorCode::AccountNotInitialized.into())))
     }
 
     pub async fn test_cannot_rescue_funds_from_order_with_wrong_recipient_ata<S: TokenVariant>(
