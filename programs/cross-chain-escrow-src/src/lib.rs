@@ -916,7 +916,7 @@ pub struct PublicCancelEscrow<'info> {
             escrow.maker.as_ref(),
             taker.key().as_ref(),
             escrow.token.key().as_ref(),
-            escrow.amount.to_be_bytes().as_ref(), // TODO: Must be replaced with the actual amount when partial fills are implemented.
+            escrow.amount.to_be_bytes().as_ref(),
             escrow.safety_deposit.to_be_bytes().as_ref(),
             escrow.rescue_start.to_be_bytes().as_ref(),
         ],
