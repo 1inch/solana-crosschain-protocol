@@ -1,3 +1,5 @@
+use std::any::TypeId;
+
 use anchor_lang::prelude::{AccountInfo, AccountMeta};
 use anchor_lang::InstructionData;
 use solana_program::{instruction::Instruction, pubkey::Pubkey};
@@ -10,6 +12,7 @@ use solana_sdk::{
 use solana_program_runtime::invoke_context::BuiltinFunctionWithContext;
 
 use crate::helpers::{EscrowVariant, Expectation, TestStateBase, TokenVariant};
+use crate::src_program::SrcProgram;
 use crate::wrap_entry;
 
 pub fn get_program_whitelist_spec() -> (Pubkey, Option<BuiltinFunctionWithContext>) {
@@ -128,4 +131,17 @@ pub async fn deregister<T: EscrowVariant<S>, S: TokenVariant>(
         .await
         .expect_success();
     whitelist_access
+}
+
+pub async fn prepare_resolver<T: EscrowVariant<S> + 'static, S: TokenVariant>(
+    test_state: &TestStateBase<T, S>,
+) {
+    init_whitelist(test_state).await;
+    let whitelisted_account = if TypeId::of::<T>() == TypeId::of::<SrcProgram>() {
+        test_state.recipient_wallet.keypair.pubkey()
+    } else {
+        test_state.creator_wallet.keypair.pubkey()
+    };
+
+    register(test_state, whitelisted_account).await;
 }
