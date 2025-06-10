@@ -270,9 +270,7 @@ run_for_tokens!(
 
             #[test_context(TestState)]
             #[tokio::test]
-            async fn test_escrow_creation_with_excess_tokens(
-                test_state: &mut TestState,
-            ) {
+            async fn test_escrow_creation_with_excess_tokens(test_state: &mut TestState) {
                 local_helpers::test_escrow_creation_with_excess_tokens(test_state).await;
             }
 
@@ -490,24 +488,22 @@ run_for_tokens!(
 
                 set_time(
                     &mut test_state.context,
-                    test_state.init_timestamp + DEFAULT_PERIOD_DURATION * PeriodType::Withdrawal as u32,
+                    test_state.init_timestamp
+                        + DEFAULT_PERIOD_DURATION * PeriodType::Withdrawal as u32,
                 );
 
                 let (_, recipient_ata) = find_user_ata(test_state);
 
                 let excess_amount = 1000;
                 // Send excess tokens to the escrow account
-                local_helpers::mint_excess_tokens(
-                    test_state,
-                    &escrow_ata,
-                    excess_amount,
-                ).await;
+                local_helpers::mint_excess_tokens(test_state, &escrow_ata, excess_amount).await;
                 test_state
                     .expect_balance_change(
                         transaction,
-                        &[
-                            token_change(recipient_ata, test_state.test_arguments.escrow_amount + excess_amount),
-                        ],
+                        &[token_change(
+                            recipient_ata,
+                            test_state.test_arguments.escrow_amount + excess_amount,
+                        )],
                     )
                     .await;
 
@@ -705,25 +701,23 @@ run_for_tokens!(
 
                 set_time(
                     &mut test_state.context,
-                    test_state.init_timestamp + DEFAULT_PERIOD_DURATION * PeriodType::Cancellation as u32,
+                    test_state.init_timestamp
+                        + DEFAULT_PERIOD_DURATION * PeriodType::Cancellation as u32,
                 );
 
-                 let (creator_ata, _) = find_user_ata(test_state);
+                let (creator_ata, _) = find_user_ata(test_state);
 
                 let excess_amount = 1000;
                 // Send excess tokens to the escrow account
-                local_helpers::mint_excess_tokens(
-                    test_state,
-                    &escrow_ata,
-                    excess_amount,
-                ).await;
+                local_helpers::mint_excess_tokens(test_state, &escrow_ata, excess_amount).await;
 
                 test_state
                     .expect_balance_change(
                         transaction,
-                        &[
-                            token_change(creator_ata, test_state.test_arguments.escrow_amount + excess_amount),
-                        ],
+                        &[token_change(
+                            creator_ata,
+                            test_state.test_arguments.escrow_amount + excess_amount,
+                        )],
                     )
                     .await;
 
@@ -803,15 +797,12 @@ run_for_tokens!(
 
                 let excess_amount = 1000;
                 // Send excess tokens to the order account
-                local_helpers::mint_excess_tokens(
-                    test_state,
-                    &order_ata,
-                    excess_amount,
-                ).await;
+                local_helpers::mint_excess_tokens(test_state, &order_ata, excess_amount).await;
 
-                let balance_changes: Vec<BalanceChange> = vec![
-                    token_change(creator_ata, test_state.test_arguments.order_amount + excess_amount),
-                ];
+                let balance_changes: Vec<BalanceChange> = vec![token_change(
+                    creator_ata,
+                    test_state.test_arguments.order_amount + excess_amount,
+                )];
 
                 test_state
                     .expect_balance_change(transaction, &balance_changes)
@@ -843,7 +834,8 @@ run_for_tokens!(
                 test_state: &mut TestState,
             ) {
                 let (order, order_ata) = create_order(test_state).await;
-                let transaction = get_cancel_order_by_resolver_tx(test_state, &order, &order_ata, None);
+                let transaction =
+                    get_cancel_order_by_resolver_tx(test_state, &order, &order_ata, None);
 
                 set_time(
                     &mut test_state.context,
@@ -854,15 +846,12 @@ run_for_tokens!(
 
                 let excess_amount = 1000;
                 // Send excess tokens to the order account
-                local_helpers::mint_excess_tokens(
-                    test_state,
-                    &order_ata,
-                    excess_amount,
-                ).await;
+                local_helpers::mint_excess_tokens(test_state, &order_ata, excess_amount).await;
 
-                let balance_changes: Vec<BalanceChange> = vec![
-                    token_change(creator_ata, test_state.test_arguments.order_amount + excess_amount),
-                ];
+                let balance_changes: Vec<BalanceChange> = vec![token_change(
+                    creator_ata,
+                    test_state.test_arguments.order_amount + excess_amount,
+                )];
 
                 test_state
                     .expect_balance_change(transaction, &balance_changes)
@@ -1986,7 +1975,7 @@ mod local_helpers {
         S::mint_spl_tokens(
             &mut test_state.context,
             &test_state.token,
-            &escrow_ata,
+            escrow_ata,
             &test_state.payer_kp.pubkey(),
             &test_state.payer_kp,
             excess_amount,
@@ -2748,14 +2737,14 @@ mod test_partial_fill_escrow_creation {
         let excess_amount = 1000;
         // Send excess tokens to the order ATA.
         TokenSPL::mint_spl_tokens(
-                &mut test_state.context,
-                &test_state.token,
-                &order_ata,
-                &test_state.payer_kp.pubkey(),
-                &test_state.payer_kp,
-                excess_amount,
-            )
-            .await;
+            &mut test_state.context,
+            &test_state.token,
+            &order_ata,
+            &test_state.payer_kp.pubkey(),
+            &test_state.payer_kp,
+            excess_amount,
+        )
+        .await;
         let (_, escrow_ata) = create_escrow_for_partial_fill(
             test_state,
             DEFAULT_ESCROW_AMOUNT - escrow_amount, // full fill

@@ -110,24 +110,22 @@ run_for_tokens!(
 
                 set_time(
                     &mut test_state.context,
-                    test_state.init_timestamp + DEFAULT_PERIOD_DURATION * PeriodType::Withdrawal as u32,
+                    test_state.init_timestamp
+                        + DEFAULT_PERIOD_DURATION * PeriodType::Withdrawal as u32,
                 );
 
                 let (_, recipient_ata) = find_user_ata(test_state);
 
                 let excess_amount = 1000;
                 // Send excess tokens to the escrow account
-                local_helpers::mint_excess_tokens(
-                    test_state,
-                    &escrow_ata,
-                    excess_amount,
-                ).await;
+                local_helpers::mint_excess_tokens(test_state, &escrow_ata, excess_amount).await;
                 test_state
                     .expect_balance_change(
                         transaction,
-                        &[
-                            token_change(recipient_ata, test_state.test_arguments.escrow_amount + excess_amount),
-                        ],
+                        &[token_change(
+                            recipient_ata,
+                            test_state.test_arguments.escrow_amount + excess_amount,
+                        )],
                     )
                     .await;
 
@@ -359,25 +357,23 @@ run_for_tokens!(
 
                 set_time(
                     &mut test_state.context,
-                    test_state.init_timestamp + DEFAULT_PERIOD_DURATION * PeriodType::Cancellation as u32,
+                    test_state.init_timestamp
+                        + DEFAULT_PERIOD_DURATION * PeriodType::Cancellation as u32,
                 );
 
                 let (creator_ata, _) = find_user_ata(test_state);
 
                 let excess_amount = 1000;
                 // Send excess tokens to the escrow account
-                local_helpers::mint_excess_tokens(
-                    test_state,
-                    &escrow_ata,
-                    excess_amount,
-                ).await;
+                local_helpers::mint_excess_tokens(test_state, &escrow_ata, excess_amount).await;
 
                 test_state
                     .expect_balance_change(
                         transaction,
-                        &[
-                            token_change(creator_ata, test_state.test_arguments.escrow_amount + excess_amount),
-                        ],
+                        &[token_change(
+                            creator_ata,
+                            test_state.test_arguments.escrow_amount + excess_amount,
+                        )],
                     )
                     .await;
 
@@ -645,7 +641,7 @@ mod local_helpers {
         S::mint_spl_tokens(
             &mut test_state.context,
             &test_state.token,
-            &escrow_ata,
+            escrow_ata,
             &test_state.payer_kp.pubkey(),
             &test_state.payer_kp,
             excess_amount,
