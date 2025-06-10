@@ -57,11 +57,11 @@ pub mod cross_chain_escrow_src {
             EscrowError::InvalidCancellationFee
         );
 
-        if allow_multiple_fills {
-            require!(parts_amount >= 2, EscrowError::InvalidPartsAmount);
-        } else {
-            require!(parts_amount == 1, EscrowError::InvalidPartsAmount);
-        }
+        require!(
+            (allow_multiple_fills && parts_amount >= 2)
+                || (!allow_multiple_fills && parts_amount == 1),
+            EscrowError::InvalidPartsAmount
+        );
 
         common::escrow::create(
             EscrowSrc::INIT_SPACE + constants::DISCRIMINATOR_BYTES, // Needed to check the safety deposit amount validity
@@ -114,11 +114,11 @@ pub mod cross_chain_escrow_src {
         let order = &mut ctx.accounts.order;
         let escrow = &mut ctx.accounts.escrow;
         let now = utils::get_current_timestamp()?;
-        if order.allow_multiple_fills {
-            require!(amount <= order.remaining_amount, EscrowError::InvalidAmount);
-        } else {
-            require!(amount == order.amount, EscrowError::InvalidAmount);
-        }
+        require!(
+            (order.allow_multiple_fills && amount <= order.remaining_amount)
+                || (!order.allow_multiple_fills && amount == order.amount),
+            EscrowError::InvalidAmount
+        );
 
         require!(now < order.expiration_time, EscrowError::OrderHasExpired);
 
@@ -128,7 +128,7 @@ pub mod cross_chain_escrow_src {
             EscrowError::DutchAuctionDataHashMismatch
         );
 
-        let hashed_secret = match (order.allow_multiple_fills, &merkle_proof) {
+        let hashlock = match (order.allow_multiple_fills, &merkle_proof) {
             (true, Some(proof)) => {
                 require!(
                     proof.verify(order.hashlock),
@@ -192,7 +192,7 @@ pub mod cross_chain_escrow_src {
 
         escrow.set_inner(EscrowSrc {
             order_hash: order.order_hash,
-            hashlock: hashed_secret,
+            hashlock,
             maker: order.creator,
             taker: ctx.accounts.taker.key(),
             token: order.token,
@@ -916,7 +916,7 @@ pub struct PublicCancelEscrow<'info> {
             escrow.maker.as_ref(),
             taker.key().as_ref(),
             escrow.token.key().as_ref(),
-            escrow.amount.to_be_bytes().as_ref(), // TODO: Must be replaced with the actual amount when partial fills are implemented.
+            escrow.amount.to_be_bytes().as_ref(),
             escrow.safety_deposit.to_be_bytes().as_ref(),
             escrow.rescue_start.to_be_bytes().as_ref(),
         ],
