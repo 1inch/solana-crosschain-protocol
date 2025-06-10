@@ -484,6 +484,22 @@ run_for_tokens!(
                     .await
                     .expect_error((0, ProgramError::Custom(EscrowError::InvalidAmount.into())));
             }
+
+            #[test_context(TestState)]
+            #[tokio::test]
+            async fn test_escrow_creation_fails_witout_resolver_access(test_state: &mut TestState) {
+                create_order(test_state).await;
+                // test_state.recipient_wallet does not have resolver access
+                let (_, _, transaction) = create_escrow_data(test_state);
+                test_state
+                    .client
+                    .process_transaction(transaction)
+                    .await
+                    .expect_error((
+                        0,
+                        ProgramError::Custom(ErrorCode::AccountNotInitialized.into()),
+                    ));
+            }
         }
 
         mod test_escrow_withdraw {
@@ -703,6 +719,35 @@ run_for_tokens!(
                 common_escrow_tests::test_public_withdraw_fails_after_cancellation_start(test_state)
                     .await
             }
+
+            #[test_context(TestState)]
+            #[tokio::test]
+            async fn test_public_withdraw_fails_without_resolver_access(
+                test_state: &mut TestState,
+            ) {
+                create_order(test_state).await;
+                prepare_resolvers(test_state, &[test_state.recipient_wallet.keypair.pubkey()])
+                    .await;
+                let (escrow, escrow_ata) = create_escrow(test_state).await;
+
+                let withdrawer = Keypair::new();
+                // withdrawer does not have resolver access
+                let transaction = SrcProgram::get_public_withdraw_tx(
+                    test_state,
+                    &escrow,
+                    &escrow_ata,
+                    &withdrawer,
+                );
+
+                test_state
+                    .client
+                    .process_transaction(transaction)
+                    .await
+                    .expect_error((
+                        0,
+                        ProgramError::Custom(ErrorCode::AccountNotInitialized.into()),
+                    ));
+            }
         }
 
         mod test_escrow_cancel {
@@ -844,6 +889,25 @@ run_for_tokens!(
                     .expect_error((0, ProgramError::Custom(EscrowError::OrderNotExpired.into())));
             }
 
+            #[test_context(TestState)]
+            #[tokio::test]
+            async fn test_cancel_by_resolver_fails_without_resolver_access(
+                test_state: &mut TestState,
+            ) {
+                let (order, order_ata) = create_order(test_state).await;
+                // test_state.recipient_wallet does not have resolver access
+                let transaction =
+                    get_cancel_order_by_resolver_tx(test_state, &order, &order_ata, None);
+                test_state
+                    .client
+                    .process_transaction(transaction)
+                    .await
+                    .expect_error((
+                        0,
+                        ProgramError::Custom(ErrorCode::AccountNotInitialized.into()),
+                    ));
+            }
+
             mod test_order_public_cancel {
                 use super::local_helpers::*;
                 use super::*;
@@ -914,7 +978,43 @@ run_for_tokens!(
                         .client
                         .process_transaction(transaction)
                         .await
-                        .expect_error((0, ProgramError::Custom(EscrowError::InvalidTime.into())))
+                        .expect_error((0, ProgramError::Custom(EscrowError::InvalidTime.into())));
+                }
+
+                #[test_context(TestState)]
+                #[tokio::test]
+                async fn test_public_cancel_fails_without_resolver_access(
+                    test_state: &mut TestState,
+                ) {
+                    let canceller = Keypair::new();
+                    transfer_lamports(
+                        &mut test_state.context,
+                        WALLET_DEFAULT_LAMPORTS,
+                        &test_state.payer_kp,
+                        &canceller.pubkey(),
+                    )
+                    .await;
+
+                    create_order(test_state).await;
+                    prepare_resolvers(test_state, &[test_state.recipient_wallet.keypair.pubkey()])
+                        .await;
+                    let (escrow, escrow_ata) = create_escrow(test_state).await;
+
+                    // canceller does not have resolver access
+                    let transaction = create_public_escrow_cancel_tx(
+                        test_state,
+                        &escrow,
+                        &escrow_ata,
+                        &canceller,
+                    );
+                    test_state
+                        .client
+                        .process_transaction(transaction)
+                        .await
+                        .expect_error((
+                            0,
+                            ProgramError::Custom(ErrorCode::AccountNotInitialized.into()),
+                        ));
                 }
             }
 
@@ -962,8 +1062,10 @@ run_for_tokens!(
                 async fn test_cannot_rescue_funds_from_order_by_non_whitelisted_resolver(
                     test_state: &mut TestState,
                 ) {
-                    local_helpers::test_cannot_rescue_funds_from_order_by_non_whitelisted_resolver(test_state)
-                        .await
+                    local_helpers::test_cannot_rescue_funds_from_order_by_non_whitelisted_resolver(
+                        test_state,
+                    )
+                    .await
                 }
 
                 #[test_context(TestState)]
@@ -1491,7 +1593,9 @@ mod local_helpers {
             .expect_error((0, ProgramError::Custom(EscrowError::InvalidTime.into())));
     }
 
-    pub async fn test_cannot_rescue_funds_from_order_by_non_whitelisted_resolver<S: TokenVariant>(
+    pub async fn test_cannot_rescue_funds_from_order_by_non_whitelisted_resolver<
+        S: TokenVariant,
+    >(
         test_state: &mut TestStateBase<SrcProgram, S>,
     ) {
         let (order, _) = create_order(test_state).await;
@@ -1535,7 +1639,10 @@ mod local_helpers {
             .client
             .process_transaction(transaction)
             .await
-            .expect_error((0, ProgramError::Custom(ErrorCode::AccountNotInitialized.into())))
+            .expect_error((
+                0,
+                ProgramError::Custom(ErrorCode::AccountNotInitialized.into()),
+            ))
     }
 
     pub async fn test_cannot_rescue_funds_from_order_with_wrong_recipient_ata<S: TokenVariant>(

@@ -1,3 +1,4 @@
+use anchor_lang::error::ErrorCode;
 use common::error::EscrowError;
 use common_tests::dst_program::DstProgram;
 use common_tests::helpers::*;
@@ -97,6 +98,23 @@ run_for_tokens!(
                         0,
                         ProgramError::Custom(EscrowError::InvalidCreationTime.into()),
                     ))
+            }
+
+            #[test_context(TestState)]
+            #[tokio::test]
+            async fn test_escrow_creation_fails_without_resolver_access(
+                test_state: &mut TestState,
+            ) {
+                // escrow creation does not have resolver access
+                let (_, _, tx) = create_escrow_data(test_state);
+                test_state
+                    .client
+                    .process_transaction(tx)
+                    .await
+                    .expect_error((
+                        0,
+                        ProgramError::Custom(ErrorCode::AccountNotInitialized.into()),
+                    ));
             }
         }
 
@@ -364,6 +382,46 @@ run_for_tokens!(
                 )
                 .await
             }
+
+            #[test_context(TestState)]
+            #[tokio::test]
+            async fn test_public_withdraw_fails_without_resolver_access(
+                test_state: &mut TestState,
+            ) {
+                prepare_resolvers(test_state, &[test_state.creator_wallet.keypair.pubkey()]).await;
+                let (escrow, escrow_ata) = create_escrow(test_state).await;
+
+                let withdrawer = Keypair::new();
+                transfer_lamports(
+                    &mut test_state.context,
+                    WALLET_DEFAULT_LAMPORTS,
+                    &test_state.payer_kp,
+                    &withdrawer.pubkey(),
+                )
+                .await;
+
+                // withdrawer does not have resolver access
+                let transaction = DstProgram::get_public_withdraw_tx(
+                    test_state,
+                    &escrow,
+                    &escrow_ata,
+                    &withdrawer,
+                );
+
+                set_time(
+                    &mut test_state.context,
+                    test_state.init_timestamp + DEFAULT_PERIOD_DURATION * PeriodType::PublicWithdrawal as u32,
+                );
+
+                test_state
+                    .client
+                    .process_transaction(transaction)
+                    .await
+                    .expect_error((
+                        0,
+                        ProgramError::Custom(ErrorCode::AccountNotInitialized.into()),
+                    ));
+            }
         }
 
         mod test_escrow_cancel {
@@ -492,6 +550,19 @@ run_for_tokens!(
                 .await;
                 common_escrow_tests::test_cannot_rescue_funds_with_wrong_escrow_ata(test_state)
                     .await
+            }
+
+            #[test_context(TestState)]
+            #[tokio::test]
+            async fn test_rescue_fails_for_unwhitelisted_account(test_state: &mut TestState) {
+                prepare_resolvers(
+                    test_state,
+                    &[
+                        test_state.creator_wallet.keypair.pubkey(),
+                    ],
+                )
+                .await;
+                local_helpers::test_cannot_rescue_funds_by_non_whitelisted_resolver(test_state).await;
             }
         }
     }
@@ -742,5 +813,60 @@ mod test_escrow_creation_cost {
     async fn test_escrow_creation_tx_cost(test_state: &mut TestState) {
         prepare_resolvers(test_state, &[test_state.creator_wallet.keypair.pubkey()]).await;
         common_escrow_tests::test_escrow_creation_tx_cost(test_state).await
+    }
+}
+mod local_helpers {
+    use common::constants::RESCUE_DELAY;
+
+    use super::*;
+
+    pub async fn test_cannot_rescue_funds_by_non_whitelisted_resolver<
+        S: TokenVariant,
+    >(
+        test_state: &mut TestStateBase<DstProgram, S>,
+    ) {
+        let (escrow, _) = create_escrow(test_state).await;
+
+        let token_to_rescue = S::deploy_spl_token(&mut test_state.context).await.pubkey();
+        let escrow_ata =
+            S::initialize_spl_associated_account(&mut test_state.context, &token_to_rescue, &escrow)
+                .await;
+        let recipient_ata = S::initialize_spl_associated_account(
+            &mut test_state.context,
+            &token_to_rescue,
+            &test_state.recipient_wallet.keypair.pubkey(),
+        )
+        .await;
+
+        S::mint_spl_tokens(
+            &mut test_state.context,
+            &token_to_rescue,
+            &escrow_ata,
+            &test_state.payer_kp.pubkey(),
+            &test_state.payer_kp,
+            test_state.test_arguments.rescue_amount,
+        )
+        .await;
+
+        let transaction = DstProgram::get_rescue_funds_tx(
+            test_state,
+            &escrow,
+            &token_to_rescue,
+            &escrow_ata,
+            &recipient_ata,
+        );
+
+        set_time(
+            &mut test_state.context,
+            test_state.init_timestamp + RESCUE_DELAY + 100,
+        );
+        test_state
+            .client
+            .process_transaction(transaction)
+            .await
+            .expect_error((
+                0,
+                ProgramError::Custom(ErrorCode::AccountNotInitialized.into()),
+            ));
     }
 }
