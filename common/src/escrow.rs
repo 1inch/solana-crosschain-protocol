@@ -43,6 +43,7 @@ pub trait EscrowBase {
 
 pub fn create<'info>(
     escrow_size: usize,
+    escrow_type: EscrowType,
     creator: &AccountInfo<'info>,
     asset_is_native: bool,
     escrow_ata: &InterfaceAccount<'info, TokenAccount>,
@@ -91,12 +92,14 @@ pub fn create<'info>(
             None,
         )?;
 
-        anchor_spl::token::sync_native(CpiContext::new(
-            token_program.to_account_info(),
-            anchor_spl::token::SyncNative {
-                account: escrow_ata.to_account_info(),
-            },
-        ))?;
+        if escrow_type == EscrowType::Src {
+            anchor_spl::token::sync_native(CpiContext::new(
+                token_program.to_account_info(),
+                anchor_spl::token::SyncNative {
+                    account: escrow_ata.to_account_info(),
+                },
+            ))?;
+        }
     } else {
         // Do SPL token transfer
         uni_transfer(

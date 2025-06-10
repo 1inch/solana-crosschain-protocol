@@ -46,6 +46,7 @@ pub mod cross_chain_escrow_dst {
 
         common::escrow::create(
             EscrowDst::INIT_SPACE + constants::DISCRIMINATOR_BYTES,
+            ctx.accounts.escrow.escrow_type(),
             &ctx.accounts.creator,
             asset_is_native,
             &ctx.accounts.escrow_ata,

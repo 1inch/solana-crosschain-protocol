@@ -53,6 +53,7 @@ pub mod cross_chain_escrow_src {
 
         common::escrow::create(
             EscrowSrc::INIT_SPACE + constants::DISCRIMINATOR_BYTES, // Needed to check the safety deposit amount validity
+            EscrowType::Src, // Hardcoded to Src type to sync native ata if applicable
             &ctx.accounts.creator,
             asset_is_native,
             &ctx.accounts.order_ata,
