@@ -861,6 +861,12 @@ pub struct CancelOrderbyResolver<'info> {
     /// Account that cancels the escrow
     #[account(mut, signer)]
     resolver: Signer<'info>,
+    #[account(
+        seeds = [whitelist::RESOLVER_ACCESS_SEED, resolver.key().as_ref()],
+        bump = resolver_access.bump,
+        seeds::program = whitelist::ID,
+    )]
+    resolver_access: Account<'info, whitelist::ResolverAccess>,
     /// CHECK: Currently only used for the token-authority check and to receive lamports if the token is native
     #[account(
         mut, // Needed because this account receives lamports if the token is native
