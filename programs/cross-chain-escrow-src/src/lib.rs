@@ -128,7 +128,7 @@ pub mod cross_chain_escrow_src {
             EscrowError::DutchAuctionDataHashMismatch
         );
 
-        let hashed_secret = match (order.allow_multiple_fills, &merkle_proof) {
+        let hashlock = match (order.allow_multiple_fills, &merkle_proof) {
             (true, Some(proof)) => {
                 require!(
                     proof.verify(order.hashlock),
@@ -192,7 +192,7 @@ pub mod cross_chain_escrow_src {
 
         escrow.set_inner(EscrowSrc {
             order_hash: order.order_hash,
-            hashlock: hashed_secret,
+            hashlock,
             maker: order.creator,
             taker: ctx.accounts.taker.key(),
             token: order.token,
