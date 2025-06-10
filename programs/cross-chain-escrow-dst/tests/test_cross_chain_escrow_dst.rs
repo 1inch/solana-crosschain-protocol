@@ -410,7 +410,8 @@ run_for_tokens!(
 
                 set_time(
                     &mut test_state.context,
-                    test_state.init_timestamp + DEFAULT_PERIOD_DURATION * PeriodType::PublicWithdrawal as u32,
+                    test_state.init_timestamp
+                        + DEFAULT_PERIOD_DURATION * PeriodType::PublicWithdrawal as u32,
                 );
 
                 test_state
@@ -555,14 +556,9 @@ run_for_tokens!(
             #[test_context(TestState)]
             #[tokio::test]
             async fn test_rescue_fails_for_unwhitelisted_account(test_state: &mut TestState) {
-                prepare_resolvers(
-                    test_state,
-                    &[
-                        test_state.creator_wallet.keypair.pubkey(),
-                    ],
-                )
-                .await;
-                local_helpers::test_cannot_rescue_funds_by_non_whitelisted_resolver(test_state).await;
+                prepare_resolvers(test_state, &[test_state.creator_wallet.keypair.pubkey()]).await;
+                local_helpers::test_cannot_rescue_funds_by_non_whitelisted_resolver(test_state)
+                    .await;
             }
         }
     }
@@ -820,17 +816,18 @@ mod local_helpers {
 
     use super::*;
 
-    pub async fn test_cannot_rescue_funds_by_non_whitelisted_resolver<
-        S: TokenVariant,
-    >(
+    pub async fn test_cannot_rescue_funds_by_non_whitelisted_resolver<S: TokenVariant>(
         test_state: &mut TestStateBase<DstProgram, S>,
     ) {
         let (escrow, _) = create_escrow(test_state).await;
 
         let token_to_rescue = S::deploy_spl_token(&mut test_state.context).await.pubkey();
-        let escrow_ata =
-            S::initialize_spl_associated_account(&mut test_state.context, &token_to_rescue, &escrow)
-                .await;
+        let escrow_ata = S::initialize_spl_associated_account(
+            &mut test_state.context,
+            &token_to_rescue,
+            &escrow,
+        )
+        .await;
         let recipient_ata = S::initialize_spl_associated_account(
             &mut test_state.context,
             &token_to_rescue,
