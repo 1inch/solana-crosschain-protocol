@@ -4,12 +4,20 @@ use anchor_spl::token::spl_token::state::Account as SplTokenAccount;
 use common::error::EscrowError;
 use common_tests::helpers::*;
 use common_tests::run_for_tokens;
-use common_tests::src_program::{create_order, create_order_data, get_order_data_len, SrcProgram};
+use common_tests::src_program::{
+    create_order, create_order_data, get_cancel_order_by_resolver_tx, get_cancel_order_tx,
+    get_create_order_tx, get_order_addresses, get_order_data_len, SrcProgram,
+};
 use common_tests::tests as common_escrow_tests;
+use cross_chain_escrow_src::calculate_premium;
 use solana_program_test::tokio;
+use solana_sdk::clock::Clock;
 use solana_sdk::signature::Signer;
 use solana_sdk::signer::keypair::Keypair;
 use test_context::test_context;
+
+mod merkle_tree_test_helpers;
+use merkle_tree_test_helpers::{get_proof, get_root};
 
 run_for_tokens!(
     (TokenSPL, token_spl_tests),
@@ -30,11 +38,8 @@ run_for_tokens!(
             #[test_context(TestState)]
             #[tokio::test]
             async fn test_order_creation_fails_with_zero_amount(test_state: &mut TestState) {
-                test_state.test_arguments.escrow_amount = 0;
-                let (order, order_ata, _) = create_order_data(test_state);
-
-                let transaction =
-                    common_tests::src_program::get_create_order_tx(test_state, &order, &order_ata);
+                test_state.test_arguments.order_amount = 0;
+                let (_, _, transaction) = create_order_data(test_state);
 
                 test_state
                     .client
@@ -52,10 +57,7 @@ run_for_tokens!(
                 test_state: &mut TestState,
             ) {
                 test_state.test_arguments.safety_deposit = 0;
-                let (order, order_ata, _) = create_order_data(test_state);
-
-                let transaction =
-                    common_tests::src_program::get_create_order_tx(test_state, &order, &order_ata);
+                let (_, _, transaction) = create_order_data(test_state);
 
                 test_state
                     .client
@@ -72,10 +74,7 @@ run_for_tokens!(
             async fn test_order_creation_fails_with_insufficient_funds(test_state: &mut TestState) {
                 test_state.test_arguments.safety_deposit = WALLET_DEFAULT_LAMPORTS + 1;
 
-                let (order, order_ata, _) = create_order_data(test_state);
-
-                let transaction =
-                    common_tests::src_program::get_create_order_tx(test_state, &order, &order_ata);
+                let (_, _, transaction) = create_order_data(test_state);
 
                 test_state
                     .client
@@ -146,6 +145,88 @@ run_for_tokens!(
 
                 let acc_lookup_result = test_state.client.get_account(order_ata).await.unwrap();
                 assert!(acc_lookup_result.is_none());
+            }
+
+            #[test_context(TestState)]
+            #[tokio::test]
+            async fn test_order_creation_fails_if_fee_is_greater_than_lamport_balance(
+                test_state: &mut TestState,
+            ) {
+                let (order, order_ata) = get_order_addresses(test_state);
+
+                let token_account_rent = get_min_rent_for_size(
+                    &mut test_state.client,
+                    local_helpers::get_token_account_len(std::marker::PhantomData::<TestState>),
+                )
+                .await;
+
+                test_state.test_arguments.max_cancellation_premium = token_account_rent + 1;
+
+                let transaction = get_create_order_tx(test_state, &order, &order_ata);
+
+                test_state
+                    .client
+                    .process_transaction(transaction)
+                    .await
+                    .expect_error((
+                        0,
+                        ProgramError::Custom(EscrowError::InvalidCancellationFee.into()),
+                    ));
+            }
+
+            #[test_context(TestState)]
+            #[tokio::test]
+            async fn test_order_creation_fails_with_incorrect_parts_without_allow_multiples_fills(
+                test_state: &mut TestState,
+            ) {
+                test_state.test_arguments.order_parts_amount = 2;
+                let (_, _, transaction) = create_order_data(test_state);
+
+                test_state
+                    .client
+                    .process_transaction(transaction)
+                    .await
+                    .expect_error((
+                        0,
+                        ProgramError::Custom(EscrowError::InvalidPartsAmount.into()),
+                    ));
+            }
+
+            #[test_context(TestState)]
+            #[tokio::test]
+            async fn test_order_creation_fails_with_zero_parts_without_allow_multiples_fills(
+                test_state: &mut TestState,
+            ) {
+                test_state.test_arguments.order_parts_amount = 0;
+                let (_, _, transaction) = create_order_data(test_state);
+
+                test_state
+                    .client
+                    .process_transaction(transaction)
+                    .await
+                    .expect_error((
+                        0,
+                        ProgramError::Custom(EscrowError::InvalidPartsAmount.into()),
+                    ));
+            }
+
+            #[test_context(TestState)]
+            #[tokio::test]
+            async fn test_order_creation_fails_with_zero_parts_for_allow_multiples_fills(
+                test_state: &mut TestState,
+            ) {
+                test_state.test_arguments.order_parts_amount = 0;
+                test_state.test_arguments.allow_multiple_fills = true;
+                let (_, _, transaction) = create_order_data(test_state);
+
+                test_state
+                    .client
+                    .process_transaction(transaction)
+                    .await
+                    .expect_error((
+                        0,
+                        ProgramError::Custom(EscrowError::InvalidPartsAmount.into()),
+                    ));
             }
         }
 
@@ -363,6 +444,23 @@ run_for_tokens!(
                     .await
                     .expect_error((0, ProgramError::Custom(EscrowError::OrderHasExpired.into())));
             }
+
+            #[test_context(TestState)]
+            #[tokio::test]
+            async fn test_escrow_creation_fails_when_escrow_amount_is_too_large(
+                test_state: &mut TestState,
+            ) {
+                create_order(test_state).await;
+                test_state.test_arguments.escrow_amount =
+                    test_state.test_arguments.order_amount + 1;
+                let (_, _, transaction) = create_escrow_data(test_state);
+
+                test_state
+                    .client
+                    .process_transaction(transaction)
+                    .await
+                    .expect_error((0, ProgramError::Custom(EscrowError::InvalidAmount.into())));
+            }
         }
 
         mod test_escrow_withdraw {
@@ -406,10 +504,10 @@ run_for_tokens!(
             #[tokio::test]
             async fn test_withdraw_does_not_work_with_wrong_escrow_ata(test_state: &mut TestState) {
                 let diff_amount = 1;
-                let new_amount = test_state.test_arguments.escrow_amount + diff_amount;
-                test_state.test_arguments.escrow_amount = new_amount;
+                let new_amount = test_state.test_arguments.order_amount + diff_amount;
+                test_state.test_arguments.order_amount = new_amount;
                 create_order(test_state).await;
-                test_state.test_arguments.escrow_amount -= diff_amount;
+                test_state.test_arguments.order_amount -= diff_amount;
                 create_order(test_state).await;
                 common_escrow_tests::test_withdraw_does_not_work_with_wrong_escrow_ata(
                     test_state, new_amount,
@@ -498,10 +596,10 @@ run_for_tokens!(
             #[tokio::test]
             async fn test_public_withdraw_fails_with_wrong_escrow_ata(test_state: &mut TestState) {
                 let diff = 1;
-                let new_amount = test_state.test_arguments.escrow_amount + diff;
-                test_state.test_arguments.escrow_amount = new_amount;
+                let new_amount = test_state.test_arguments.order_amount + diff;
+                test_state.test_arguments.order_amount = new_amount;
                 create_order(test_state).await;
-                test_state.test_arguments.escrow_amount -= diff;
+                test_state.test_arguments.order_amount -= diff;
                 create_order(test_state).await;
                 common_escrow_tests::test_public_withdraw_fails_with_wrong_escrow_ata(
                     test_state, new_amount,
@@ -562,6 +660,7 @@ run_for_tokens!(
                 create_order(test_state).await;
                 let (escrow, _) = create_escrow(test_state).await;
 
+                test_state.test_arguments.order_amount += 1;
                 test_state.test_arguments.escrow_amount += 1;
                 create_order(test_state).await;
 
@@ -587,174 +686,253 @@ run_for_tokens!(
             }
         }
 
-        mod test_escrow_public_cancel {
-            use super::local_helpers::*;
+        mod test_order_cancel {
             use super::*;
 
             #[test_context(TestState)]
             #[tokio::test]
-            async fn test_public_cancel_by_taker(test_state: &mut TestState) {
-                test_public_cancel_escrow(
-                    test_state,
-                    &test_state.recipient_wallet.keypair.insecure_clone(),
-                )
-                .await;
+            async fn test_order_cancel(test_state: &mut TestState) {
+                local_helpers::test_order_cancel(test_state).await;
             }
+        }
+
+        mod test_order_cancel_by_resolver {
+            use super::*;
 
             #[test_context(TestState)]
             #[tokio::test]
-            async fn test_public_cancel_by_any_account(test_state: &mut TestState) {
-                let canceller = Keypair::new();
-                transfer_lamports(
-                    &mut test_state.context,
-                    WALLET_DEFAULT_LAMPORTS,
-                    &test_state.payer_kp,
-                    &canceller.pubkey(),
-                )
-                .await;
-
-                test_public_cancel_escrow(test_state, &canceller).await;
-            }
-
-            #[test_context(TestState)]
-            #[tokio::test]
-            async fn test_cannot_public_cancel_before_public_cancellation_start(
+            async fn test_cancel_by_resolver_for_free_at_the_auction_start(
                 test_state: &mut TestState,
             ) {
-                create_order(test_state).await;
-                let (escrow, escrow_ata) = create_escrow(test_state).await;
-                let transaction = create_public_escrow_cancel_tx(
-                    test_state,
-                    &escrow,
-                    &escrow_ata,
-                    &test_state.payer_kp,
-                );
+                local_helpers::test_cancel_by_resolver_for_free_at_the_auction_start(test_state)
+                    .await;
+            }
 
-                set_time(
-                    &mut test_state.context,
-                    test_state.init_timestamp
-                        + DEFAULT_PERIOD_DURATION * PeriodType::Cancellation as u32,
-                );
+            #[test_context(TestState)]
+            #[tokio::test]
+            async fn test_cancel_by_resolver_at_different_points(test_state: &mut TestState) {
+                local_helpers::test_cancel_by_resolver_at_different_points(test_state, false, None)
+                    .await;
+            }
+
+            #[test_context(TestState)]
+            #[tokio::test]
+            async fn test_cancel_by_resolver_after_auction(test_state: &mut TestState) {
+                local_helpers::test_cancel_by_resolver_after_auction(test_state).await;
+            }
+
+            #[test_context(TestState)]
+            #[tokio::test]
+            async fn test_cancel_by_resolver_reward_less_then_auction_calculated(
+                test_state: &mut TestState,
+            ) {
+                local_helpers::test_cancel_by_resolver_reward_less_then_auction_calculated(
+                    test_state,
+                )
+                .await;
+            }
+
+            #[test_context(TestState)]
+            #[tokio::test]
+            async fn test_cancel_by_resolver_fails_if_order_is_not_expired(
+                test_state: &mut TestState,
+            ) {
+                let (order, order_ata) = create_order(test_state).await;
+
+                let transaction =
+                    get_cancel_order_by_resolver_tx(test_state, &order, &order_ata, None);
+
                 test_state
                     .client
                     .process_transaction(transaction)
                     .await
-                    .expect_error((0, ProgramError::Custom(EscrowError::InvalidTime.into())))
-            }
-        }
-
-        mod test_order_rescue_funds_for_order {
-            use super::*;
-
-            #[test_context(TestState)]
-            #[tokio::test]
-            async fn test_rescue_all_tokens_from_order_and_close_ata(test_state: &mut TestState) {
-                local_helpers::test_rescue_all_tokens_from_order_and_close_ata(test_state).await
+                    .expect_error((0, ProgramError::Custom(EscrowError::OrderNotExpired.into())));
             }
 
-            #[test_context(TestState)]
-            #[tokio::test]
-            async fn test_rescue_part_of_tokens_from_order_and_not_close_ata(
-                test_state: &mut TestState,
-            ) {
-                local_helpers::test_rescue_part_of_tokens_from_order_and_not_close_ata(test_state)
+            mod test_order_public_cancel {
+                use super::local_helpers::*;
+                use super::*;
+
+                #[test_context(TestState)]
+                #[tokio::test]
+                async fn test_public_cancel_by_taker(test_state: &mut TestState) {
+                    test_public_cancel_escrow(
+                        test_state,
+                        &test_state.recipient_wallet.keypair.insecure_clone(),
+                    )
+                    .await;
+                }
+
+                #[test_context(TestState)]
+                #[tokio::test]
+                async fn test_public_cancel_by_any_account(test_state: &mut TestState) {
+                    let canceller = Keypair::new();
+                    transfer_lamports(
+                        &mut test_state.context,
+                        WALLET_DEFAULT_LAMPORTS,
+                        &test_state.payer_kp,
+                        &canceller.pubkey(),
+                    )
+                    .await;
+
+                    test_public_cancel_escrow(test_state, &canceller).await;
+                }
+
+                #[test_context(TestState)]
+                #[tokio::test]
+                async fn test_cannot_public_cancel_before_public_cancellation_start(
+                    test_state: &mut TestState,
+                ) {
+                    create_order(test_state).await;
+                    let (escrow, escrow_ata) = create_escrow(test_state).await;
+                    let transaction = create_public_escrow_cancel_tx(
+                        test_state,
+                        &escrow,
+                        &escrow_ata,
+                        &test_state.payer_kp,
+                    );
+
+                    set_time(
+                        &mut test_state.context,
+                        test_state.init_timestamp
+                            + DEFAULT_PERIOD_DURATION * PeriodType::Cancellation as u32,
+                    );
+                    test_state
+                        .client
+                        .process_transaction(transaction)
+                        .await
+                        .expect_error((0, ProgramError::Custom(EscrowError::InvalidTime.into())))
+                }
+            }
+
+            mod test_order_rescue_funds_for_order {
+                use super::*;
+
+                #[test_context(TestState)]
+                #[tokio::test]
+                async fn test_rescue_all_tokens_from_order_and_close_ata(
+                    test_state: &mut TestState,
+                ) {
+                    local_helpers::test_rescue_all_tokens_from_order_and_close_ata(test_state).await
+                }
+
+                #[test_context(TestState)]
+                #[tokio::test]
+                async fn test_rescue_part_of_tokens_from_order_and_not_close_ata(
+                    test_state: &mut TestState,
+                ) {
+                    local_helpers::test_rescue_part_of_tokens_from_order_and_not_close_ata(
+                        test_state,
+                    )
                     .await
-            }
+                }
 
-            #[test_context(TestState)]
-            #[tokio::test]
-            async fn test_cannot_rescue_funds_from_order_before_rescue_delay_pass(
-                test_state: &mut TestState,
-            ) {
-                local_helpers::test_cannot_rescue_funds_from_order_before_rescue_delay_pass(
-                    test_state,
-                )
-                .await
-            }
-
-            // #[test_context(TestState)]
-            // #[tokio::test]
-            // async fn test_cannot_rescue_funds_from_order_by_non_recipient(test_state: &mut TestState) { // TODO: return after implement whitelist
-            //     local_helpers::test_cannot_rescue_funds_from_order_by_non_recipient(test_state).await
-            // }
-
-            #[test_context(TestState)]
-            #[tokio::test]
-            async fn test_cannot_rescue_funds_from_order_with_wrong_recipient_ata(
-                test_state: &mut TestState,
-            ) {
-                local_helpers::test_cannot_rescue_funds_from_order_with_wrong_recipient_ata(
-                    test_state,
-                )
-                .await
-            }
-
-            #[test_context(TestState)]
-            #[tokio::test]
-            async fn test_cannot_rescue_funds_from_order_with_wrong_order_ata(
-                test_state: &mut TestState,
-            ) {
-                local_helpers::test_cannot_rescue_funds_from_order_with_wrong_orders_ata(test_state)
+                #[test_context(TestState)]
+                #[tokio::test]
+                async fn test_cannot_rescue_funds_from_order_before_rescue_delay_pass(
+                    test_state: &mut TestState,
+                ) {
+                    local_helpers::test_cannot_rescue_funds_from_order_before_rescue_delay_pass(
+                        test_state,
+                    )
                     .await
-            }
-        }
+                }
 
-        mod test_order_rescue_funds_for_escrow {
-            use super::*;
+                // #[test_context(TestState)]
+                // #[tokio::test]
+                // async fn test_cannot_rescue_funds_from_order_by_non_recipient(test_state: &mut TestState) { // TODO: return after implement whitelist
+                //     local_helpers::test_cannot_rescue_funds_from_order_by_non_recipient(test_state).await
+                // }
 
-            #[test_context(TestState)]
-            #[tokio::test]
-            async fn test_rescue_all_tokens_and_close_ata(test_state: &mut TestState) {
-                create_order(test_state).await;
-                common_escrow_tests::test_rescue_all_tokens_and_close_ata(test_state).await
-            }
-
-            #[test_context(TestState)]
-            #[tokio::test]
-            async fn test_rescue_part_of_tokens_and_not_close_ata(test_state: &mut TestState) {
-                create_order(test_state).await;
-                common_escrow_tests::test_rescue_part_of_tokens_and_not_close_ata(test_state).await
-            }
-
-            #[test_context(TestState)]
-            #[tokio::test]
-            async fn test_cannot_rescue_funds_before_rescue_delay_pass(test_state: &mut TestState) {
-                create_order(test_state).await;
-                common_escrow_tests::test_cannot_rescue_funds_before_rescue_delay_pass(test_state)
+                #[test_context(TestState)]
+                #[tokio::test]
+                async fn test_cannot_rescue_funds_from_order_with_wrong_recipient_ata(
+                    test_state: &mut TestState,
+                ) {
+                    local_helpers::test_cannot_rescue_funds_from_order_with_wrong_recipient_ata(
+                        test_state,
+                    )
                     .await
-            }
+                }
 
-            #[test_context(TestState)]
-            #[tokio::test]
-            async fn test_cannot_rescue_funds_by_non_recipient(test_state: &mut TestState) {
-                create_order(test_state).await;
-                common_escrow_tests::test_cannot_rescue_funds_by_non_recipient(test_state).await
-            }
-
-            #[test_context(TestState)]
-            #[tokio::test]
-            async fn test_cannot_rescue_funds_with_wrong_recipient_ata(test_state: &mut TestState) {
-                create_order(test_state).await;
-                common_escrow_tests::test_cannot_rescue_funds_with_wrong_recipient_ata(test_state)
+                #[test_context(TestState)]
+                #[tokio::test]
+                async fn test_cannot_rescue_funds_from_order_with_wrong_order_ata(
+                    test_state: &mut TestState,
+                ) {
+                    local_helpers::test_cannot_rescue_funds_from_order_with_wrong_orders_ata(
+                        test_state,
+                    )
                     .await
+                }
             }
 
-            #[test_context(TestState)]
-            #[tokio::test]
-            async fn test_cannot_rescue_funds_with_wrong_order_ata(test_state: &mut TestState) {
-                create_order(test_state).await;
-                common_escrow_tests::test_cannot_rescue_funds_with_wrong_escrow_ata(test_state)
+            mod test_order_rescue_funds_for_escrow {
+                use super::*;
+
+                #[test_context(TestState)]
+                #[tokio::test]
+                async fn test_rescue_all_tokens_and_close_ata(test_state: &mut TestState) {
+                    create_order(test_state).await;
+                    common_escrow_tests::test_rescue_all_tokens_and_close_ata(test_state).await
+                }
+
+                #[test_context(TestState)]
+                #[tokio::test]
+                async fn test_rescue_part_of_tokens_and_not_close_ata(test_state: &mut TestState) {
+                    create_order(test_state).await;
+                    common_escrow_tests::test_rescue_part_of_tokens_and_not_close_ata(test_state)
+                        .await
+                }
+
+                #[test_context(TestState)]
+                #[tokio::test]
+                async fn test_cannot_rescue_funds_before_rescue_delay_pass(
+                    test_state: &mut TestState,
+                ) {
+                    create_order(test_state).await;
+                    common_escrow_tests::test_cannot_rescue_funds_before_rescue_delay_pass(
+                        test_state,
+                    )
                     .await
+                }
+
+                #[test_context(TestState)]
+                #[tokio::test]
+                async fn test_cannot_rescue_funds_by_non_recipient(test_state: &mut TestState) {
+                    create_order(test_state).await;
+                    common_escrow_tests::test_cannot_rescue_funds_by_non_recipient(test_state).await
+                }
+
+                #[test_context(TestState)]
+                #[tokio::test]
+                async fn test_cannot_rescue_funds_with_wrong_recipient_ata(
+                    test_state: &mut TestState,
+                ) {
+                    create_order(test_state).await;
+                    common_escrow_tests::test_cannot_rescue_funds_with_wrong_recipient_ata(
+                        test_state,
+                    )
+                    .await
+                }
+
+                #[test_context(TestState)]
+                #[tokio::test]
+                async fn test_cannot_rescue_funds_with_wrong_order_ata(test_state: &mut TestState) {
+                    create_order(test_state).await;
+                    common_escrow_tests::test_cannot_rescue_funds_with_wrong_escrow_ata(test_state)
+                        .await
+                }
             }
-        }
 
-        mod test_order_creation_cost {
-            use super::*;
+            mod test_order_creation_cost {
+                use super::*;
 
-            #[test_context(TestState)]
-            #[tokio::test]
-            async fn test_order_creation_tx_cost(test_state: &mut TestState) {
-                common_escrow_tests::test_escrow_creation_tx_cost(test_state).await
+                #[test_context(TestState)]
+                #[tokio::test]
+                async fn test_order_creation_tx_cost(test_state: &mut TestState) {
+                    common_escrow_tests::test_escrow_creation_tx_cost(test_state).await
+                }
             }
         }
     }
@@ -764,9 +942,11 @@ mod local_helpers {
     use super::*;
 
     use anchor_lang::InstructionData;
+    use cross_chain_escrow_src::merkle_tree::MerkleProof;
     use solana_program::instruction::{AccountMeta, Instruction};
     use solana_program::pubkey::Pubkey;
     use solana_program::system_program::ID as system_program_id;
+    use solana_sdk::keccak::{hashv, Hash};
     use solana_sdk::signature::Signer;
     use solana_sdk::transaction::Transaction;
 
@@ -872,7 +1052,7 @@ mod local_helpers {
 
         // Calculate the wrapped SOL amount if the token is NATIVE_MINT to adjust the escrow ATA balance.
         let wrapped_sol = if test_state.token == NATIVE_MINT {
-            test_state.test_arguments.escrow_amount
+            test_state.test_arguments.order_amount
         } else {
             0
         };
@@ -964,7 +1144,7 @@ mod local_helpers {
                 order_hash: test_state.order_hash.to_bytes(),
                 order_creator: test_state.creator_wallet.keypair.pubkey(),
                 order_mint: test_state.token,
-                order_amount: test_state.test_arguments.escrow_amount,
+                order_amount: test_state.test_arguments.order_amount,
                 safety_deposit: test_state.test_arguments.safety_deposit,
                 rescue_start: test_state.test_arguments.rescue_start,
                 rescue_amount: test_state.test_arguments.rescue_amount,
@@ -1297,6 +1477,413 @@ mod local_helpers {
                 ProgramError::Custom(ErrorCode::ConstraintAssociated.into()),
             ))
     }
+
+    pub async fn test_order_cancel<S: TokenVariant>(test_state: &mut TestStateBase<SrcProgram, S>) {
+        let (order, order_ata) = create_order(test_state).await;
+        let transaction = get_cancel_order_tx(test_state, &order, &order_ata, None);
+
+        let token_account_rent =
+            get_min_rent_for_size(&mut test_state.client, S::get_token_account_size()).await;
+        let order_rent = get_min_rent_for_size(&mut test_state.client, get_order_data_len()).await;
+
+        let (creator_ata, _) = find_user_ata(test_state);
+
+        let balance_changes: Vec<BalanceChange> = if test_state.test_arguments.asset_is_native {
+            vec![native_change(
+                test_state.creator_wallet.keypair.pubkey(),
+                token_account_rent + order_rent + test_state.test_arguments.order_amount,
+            )]
+        } else {
+            vec![
+                token_change(creator_ata, test_state.test_arguments.order_amount),
+                native_change(
+                    test_state.creator_wallet.keypair.pubkey(),
+                    token_account_rent + order_rent,
+                ),
+            ]
+        };
+
+        test_state
+            .expect_balance_change(transaction, &balance_changes)
+            .await;
+
+        let acc_lookup_result = test_state.client.get_account(order).await.unwrap();
+        assert!(acc_lookup_result.is_none());
+
+        let acc_lookup_result = test_state.client.get_account(order_ata).await.unwrap();
+        assert!(acc_lookup_result.is_none());
+    }
+
+    pub async fn test_cancel_by_resolver_for_free_at_the_auction_start<S: TokenVariant>(
+        test_state: &mut TestStateBase<SrcProgram, S>,
+    ) {
+        let (order, order_ata) = create_order(test_state).await;
+        let transaction = get_cancel_order_by_resolver_tx(test_state, &order, &order_ata, None);
+
+        set_time(
+            &mut test_state.context,
+            test_state.init_timestamp + test_state.test_arguments.expiration_duration,
+        );
+
+        let token_account_rent =
+            get_min_rent_for_size(&mut test_state.client, S::get_token_account_size()).await;
+
+        let order_rent = get_min_rent_for_size(&mut test_state.client, get_order_data_len()).await;
+
+        let (creator_ata, _) = find_user_ata(test_state);
+
+        let balance_changes: Vec<BalanceChange> = if test_state.test_arguments.asset_is_native {
+            vec![native_change(
+                test_state.creator_wallet.keypair.pubkey(),
+                token_account_rent + order_rent + test_state.test_arguments.order_amount,
+            )]
+        } else {
+            vec![
+                token_change(creator_ata, test_state.test_arguments.order_amount),
+                native_change(
+                    test_state.creator_wallet.keypair.pubkey(),
+                    token_account_rent + order_rent,
+                ),
+            ]
+        };
+
+        test_state
+            .expect_balance_change(transaction, &balance_changes)
+            .await;
+
+        let acc_lookup_result = test_state.client.get_account(order).await.unwrap();
+        assert!(acc_lookup_result.is_none());
+
+        let acc_lookup_result = test_state.client.get_account(order_ata).await.unwrap();
+        assert!(acc_lookup_result.is_none());
+    }
+
+    pub async fn test_cancel_by_resolver_at_different_points<S: TokenVariant>(
+        init_test_state: &mut TestStateBase<SrcProgram, S>,
+        asset_is_native: bool,
+        native_mint: Option<Pubkey>,
+    ) {
+        let token_account_rent = get_min_rent_for_size(
+            &mut init_test_state.client,
+            local_helpers::get_token_account_len(PhantomData::<TestState>),
+        )
+        .await;
+
+        let cancellation_points: Vec<u32> = vec![10, 25, 50, 100]
+            .into_iter()
+            .map(|percentage| {
+                (init_test_state.test_arguments.expiration_duration
+                    + init_test_state.init_timestamp)
+                    + (init_test_state.test_arguments.cancellation_auction_duration
+                        * (percentage * 100))
+                        / (100 * 100)
+            })
+            .collect();
+
+        for &cancellation_point in &cancellation_points {
+            let max_cancellation_premiums: Vec<f64> = vec![1.0, 2.5, 7.5]
+                .into_iter()
+                .map(|percentage| {
+                    (token_account_rent as f64 * (percentage * 100_f64)) / (100_f64 * 100_f64)
+                })
+                .collect();
+
+            for &max_cancellation_premium in &max_cancellation_premiums {
+                // Create a new test state for each cancellation point and premium
+                let mut test_state =
+                    local_helpers::reset_test_state(PhantomData::<TestState>).await;
+
+                // Set max cancellation premium
+                test_state.test_arguments.max_cancellation_premium =
+                    max_cancellation_premium as u64;
+
+                // Ensure reward limit is equal to max cancellation premium
+                test_state.test_arguments.reward_limit = max_cancellation_premium as u64;
+                if native_mint.is_some() {
+                    test_state.token = native_mint.unwrap();
+                }
+                test_state.test_arguments.asset_is_native = asset_is_native;
+
+                let (order, order_ata) = create_order(&test_state).await;
+                let transaction =
+                    get_cancel_order_by_resolver_tx(&test_state, &order, &order_ata, None);
+
+                set_time(&mut test_state.context, cancellation_point);
+
+                let expiratione_time =
+                    test_state.test_arguments.expiration_duration + test_state.init_timestamp;
+
+                let order_rent =
+                    get_min_rent_for_size(&mut test_state.client, get_order_data_len()).await;
+
+                let clock: Clock = test_state
+                    .client
+                    .get_sysvar::<Clock>()
+                    .await
+                    .expect("Failed to get Clock sysvar");
+
+                let resolver_premium = calculate_premium(
+                    clock.unix_timestamp as u32,
+                    expiratione_time,
+                    test_state.test_arguments.cancellation_auction_duration,
+                    max_cancellation_premium as u64,
+                );
+
+                let (creator_ata, _) = find_user_ata(&test_state);
+
+                let balance_changes: Vec<BalanceChange> =
+                    if test_state.test_arguments.asset_is_native {
+                        vec![
+                            native_change(
+                                test_state.creator_wallet.keypair.pubkey(),
+                                token_account_rent + order_rent - resolver_premium
+                                    + test_state.test_arguments.order_amount,
+                            ),
+                            native_change(
+                                test_state.recipient_wallet.keypair.pubkey(),
+                                resolver_premium,
+                            ),
+                        ]
+                    } else {
+                        vec![
+                            token_change(creator_ata, test_state.test_arguments.order_amount),
+                            native_change(
+                                test_state.creator_wallet.keypair.pubkey(),
+                                token_account_rent + order_rent - resolver_premium,
+                            ),
+                            native_change(
+                                test_state.recipient_wallet.keypair.pubkey(),
+                                resolver_premium,
+                            ),
+                        ]
+                    };
+
+                test_state
+                    .expect_balance_change(transaction, &balance_changes)
+                    .await;
+
+                let order_acc = test_state.client.get_account(order).await.unwrap();
+                assert!(order_acc.is_none());
+
+                let ata_acc = test_state.client.get_account(order_ata).await.unwrap();
+                assert!(ata_acc.is_none());
+            }
+        }
+    }
+
+    pub async fn test_cancel_by_resolver_after_auction<S: TokenVariant>(
+        test_state: &mut TestStateBase<SrcProgram, S>,
+    ) {
+        let (order, order_ata) = create_order(test_state).await;
+
+        let transaction = get_cancel_order_by_resolver_tx(test_state, &order, &order_ata, None);
+
+        let expiratione_time =
+            test_state.test_arguments.expiration_duration + test_state.init_timestamp;
+
+        set_time(
+            &mut test_state.context,
+            expiratione_time + test_state.test_arguments.cancellation_auction_duration + 1,
+        );
+
+        let resolver_premium = test_state.test_arguments.max_cancellation_premium;
+
+        let token_account_rent =
+            get_min_rent_for_size(&mut test_state.client, S::get_token_account_size()).await;
+
+        let order_rent = get_min_rent_for_size(&mut test_state.client, get_order_data_len()).await;
+
+        let (creator_ata, _) = find_user_ata(test_state);
+
+        let balance_changes: Vec<BalanceChange> = if test_state.test_arguments.asset_is_native {
+            vec![
+                native_change(
+                    test_state.creator_wallet.keypair.pubkey(),
+                    token_account_rent + order_rent - resolver_premium
+                        + test_state.test_arguments.order_amount,
+                ),
+                native_change(
+                    test_state.recipient_wallet.keypair.pubkey(),
+                    resolver_premium,
+                ),
+            ]
+        } else {
+            vec![
+                token_change(creator_ata, test_state.test_arguments.order_amount),
+                native_change(
+                    test_state.creator_wallet.keypair.pubkey(),
+                    token_account_rent + order_rent - resolver_premium,
+                ),
+                native_change(
+                    test_state.recipient_wallet.keypair.pubkey(),
+                    resolver_premium,
+                ),
+            ]
+        };
+
+        test_state
+            .expect_balance_change(transaction, &balance_changes)
+            .await;
+    }
+
+    pub async fn test_cancel_by_resolver_reward_less_then_auction_calculated<S: TokenVariant>(
+        test_state: &mut TestStateBase<SrcProgram, S>,
+    ) {
+        let (order, order_ata) = create_order(test_state).await;
+
+        let resolver_premium: u64 = 1;
+
+        test_state.test_arguments.reward_limit = resolver_premium;
+
+        let transaction = get_cancel_order_by_resolver_tx(test_state, &order, &order_ata, None);
+
+        let expiratione_time =
+            test_state.test_arguments.expiration_duration + test_state.init_timestamp;
+
+        set_time(
+            &mut test_state.context,
+            expiratione_time + test_state.test_arguments.cancellation_auction_duration + 1,
+        );
+
+        let token_account_rent =
+            get_min_rent_for_size(&mut test_state.client, S::get_token_account_size()).await;
+
+        let order_rent = get_min_rent_for_size(&mut test_state.client, get_order_data_len()).await;
+
+        let (creator_ata, _) = find_user_ata(test_state);
+
+        let balance_changes: Vec<BalanceChange> = if test_state.test_arguments.asset_is_native {
+            vec![
+                native_change(
+                    test_state.creator_wallet.keypair.pubkey(),
+                    token_account_rent + order_rent - resolver_premium
+                        + test_state.test_arguments.order_amount,
+                ),
+                native_change(
+                    test_state.recipient_wallet.keypair.pubkey(),
+                    resolver_premium,
+                ),
+            ]
+        } else {
+            vec![
+                token_change(creator_ata, test_state.test_arguments.order_amount),
+                native_change(
+                    test_state.creator_wallet.keypair.pubkey(),
+                    token_account_rent + order_rent - resolver_premium,
+                ),
+                native_change(
+                    test_state.recipient_wallet.keypair.pubkey(),
+                    resolver_premium,
+                ),
+            ]
+        };
+
+        test_state
+            .expect_balance_change(transaction, &balance_changes)
+            .await;
+    }
+
+    pub async fn create_order_for_partial_fill(test_state: &mut TestState) -> (Pubkey, Pubkey) {
+        test_state.test_arguments.order_parts_amount = DEFAULT_PARTS_AMOUNT_FOR_MULTIPLE;
+        let merkle_hashes = compute_merkle_leaves(test_state);
+        let root = get_root(merkle_hashes.leaves.clone());
+        test_state.hashlock = Hash::new_from_array(root);
+        test_state.test_arguments.allow_multiple_fills = true;
+        create_order(test_state).await
+    }
+
+    pub async fn create_escrow_for_partial_fill_data(
+        test_state: &mut TestState,
+        escrow_amount: u64,
+    ) -> (Pubkey, Pubkey, Transaction) {
+        let merkle_hashes = compute_merkle_leaves(test_state);
+        let index_to_validate = get_index_for_escrow_amount(test_state, escrow_amount);
+        test_state.test_arguments.escrow_amount = escrow_amount;
+
+        let hashed_secret = merkle_hashes.hashed_secrets[index_to_validate];
+        let proof_hashes = get_proof(merkle_hashes.leaves.clone(), index_to_validate);
+        let proof = MerkleProof {
+            proof: proof_hashes,
+            index: index_to_validate as u32,
+            hashed_secret,
+        };
+
+        test_state.test_arguments.merkle_proof = Some(proof);
+        create_escrow_data(test_state)
+    }
+
+    pub async fn create_escrow_for_partial_fill(
+        test_state: &mut TestState,
+        escrow_amount: u64,
+    ) -> (Pubkey, Pubkey) {
+        let (escrow, escrow_ata, transaction) =
+            create_escrow_for_partial_fill_data(test_state, escrow_amount).await;
+
+        test_state
+            .client
+            .process_transaction(transaction)
+            .await
+            .expect_success();
+
+        test_state.test_arguments.order_remaining_amount -= escrow_amount;
+        (escrow, escrow_ata)
+    }
+
+    use std::marker::PhantomData;
+
+    pub fn get_token_account_len<T, S: TokenVariant>(_: PhantomData<TestStateBase<T, S>>) -> usize {
+        S::get_token_account_size()
+    }
+
+    pub async fn reset_test_state<T, S: TokenVariant>(
+        _: PhantomData<TestStateBase<T, S>>,
+    ) -> TestStateBase<SrcProgram, S> {
+        <TestStateBase<SrcProgram, S> as test_context::AsyncTestContext>::setup().await
+    }
+
+    pub struct MerkleHashes {
+        pub leaves: Vec<[u8; 32]>,
+        pub hashed_secrets: Vec<[u8; 32]>,
+    }
+
+    pub fn compute_merkle_leaves<T: EscrowVariant<S>, S: TokenVariant>(
+        test_state: &TestStateBase<T, S>,
+    ) -> MerkleHashes {
+        let secret_amount = (test_state.test_arguments.order_parts_amount + 1) as usize;
+        let mut leaves = Vec::with_capacity(secret_amount);
+        let mut hashed_secrets = Vec::with_capacity(secret_amount);
+
+        for i in 0..secret_amount {
+            let i_bytes = (i as u64).to_be_bytes();
+            let hashed_bytes = hashv(&[&i_bytes]).0;
+            let hashed_secret = hashv(&[&hashed_bytes]).0;
+            hashed_secrets.push(hashed_secret);
+
+            let pair_data = [&i_bytes[..], &hashed_secret[..]];
+            let hashed_pair = hashv(&pair_data).0;
+            leaves.push(hashed_pair);
+        }
+
+        MerkleHashes {
+            leaves,
+            hashed_secrets,
+        }
+    }
+
+    pub fn get_index_for_escrow_amount<T: EscrowVariant<S>, S: TokenVariant>(
+        test_state: &TestStateBase<T, S>,
+        escrow_amount: u64,
+    ) -> usize {
+        if escrow_amount == test_state.test_arguments.order_remaining_amount {
+            return test_state.test_arguments.order_parts_amount as usize;
+        }
+        ((test_state.test_arguments.order_amount
+            - test_state.test_arguments.order_remaining_amount
+            + escrow_amount
+            - 1)
+            * test_state.test_arguments.order_parts_amount
+            / test_state.test_arguments.order_amount) as usize
+    }
 }
 
 // Native Mint (wrapped SOL) is always owned by the SPL Token program
@@ -1386,6 +1973,111 @@ mod test_native_src {
         let rent_recipient = test_state.recipient_wallet.keypair.pubkey();
         common_escrow_tests::test_public_withdraw_tokens(test_state, withdrawer, rent_recipient)
             .await
+    }
+
+    #[test_context(TestState)]
+    #[tokio::test]
+    async fn test_order_cancel(test_state: &mut TestState) {
+        test_state.token = NATIVE_MINT;
+        test_state.test_arguments.asset_is_native = true;
+        local_helpers::test_order_cancel(test_state).await;
+    }
+
+    #[test_context(TestState)]
+    #[tokio::test]
+    async fn test_order_cancel_fails_if_maker_ata_is_provided(test_state: &mut TestState) {
+        test_state.token = NATIVE_MINT;
+        test_state.test_arguments.asset_is_native = true;
+        let (order, order_ata) = create_order(test_state).await;
+        let transaction = get_cancel_order_tx(
+            test_state,
+            &order,
+            &order_ata,
+            Some(&test_state.creator_wallet.native_token_account),
+        );
+
+        set_time(
+            &mut test_state.context,
+            test_state.init_timestamp + DEFAULT_PERIOD_DURATION * PeriodType::Cancellation as u32,
+        );
+
+        test_state
+            .client
+            .process_transaction(transaction)
+            .await
+            .expect_error((
+                0,
+                ProgramError::Custom(EscrowError::InconsistentNativeTrait.into()),
+            ));
+    }
+
+    #[test_context(TestState)]
+    #[tokio::test]
+    async fn test_cancel_by_resolver_for_free_at_the_auction_start(test_state: &mut TestState) {
+        test_state.token = NATIVE_MINT;
+        test_state.test_arguments.asset_is_native = true;
+        local_helpers::test_cancel_by_resolver_for_free_at_the_auction_start(test_state).await;
+    }
+
+    #[test_context(TestState)]
+    #[tokio::test]
+    async fn test_cancel_by_resolver_at_different_points(test_state: &mut TestState) {
+        local_helpers::test_cancel_by_resolver_at_different_points(
+            test_state,
+            true,
+            Some(NATIVE_MINT),
+        )
+        .await;
+    }
+
+    #[test_context(TestState)]
+    #[tokio::test]
+    async fn test_cancel_by_resolver_after_auction(test_state: &mut TestState) {
+        test_state.token = NATIVE_MINT;
+        test_state.test_arguments.asset_is_native = true;
+        local_helpers::test_cancel_by_resolver_after_auction(test_state).await;
+    }
+
+    #[test_context(TestState)]
+    #[tokio::test]
+    async fn test_cancel_by_resolver_reward_less_then_auction_calculated(
+        test_state: &mut TestState,
+    ) {
+        test_state.token = NATIVE_MINT;
+        test_state.test_arguments.asset_is_native = true;
+        local_helpers::test_cancel_by_resolver_reward_less_then_auction_calculated(test_state)
+            .await;
+    }
+
+    #[test_context(TestState)]
+    #[tokio::test]
+    async fn test_cancel_by_resolver_fails_if_native_and_maker_ata_provided(
+        test_state: &mut TestState,
+    ) {
+        test_state.token = NATIVE_MINT;
+        test_state.test_arguments.asset_is_native = true;
+        let (order, order_ata) = create_order(test_state).await;
+
+        set_time(
+            &mut test_state.context,
+            test_state.init_timestamp + test_state.test_arguments.expiration_duration,
+        );
+
+        let transaction = get_cancel_order_by_resolver_tx(
+            test_state,
+            &order,
+            &order_ata,
+            Some(&test_state.creator_wallet.native_token_account),
+        );
+
+        test_state
+            .client
+            .process_transaction(transaction)
+            .await
+            .expect_error((
+                0,
+                ProgramError::Custom(EscrowError::InconsistentNativeTrait.into()),
+            ));
     }
 
     #[test_context(TestState)]
@@ -1563,6 +2255,105 @@ mod test_wrapped_native {
 
     #[test_context(TestState)]
     #[tokio::test]
+    async fn test_order_cancel(test_state: &mut TestState) {
+        test_state.token = NATIVE_MINT;
+        local_helpers::test_order_cancel(test_state).await;
+    }
+
+    #[test_context(TestState)]
+    #[tokio::test]
+    async fn test_order_cancel_fails_if_maker_ata_is_not_provided(test_state: &mut TestState) {
+        test_state.token = NATIVE_MINT;
+        let (order, order_ata) = create_order(test_state).await;
+        let transaction = get_cancel_order_tx(
+            test_state,
+            &order,
+            &order_ata,
+            Some(&cross_chain_escrow_src::id()),
+        );
+
+        set_time(
+            &mut test_state.context,
+            test_state.init_timestamp + DEFAULT_PERIOD_DURATION * PeriodType::Cancellation as u32,
+        );
+
+        test_state
+            .client
+            .process_transaction(transaction)
+            .await
+            .expect_error((
+                0,
+                ProgramError::Custom(EscrowError::InconsistentNativeTrait.into()),
+            ));
+    }
+
+    #[test_context(TestState)]
+    #[tokio::test]
+    async fn test_cancel_by_resolver_for_free_at_the_auction_start(test_state: &mut TestState) {
+        test_state.token = NATIVE_MINT;
+        local_helpers::test_cancel_by_resolver_for_free_at_the_auction_start(test_state).await;
+    }
+
+    #[test_context(TestState)]
+    #[tokio::test]
+    async fn test_cancel_by_resolver_at_different_points(test_state: &mut TestState) {
+        local_helpers::test_cancel_by_resolver_at_different_points(
+            test_state,
+            false,
+            Some(NATIVE_MINT),
+        )
+        .await;
+    }
+
+    #[test_context(TestState)]
+    #[tokio::test]
+    async fn test_cancel_by_resolver_after_auction(test_state: &mut TestState) {
+        test_state.token = NATIVE_MINT;
+        local_helpers::test_cancel_by_resolver_after_auction(test_state).await;
+    }
+
+    #[test_context(TestState)]
+    #[tokio::test]
+    async fn test_cancel_by_resolver_reward_less_then_auction_calculated(
+        test_state: &mut TestState,
+    ) {
+        test_state.token = NATIVE_MINT;
+        local_helpers::test_cancel_by_resolver_reward_less_then_auction_calculated(test_state)
+            .await;
+    }
+
+    #[test_context(TestState)]
+    #[tokio::test]
+    async fn test_cancel_by_resolver_fails_if_wrapped_and_maker_ata_not_provided(
+        test_state: &mut TestState,
+    ) {
+        test_state.token = NATIVE_MINT;
+        let (order, order_ata) = create_order(test_state).await;
+
+        set_time(
+            &mut test_state.context,
+            test_state.init_timestamp + test_state.test_arguments.expiration_duration,
+        );
+
+        let transaction = get_cancel_order_by_resolver_tx(
+            test_state,
+            &order,
+            &order_ata,
+            Some(&cross_chain_escrow_src::id()),
+        );
+
+        test_state
+            .client
+            .process_transaction(transaction)
+            .await
+            .expect_error((
+                0,
+                ProgramError::Custom(EscrowError::InconsistentNativeTrait.into()),
+            ));
+    }
+
+    #[test_context(TestState)]
+    #[tokio::test]
     async fn test_cancel(test_state: &mut TestState) {
         test_state.token = NATIVE_MINT;
         create_order(test_state).await;
@@ -1651,5 +2442,280 @@ mod test_wrapped_native {
         test_state.token = NATIVE_MINT;
         create_order(test_state).await;
         common_escrow_tests::test_rescue_part_of_tokens_and_not_close_ata(test_state).await
+    }
+}
+
+mod test_partial_fill_escrow_creation {
+    use crate::local_helpers::{
+        compute_merkle_leaves, create_escrow_for_partial_fill, create_escrow_for_partial_fill_data,
+        create_order_for_partial_fill, get_index_for_escrow_amount,
+    };
+
+    use super::*;
+    use cross_chain_escrow_src::merkle_tree::MerkleProof;
+    use solana_sdk::keccak::{hashv, Hash};
+
+    #[test_context(TestState)]
+    #[tokio::test]
+    async fn test_create_escrow_with_merkle_proof_and_leaf_validation(test_state: &mut TestState) {
+        let (order, order_ata) = create_order_for_partial_fill(test_state).await;
+
+        let escrow_amount = DEFAULT_ESCROW_AMOUNT / DEFAULT_PARTS_AMOUNT_FOR_MULTIPLE * 3;
+        create_escrow_for_partial_fill(test_state, escrow_amount).await;
+
+        // Check that the order accounts have not been closed.
+        let acc_lookup_result = test_state.client.get_account(order).await.unwrap();
+        assert!(acc_lookup_result.is_some());
+
+        let acc_lookup_result = test_state.client.get_account(order_ata).await.unwrap();
+        assert!(acc_lookup_result.is_some());
+    }
+
+    #[test_context(TestState)]
+    #[tokio::test]
+    async fn test_create_two_escrows_for_separate_parts(test_state: &mut TestState) {
+        let (order, order_ata) = create_order_for_partial_fill(test_state).await;
+
+        let escrow_amount = DEFAULT_ESCROW_AMOUNT / DEFAULT_PARTS_AMOUNT_FOR_MULTIPLE;
+        create_escrow_for_partial_fill(test_state, escrow_amount).await;
+        create_escrow_for_partial_fill(test_state, escrow_amount).await;
+
+        // Check that the order accounts have not been closed.
+        let acc_lookup_result = test_state.client.get_account(order).await.unwrap();
+        assert!(acc_lookup_result.is_some());
+
+        let acc_lookup_result = test_state.client.get_account(order_ata).await.unwrap();
+        assert!(acc_lookup_result.is_some());
+    }
+
+    #[test_context(TestState)]
+    #[tokio::test]
+    async fn test_create_escrow_with_merkle_proof_and_leaf_validation_for_full_fill(
+        test_state: &mut TestState,
+    ) {
+        let (order, order_ata) = create_order_for_partial_fill(test_state).await;
+
+        create_escrow_for_partial_fill(test_state, DEFAULT_ESCROW_AMOUNT).await;
+
+        // Check that the order accounts have been closed.
+        let acc_lookup_result = test_state.client.get_account(order).await.unwrap();
+        assert!(acc_lookup_result.is_none());
+
+        let acc_lookup_result = test_state.client.get_account(order_ata).await.unwrap();
+        assert!(acc_lookup_result.is_none());
+    }
+
+    #[test_context(TestState)]
+    #[tokio::test]
+    async fn test_create_two_escrows_for_full_order(test_state: &mut TestState) {
+        let (order, order_ata) = create_order_for_partial_fill(test_state).await;
+
+        let escrow_amount = DEFAULT_ESCROW_AMOUNT / DEFAULT_PARTS_AMOUNT_FOR_MULTIPLE;
+        create_escrow_for_partial_fill(test_state, escrow_amount).await;
+        create_escrow_for_partial_fill(
+            test_state,
+            DEFAULT_ESCROW_AMOUNT - escrow_amount, // full fill
+        )
+        .await;
+
+        // Check that the order accounts have been closed.
+        let acc_lookup_result = test_state.client.get_account(order).await.unwrap();
+        assert!(acc_lookup_result.is_none());
+
+        let acc_lookup_result = test_state.client.get_account(order_ata).await.unwrap();
+        assert!(acc_lookup_result.is_none());
+    }
+
+    #[test_context(TestState)]
+    #[tokio::test]
+    async fn test_create_escrow_fails_if_second_escrow_amount_too_large(
+        test_state: &mut TestState,
+    ) {
+        create_order_for_partial_fill(test_state).await;
+        let escrow_amount = DEFAULT_ESCROW_AMOUNT / DEFAULT_PARTS_AMOUNT_FOR_MULTIPLE * 3;
+        create_escrow_for_partial_fill(test_state, escrow_amount).await;
+        let (_, _, transaction) = create_escrow_for_partial_fill_data(
+            test_state,
+            DEFAULT_ESCROW_AMOUNT - escrow_amount + 1,
+        )
+        .await;
+
+        test_state
+            .client
+            .process_transaction(transaction)
+            .await
+            .expect_error((0, ProgramError::Custom(EscrowError::InvalidAmount.into())));
+    }
+
+    #[test_context(TestState)]
+    #[tokio::test]
+    async fn test_create_escrow_fails_if_second_escrow_have_same_proof_index(
+        test_state: &mut TestState,
+    ) {
+        create_order_for_partial_fill(test_state).await;
+
+        let escrow_amount = DEFAULT_ESCROW_AMOUNT / DEFAULT_PARTS_AMOUNT_FOR_MULTIPLE + 1;
+        create_escrow_for_partial_fill(test_state, escrow_amount).await;
+        let so_small_escrow_amount = 1;
+        let (_, _, transaction) =
+            create_escrow_for_partial_fill_data(test_state, so_small_escrow_amount).await;
+
+        test_state
+            .client
+            .process_transaction(transaction)
+            .await
+            .expect_error((
+                0,
+                ProgramError::Custom(EscrowError::InvalidPartialFill.into()),
+            ));
+    }
+
+    #[test_context(TestState)]
+    #[tokio::test]
+    async fn test_create_escrow_fails_with_incorrect_merkle_root(test_state: &mut TestState) {
+        test_state.test_arguments.order_parts_amount = DEFAULT_PARTS_AMOUNT_FOR_MULTIPLE;
+        let merkle_hashes = compute_merkle_leaves(test_state);
+        test_state.hashlock = hashv(&[b"incorrect_root"]);
+        test_state.test_arguments.allow_multiple_fills = true;
+        create_order(test_state).await;
+
+        test_state.test_arguments.escrow_amount =
+            DEFAULT_ESCROW_AMOUNT / DEFAULT_PARTS_AMOUNT_FOR_MULTIPLE;
+        let index_to_validate =
+            get_index_for_escrow_amount(test_state, test_state.test_arguments.escrow_amount);
+        let hashed_secret = merkle_hashes.hashed_secrets[index_to_validate];
+        let proof_hashes = get_proof(merkle_hashes.leaves.clone(), index_to_validate);
+        let proof = MerkleProof {
+            proof: proof_hashes,
+            index: index_to_validate as u32,
+            hashed_secret,
+        };
+        test_state.test_arguments.merkle_proof = Some(proof);
+        let (_, _, transaction) = create_escrow_data(test_state);
+
+        test_state
+            .client
+            .process_transaction(transaction)
+            .await
+            .expect_error((
+                0,
+                ProgramError::Custom(EscrowError::InvalidMerkleProof.into()),
+            ));
+    }
+
+    #[test_context(TestState)]
+    #[tokio::test]
+    async fn test_create_escrow_fails_with_incorrect_merkle_proof(test_state: &mut TestState) {
+        create_order_for_partial_fill(test_state).await;
+
+        let merkle_hashes = compute_merkle_leaves(test_state);
+        test_state.test_arguments.escrow_amount =
+            DEFAULT_ESCROW_AMOUNT / DEFAULT_PARTS_AMOUNT_FOR_MULTIPLE;
+        let index_to_validate =
+            get_index_for_escrow_amount(test_state, test_state.test_arguments.escrow_amount);
+        let hashed_secret = merkle_hashes.hashed_secrets[index_to_validate];
+
+        let incorrect_proof_hashes = get_proof(merkle_hashes.leaves.clone(), index_to_validate + 1);
+
+        let proof = MerkleProof {
+            proof: incorrect_proof_hashes,
+            index: index_to_validate as u32,
+            hashed_secret,
+        };
+        test_state.test_arguments.merkle_proof = Some(proof);
+        let (_, _, transaction) = create_escrow_data(test_state);
+
+        test_state
+            .client
+            .process_transaction(transaction)
+            .await
+            .expect_error((
+                0,
+                ProgramError::Custom(EscrowError::InvalidMerkleProof.into()),
+            ));
+    }
+
+    #[test_context(TestState)]
+    #[tokio::test]
+    async fn test_create_escrow_fails_with_incorrect_secret_for_leaf(test_state: &mut TestState) {
+        create_order_for_partial_fill(test_state).await;
+
+        let merkle_hashes = compute_merkle_leaves(test_state);
+        test_state.test_arguments.escrow_amount =
+            DEFAULT_ESCROW_AMOUNT / DEFAULT_PARTS_AMOUNT_FOR_MULTIPLE * 2;
+        let index_to_validate =
+            get_index_for_escrow_amount(test_state, test_state.test_arguments.escrow_amount);
+        let proof_hashes = get_proof(merkle_hashes.leaves.clone(), index_to_validate);
+
+        // Incorrect hashed_secret
+        let proof = MerkleProof {
+            proof: proof_hashes,
+            index: index_to_validate as u32,
+            hashed_secret: merkle_hashes.hashed_secrets[index_to_validate + 1],
+        };
+        test_state.test_arguments.merkle_proof = Some(proof);
+        let (_, _, transaction) = create_escrow_data(test_state);
+
+        test_state
+            .client
+            .process_transaction(transaction)
+            .await
+            .expect_error((
+                0,
+                ProgramError::Custom(EscrowError::InvalidMerkleProof.into()),
+            ));
+    }
+
+    #[test_context(TestState)]
+    #[tokio::test]
+    async fn test_create_escrow_fails_without_merkle_proof(test_state: &mut TestState) {
+        create_order_for_partial_fill(test_state).await;
+
+        // test_state.test_arguments.merkle_proof is none
+        let (_, _, transaction) = create_escrow_data(test_state);
+
+        test_state
+            .client
+            .process_transaction(transaction)
+            .await
+            .expect_error((
+                0,
+                ProgramError::Custom(EscrowError::InconsistentMerkleProofTrait.into()),
+            ));
+    }
+
+    #[test_context(TestState)]
+    #[tokio::test]
+    async fn test_create_escrow_fails_if_multiple_fills_are_false_and_merkle_proof_is_provided(
+        test_state: &mut TestState,
+    ) {
+        test_state.test_arguments.order_parts_amount = DEFAULT_PARTS_AMOUNT_FOR_MULTIPLE;
+        let merkle_hashes = compute_merkle_leaves(test_state);
+        test_state.test_arguments.order_parts_amount = DEFAULT_PARTS_AMOUNT;
+        let root = get_root(merkle_hashes.leaves.clone());
+        test_state.hashlock = Hash::new_from_array(root);
+        // test_state.test_arguments.allow_multiple_fills is false;
+        create_order(test_state).await;
+
+        let index_to_validate =
+            get_index_for_escrow_amount(test_state, test_state.test_arguments.escrow_amount); // fill the full order
+        let hashed_secret = merkle_hashes.hashed_secrets[index_to_validate];
+        let proof_hashes = get_proof(merkle_hashes.leaves.clone(), index_to_validate);
+        let proof = MerkleProof {
+            proof: proof_hashes,
+            index: index_to_validate as u32,
+            hashed_secret,
+        };
+        test_state.test_arguments.merkle_proof = Some(proof);
+        let (_, _, transaction) = create_escrow_data(test_state);
+
+        test_state
+            .client
+            .process_transaction(transaction)
+            .await
+            .expect_error((
+                0,
+                ProgramError::Custom(EscrowError::InconsistentMerkleProofTrait.into()),
+            ));
     }
 }

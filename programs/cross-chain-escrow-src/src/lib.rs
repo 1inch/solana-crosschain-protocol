@@ -1,29 +1,35 @@
 use anchor_lang::prelude::*;
 use anchor_lang::solana_program::hash::hashv;
 use anchor_spl::associated_token::{AssociatedToken, ID as ASSOCIATED_TOKEN_PROGRAM_ID};
+use anchor_spl::token::spl_token::native_mint;
 use anchor_spl::token_interface::{
     close_account, CloseAccount, Mint, TokenAccount, TokenInterface,
 };
-pub use auction::{calculate_rate_bump, AuctionData};
+pub use auction::{calculate_premium, calculate_rate_bump, AuctionData};
 pub use common::constants;
 use common::error::EscrowError;
 use common::escrow::{uni_transfer, EscrowBase, UniTransferParams};
 use common::utils;
 use muldiv::MulDiv;
 
+use crate::merkle_tree::MerkleProof;
+
 pub mod auction;
+pub mod merkle_tree;
 
 declare_id!("6NwMYeUmigiMDjhYeYpbxC6Kc63NzZy1dfGd7fGcdkVS");
 
 #[program]
 pub mod cross_chain_escrow_src {
+
     use super::*;
 
     pub fn create(
         ctx: Context<Create>,
         order_hash: [u8; 32],
-        hashlock: [u8; 32],
+        hashlock: [u8; 32], // Root of merkle tree if partially filled
         amount: u64,
+        parts_amount: u64,
         safety_deposit: u64,
         finality_duration: u32,
         withdrawal_duration: u32,
@@ -34,6 +40,9 @@ pub mod cross_chain_escrow_src {
         asset_is_native: bool,
         dst_amount: u64,
         dutch_auction_data_hash: [u8; 32],
+        max_cancellation_premium: u64,
+        cancellation_auction_duration: u32,
+        allow_multiple_fills: bool,
     ) -> Result<()> {
         let now = utils::get_current_timestamp()?;
 
@@ -42,6 +51,17 @@ pub mod cross_chain_escrow_src {
         let expiration_time = now
             .checked_add(expiration_duration)
             .ok_or(ProgramError::ArithmeticOverflow)?;
+
+        require!(
+            ctx.accounts.order_ata.to_account_info().lamports() >= max_cancellation_premium,
+            EscrowError::InvalidCancellationFee
+        );
+
+        require!(
+            (allow_multiple_fills && parts_amount >= 2)
+                || (!allow_multiple_fills && parts_amount == 1),
+            EscrowError::InvalidPartsAmount
+        );
 
         common::escrow::create(
             EscrowSrc::INIT_SPACE + constants::DISCRIMINATOR_BYTES, // Needed to check the safety deposit amount validity
@@ -65,6 +85,8 @@ pub mod cross_chain_escrow_src {
             creator: ctx.accounts.creator.key(),
             token: ctx.accounts.mint.key(),
             amount,
+            remaining_amount: amount,
+            parts_amount,
             safety_deposit,
             finality_duration,
             withdrawal_duration,
@@ -75,6 +97,9 @@ pub mod cross_chain_escrow_src {
             asset_is_native,
             dst_amount,
             dutch_auction_data_hash,
+            max_cancellation_premium,
+            cancellation_auction_duration,
+            allow_multiple_fills,
         });
 
         Ok(())
@@ -82,19 +107,51 @@ pub mod cross_chain_escrow_src {
 
     pub fn create_escrow(
         ctx: Context<CreateEscrow>,
+        amount: u64,
         dutch_auction_data: AuctionData,
+        merkle_proof: Option<MerkleProof>,
     ) -> Result<()> {
-        let order = &ctx.accounts.order;
+        let order = &mut ctx.accounts.order;
         let escrow = &mut ctx.accounts.escrow;
-
         let now = utils::get_current_timestamp()?;
+        require!(
+            (order.allow_multiple_fills && amount <= order.remaining_amount)
+                || (!order.allow_multiple_fills && amount == order.amount),
+            EscrowError::InvalidAmount
+        );
 
         require!(now < order.expiration_time, EscrowError::OrderHasExpired);
+
         let calculated_hash = hashv(&[&dutch_auction_data.try_to_vec()?]).to_bytes();
         require!(
             calculated_hash == order.dutch_auction_data_hash,
             EscrowError::DutchAuctionDataHashMismatch
         );
+
+        let hashlock = match (order.allow_multiple_fills, &merkle_proof) {
+            (true, Some(proof)) => {
+                require!(
+                    proof.verify(order.hashlock),
+                    EscrowError::InvalidMerkleProof
+                );
+                require!(
+                    is_valid_partial_fill(
+                        amount,
+                        order.remaining_amount,
+                        order.amount,
+                        order.parts_amount,
+                        proof.index as u64,
+                    ),
+                    EscrowError::InvalidPartialFill
+                );
+                proof.hashed_secret
+            }
+            (false, None) => {
+                // single fill, no merkle proof expected — OK
+                order.hashlock
+            }
+            _ => return Err(EscrowError::InconsistentMerkleProofTrait.into()),
+        };
 
         let withdrawal_start = now
             .checked_add(order.finality_duration)
@@ -109,7 +166,7 @@ pub mod cross_chain_escrow_src {
             .checked_add(order.cancellation_duration)
             .ok_or(ProgramError::ArithmeticOverflow)?;
 
-        let seeds = [
+        let order_seeds = [
             "order".as_bytes(),
             &order.order_hash,
             &order.hashlock,
@@ -127,15 +184,15 @@ pub mod cross_chain_escrow_src {
                 authority: order.to_account_info(),
                 to: ctx.accounts.escrow_ata.to_account_info(),
                 mint: *ctx.accounts.mint.clone(),
-                amount: order.amount,
+                amount,
                 program: ctx.accounts.token_program.clone(),
             },
-            Some(&[&seeds]),
+            Some(&[&order_seeds]),
         )?;
 
         escrow.set_inner(EscrowSrc {
             order_hash: order.order_hash,
-            hashlock: order.hashlock,
+            hashlock,
             maker: order.creator,
             taker: ctx.accounts.taker.key(),
             token: order.token,
@@ -150,24 +207,26 @@ pub mod cross_chain_escrow_src {
             dst_amount: get_dst_amount(order.dst_amount, &dutch_auction_data)?,
         });
 
-        // Close the order_ata account
-        close_account(CpiContext::new_with_signer(
-            ctx.accounts.token_program.to_account_info(),
-            CloseAccount {
-                account: ctx.accounts.order_ata.to_account_info(),
-                destination: ctx.accounts.maker.to_account_info(),
-                authority: order.to_account_info(),
-            },
-            &[&seeds],
-        ))?;
+        if !order.allow_multiple_fills || order.remaining_amount == amount {
+            // Close the order ATA
+            close_account(CpiContext::new_with_signer(
+                ctx.accounts.token_program.to_account_info(),
+                CloseAccount {
+                    account: ctx.accounts.order_ata.to_account_info(),
+                    destination: ctx.accounts.maker.to_account_info(),
+                    authority: order.to_account_info(),
+                },
+                &[&order_seeds],
+            ))?;
 
-        // Close the order account
-        order.close(ctx.accounts.maker.to_account_info())?;
+            // Close the order account
+            order.close(ctx.accounts.maker.to_account_info())?;
+        } else {
+            order.remaining_amount -= amount;
+        }
 
         Ok(())
     }
-
-    // TODO! Fix withdrawal and cancellation logic in SOL-120, SOL-121, SOL-122
 
     pub fn withdraw(ctx: Context<Withdraw>, secret: [u8; 32]) -> Result<()> {
         let now = utils::get_current_timestamp()?;
@@ -238,6 +297,150 @@ pub mod cross_chain_escrow_src {
             &ctx.accounts.maker,
             &ctx.accounts.taker,
         )
+    }
+
+    pub fn cancel_order(ctx: Context<CancelOrder>) -> Result<()> {
+        let order = &ctx.accounts.order;
+        require!(
+            ctx.accounts.mint.key() == native_mint::id() || !order.asset_is_native,
+            EscrowError::InconsistentNativeTrait
+        );
+
+        require!(
+            order.asset_is_native == ctx.accounts.creator_ata.is_none(),
+            EscrowError::InconsistentNativeTrait
+        );
+
+        let seeds = [
+            "order".as_bytes(),
+            &order.order_hash,
+            &order.hashlock,
+            order.creator.as_ref(),
+            order.token.as_ref(),
+            &order.amount.to_be_bytes(),
+            &order.safety_deposit.to_be_bytes(),
+            &order.rescue_start.to_be_bytes(),
+            &[ctx.bumps.order],
+        ];
+
+        if !order.asset_is_native {
+            uni_transfer(
+                &UniTransferParams::TokenTransfer {
+                    from: ctx.accounts.order_ata.to_account_info(),
+                    authority: order.to_account_info(),
+                    to: ctx
+                        .accounts
+                        .creator_ata
+                        .as_ref()
+                        .ok_or(EscrowError::MissingCreatorAta)?
+                        .to_account_info(),
+                    mint: *ctx.accounts.mint.clone(),
+                    amount: ctx.accounts.order_ata.amount,
+                    program: ctx.accounts.token_program.clone(),
+                },
+                Some(&[&seeds]),
+            )?;
+        };
+
+        close_account(CpiContext::new_with_signer(
+            ctx.accounts.token_program.to_account_info(),
+            CloseAccount {
+                account: ctx.accounts.order_ata.to_account_info(),
+                destination: ctx.accounts.creator.to_account_info(),
+                authority: order.to_account_info(),
+            },
+            &[&seeds],
+        ))?;
+
+        //Close the order account
+        order.close(ctx.accounts.creator.to_account_info())
+    }
+
+    pub fn cancel_order_by_resolver(
+        ctx: Context<CancelOrderbyResolver>,
+        reward_limit: u64,
+    ) -> Result<()> {
+        let order = &ctx.accounts.order;
+        let now = utils::get_current_timestamp()?;
+
+        require!(now >= order.expiration_time, EscrowError::OrderNotExpired);
+
+        require!(
+            order.max_cancellation_premium > 0,
+            EscrowError::CancelOrderByResolverIsForbidden
+        );
+
+        require!(
+            order.asset_is_native == ctx.accounts.creator_ata.is_none(),
+            EscrowError::InconsistentNativeTrait
+        );
+
+        let seeds = [
+            "order".as_bytes(),
+            &order.order_hash,
+            &order.hashlock,
+            order.creator.as_ref(),
+            order.token.as_ref(),
+            &order.amount.to_be_bytes(),
+            &order.safety_deposit.to_be_bytes(),
+            &order.rescue_start.to_be_bytes(),
+            &[ctx.bumps.order],
+        ];
+
+        // Return remaining src tokens back to maker
+        if !order.asset_is_native {
+            uni_transfer(
+                &UniTransferParams::TokenTransfer {
+                    from: ctx.accounts.order_ata.to_account_info(),
+                    authority: order.to_account_info(),
+                    to: ctx
+                        .accounts
+                        .creator_ata
+                        .as_ref()
+                        .ok_or(EscrowError::MissingCreatorAta)?
+                        .to_account_info(),
+                    mint: *ctx.accounts.mint.clone(),
+                    amount: ctx.accounts.order_ata.amount,
+                    program: ctx.accounts.token_program.clone(),
+                },
+                Some(&[&seeds]),
+            )?;
+        };
+
+        let cancellation_premium = calculate_premium(
+            now,
+            order.expiration_time,
+            order.cancellation_auction_duration,
+            order.max_cancellation_premium,
+        );
+
+        let maker_amount = ctx.accounts.order_ata.to_account_info().lamports()
+            - std::cmp::min(cancellation_premium, reward_limit);
+
+        // Transfer all the remaining lamports to the resolver first
+        close_account(CpiContext::new_with_signer(
+            ctx.accounts.token_program.to_account_info(),
+            CloseAccount {
+                account: ctx.accounts.order_ata.to_account_info(),
+                destination: ctx.accounts.resolver.to_account_info(),
+                authority: order.to_account_info(),
+            },
+            &[&seeds],
+        ))?;
+
+        // Transfer all lamports from the closed account, minus the cancellation premium, to the maker
+        uni_transfer(
+            &UniTransferParams::NativeTransfer {
+                from: ctx.accounts.resolver.to_account_info(),
+                to: ctx.accounts.creator.to_account_info(),
+                amount: maker_amount,
+                program: ctx.accounts.system_program.clone(),
+            },
+            None,
+        )?;
+
+        //Close the order account
+        order.close(ctx.accounts.creator.to_account_info())
     }
 
     pub fn public_cancel_escrow(ctx: Context<PublicCancelEscrow>) -> Result<()> {
@@ -336,7 +539,7 @@ pub mod cross_chain_escrow_src {
 }
 
 #[derive(Accounts)]
-#[instruction(order_hash: [u8; 32], hashlock: [u8; 32], amount: u64, safety_deposit: u64, finality_duration: u32, withdrawal_duration: u32, public_withdrawal_duration: u32, cancellation_duration: u32, rescue_start: u32)]
+#[instruction(order_hash: [u8; 32], hashlock: [u8; 32], amount: u64, parts_amount: u64, safety_deposit: u64, finality_duration: u32, withdrawal_duration: u32, public_withdrawal_duration: u32, cancellation_duration: u32, rescue_start: u32)]
 pub struct Create<'info> {
     #[account(
         mut, // Needed because this account transfers lamports if the token is native and to pay for the order creation
@@ -388,6 +591,7 @@ pub struct Create<'info> {
 }
 
 #[derive(Accounts)]
+#[instruction(amount: u64, dutch_auction_data: AuctionData, merkle_proof: Option<MerkleProof>)]
 pub struct CreateEscrow<'info> {
     #[account(mut)]
     taker: Signer<'info>,
@@ -439,11 +643,14 @@ pub struct CreateEscrow<'info> {
         seeds = [
             "escrow".as_bytes(),
             order.order_hash.as_ref(),
-            order.hashlock.as_ref(),
+            &get_escrow_hashlock(
+                order.hashlock,
+                merkle_proof.clone()
+            ),
             order.creator.as_ref(),
             taker.key().as_ref(),
-            order.token.key().as_ref(),
-            order.amount.to_be_bytes().as_ref(), // TODO: Must be replaced with the actual amount when partial fills are implemented.
+            mint.key().as_ref(),
+            amount.to_be_bytes().as_ref(),
             order.safety_deposit.to_be_bytes().as_ref(),
             order.rescue_start.to_be_bytes().as_ref(),
         ],
@@ -583,7 +790,7 @@ pub struct CancelEscrow<'info> {
             escrow.maker.as_ref(),
             taker.key().as_ref(),
             escrow.token.key().as_ref(),
-            escrow.amount.to_be_bytes().as_ref(), // TODO: Must be replaced with the actual amount when partial fills are implemented.
+            escrow.amount.to_be_bytes().as_ref(),
             escrow.safety_deposit.to_be_bytes().as_ref(),
             escrow.rescue_start.to_be_bytes().as_ref(),
         ],
@@ -605,6 +812,92 @@ pub struct CancelEscrow<'info> {
     )]
     // Optional if the token is native
     maker_ata: Option<Box<InterfaceAccount<'info, TokenAccount>>>,
+    token_program: Interface<'info, TokenInterface>,
+    system_program: Program<'info, System>,
+}
+
+#[derive(Accounts)]
+pub struct CancelOrder<'info> {
+    /// Account that created the order
+    #[account(mut, signer)]
+    creator: Signer<'info>,
+    mint: Box<InterfaceAccount<'info, Mint>>,
+    #[account(
+        mut,
+        seeds = [
+            "order".as_bytes(),
+            order.order_hash.as_ref(),
+            order.hashlock.as_ref(),
+            order.creator.as_ref(),
+            order.token.key().as_ref(),
+            order.amount.to_be_bytes().as_ref(),
+            order.safety_deposit.to_be_bytes().as_ref(),
+            order.rescue_start.to_be_bytes().as_ref(),
+        ],
+        bump,
+    )]
+    order: Box<Account<'info, Order>>,
+    #[account(
+        mut,
+        associated_token::mint = mint,
+        associated_token::authority = order,
+        associated_token::token_program = token_program
+    )]
+    order_ata: Box<InterfaceAccount<'info, TokenAccount>>,
+    #[account(
+        mut,
+        associated_token::mint = mint,
+        associated_token::authority = creator,
+        associated_token::token_program = token_program
+    )]
+    // Optional if the token is native
+    creator_ata: Option<Box<InterfaceAccount<'info, TokenAccount>>>,
+    token_program: Interface<'info, TokenInterface>,
+    system_program: Program<'info, System>,
+}
+
+#[derive(Accounts)]
+pub struct CancelOrderbyResolver<'info> {
+    /// Account that cancels the escrow
+    #[account(mut, signer)]
+    resolver: Signer<'info>,
+    /// CHECK: Currently only used for the token-authority check and to receive lamports if the token is native
+    #[account(
+        mut, // Needed because this account receives lamports if the token is native
+        constraint = creator.key() == order.creator @ EscrowError::InvalidAccount
+    )]
+    creator: AccountInfo<'info>,
+    mint: Box<InterfaceAccount<'info, Mint>>,
+    #[account(
+        mut,
+        seeds = [
+            "order".as_bytes(),
+            order.order_hash.as_ref(),
+            order.hashlock.as_ref(),
+            order.creator.as_ref(),
+            order.token.key().as_ref(),
+            order.amount.to_be_bytes().as_ref(),
+            order.safety_deposit.to_be_bytes().as_ref(),
+            order.rescue_start.to_be_bytes().as_ref(),
+        ],
+        bump,
+    )]
+    order: Box<Account<'info, Order>>,
+    #[account(
+        mut,
+        associated_token::mint = mint,
+        associated_token::authority = order,
+        associated_token::token_program = token_program
+    )]
+    order_ata: Box<InterfaceAccount<'info, TokenAccount>>,
+    #[account(
+        mut,
+        associated_token::mint = mint,
+        associated_token::authority = creator,
+        associated_token::token_program = token_program
+    )]
+    // Optional if the token is native
+    creator_ata: Option<Box<InterfaceAccount<'info, TokenAccount>>>,
     token_program: Interface<'info, TokenInterface>,
     system_program: Program<'info, System>,
 }
@@ -764,6 +1057,8 @@ pub struct Order {
     creator: Pubkey,
     token: Pubkey,
     amount: u64,
+    remaining_amount: u64,
+    parts_amount: u64,
     safety_deposit: u64,
     finality_duration: u32,
     withdrawal_duration: u32,
@@ -774,6 +1069,9 @@ pub struct Order {
     asset_is_native: bool,
     dst_amount: u64,
     dutch_auction_data_hash: [u8; 32],
+    max_cancellation_premium: u64,
+    cancellation_auction_duration: u32,
+    allow_multiple_fills: bool,
 }
 
 #[account]
@@ -851,4 +1149,40 @@ fn get_dst_amount(dst_amount: u64, data: &AuctionData) -> Result<u64> {
         .mul_div_ceil(constants::BASE_1E5 + rate_bump, constants::BASE_1E5)
         .ok_or(ProgramError::ArithmeticOverflow)?;
     Ok(result)
+}
+
+fn is_valid_partial_fill(
+    making_amount: u64,
+    remaining_making_amount: u64,
+    order_making_amount: u64,
+    parts_amount: u64,
+    validated_index: u64,
+) -> bool {
+    let calculated_index = ((order_making_amount - remaining_making_amount + making_amount - 1)
+        * parts_amount)
+        / order_making_amount;
+
+    if remaining_making_amount == making_amount {
+        // If the order is filled to completion, a secret with index i + 1 must be used
+        // where i is the index of the secret for the last part.
+        return calculated_index + 1 == validated_index;
+    } else if order_making_amount != remaining_making_amount {
+        // Calculate the previous fill index only if this is not the first fill.
+        let prev_calculated_index = ((order_making_amount - remaining_making_amount - 1)
+            * parts_amount)
+            / order_making_amount;
+        if calculated_index == prev_calculated_index {
+            return false;
+        }
+    }
+
+    calculated_index == validated_index
+}
+
+pub fn get_escrow_hashlock(order_hash: [u8; 32], merkle_proof: Option<MerkleProof>) -> [u8; 32] {
+    if let Some(merkle_proof) = merkle_proof {
+        merkle_proof.hashed_secret
+    } else {
+        order_hash
+    }
 }
