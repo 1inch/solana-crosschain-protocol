@@ -1785,7 +1785,7 @@ mod local_helpers {
 
     pub async fn create_order_for_partial_fill(test_state: &mut TestState) -> (Pubkey, Pubkey) {
         test_state.test_arguments.order_parts_amount = DEFAULT_PARTS_AMOUNT_FOR_MULTIPLE;
-        let merkle_hashes = compute_merkle_root(test_state);
+        let merkle_hashes = compute_merkle_leaves(test_state);
         let root = get_root(merkle_hashes.leaves.clone());
         test_state.hashlock = Hash::new_from_array(root);
         test_state.test_arguments.allow_multiple_fills = true;
@@ -1796,7 +1796,7 @@ mod local_helpers {
         test_state: &mut TestState,
         escrow_amount: u64,
     ) -> (Pubkey, Pubkey, Transaction) {
-        let merkle_hashes = compute_merkle_root(test_state);
+        let merkle_hashes = compute_merkle_leaves(test_state);
         let index_to_validate = get_index_for_escrow_amount(test_state, escrow_amount);
         test_state.test_arguments.escrow_amount = escrow_amount;
 
@@ -1846,7 +1846,7 @@ mod local_helpers {
         pub hashed_secrets: Vec<[u8; 32]>,
     }
 
-    pub fn compute_merkle_root<T: EscrowVariant<S>, S: TokenVariant>(
+    pub fn compute_merkle_leaves<T: EscrowVariant<S>, S: TokenVariant>(
         test_state: &TestStateBase<T, S>,
     ) -> MerkleHashes {
         let secret_amount = (test_state.test_arguments.order_parts_amount + 1) as usize;
@@ -2447,7 +2447,7 @@ mod test_wrapped_native {
 
 mod test_partial_fill_escrow_creation {
     use crate::local_helpers::{
-        compute_merkle_root, create_escrow_for_partial_fill, create_escrow_for_partial_fill_data,
+        compute_merkle_leaves, create_escrow_for_partial_fill, create_escrow_for_partial_fill_data,
         create_order_for_partial_fill, get_index_for_escrow_amount,
     };
 
@@ -2574,7 +2574,7 @@ mod test_partial_fill_escrow_creation {
     #[tokio::test]
     async fn test_create_escrow_fails_with_incorrect_merkle_root(test_state: &mut TestState) {
         test_state.test_arguments.order_parts_amount = DEFAULT_PARTS_AMOUNT_FOR_MULTIPLE;
-        let merkle_hashes = compute_merkle_root(test_state);
+        let merkle_hashes = compute_merkle_leaves(test_state);
         test_state.hashlock = hashv(&[b"incorrect_root"]);
         test_state.test_arguments.allow_multiple_fills = true;
         create_order(test_state).await;
@@ -2608,7 +2608,7 @@ mod test_partial_fill_escrow_creation {
     async fn test_create_escrow_fails_with_incorrect_merkle_proof(test_state: &mut TestState) {
         create_order_for_partial_fill(test_state).await;
 
-        let merkle_hashes = compute_merkle_root(test_state);
+        let merkle_hashes = compute_merkle_leaves(test_state);
         test_state.test_arguments.escrow_amount =
             DEFAULT_ESCROW_AMOUNT / DEFAULT_PARTS_AMOUNT_FOR_MULTIPLE;
         let index_to_validate =
@@ -2640,7 +2640,7 @@ mod test_partial_fill_escrow_creation {
     async fn test_create_escrow_fails_with_incorrect_secret_for_leaf(test_state: &mut TestState) {
         create_order_for_partial_fill(test_state).await;
 
-        let merkle_hashes = compute_merkle_root(test_state);
+        let merkle_hashes = compute_merkle_leaves(test_state);
         test_state.test_arguments.escrow_amount =
             DEFAULT_ESCROW_AMOUNT / DEFAULT_PARTS_AMOUNT_FOR_MULTIPLE * 2;
         let index_to_validate =
@@ -2690,7 +2690,7 @@ mod test_partial_fill_escrow_creation {
         test_state: &mut TestState,
     ) {
         test_state.test_arguments.order_parts_amount = DEFAULT_PARTS_AMOUNT_FOR_MULTIPLE;
-        let merkle_hashes = compute_merkle_root(test_state);
+        let merkle_hashes = compute_merkle_leaves(test_state);
         test_state.test_arguments.order_parts_amount = DEFAULT_PARTS_AMOUNT;
         let root = get_root(merkle_hashes.leaves.clone());
         test_state.hashlock = Hash::new_from_array(root);
