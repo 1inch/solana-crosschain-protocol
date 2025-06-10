@@ -155,7 +155,7 @@ where
             authority: escrow.to_account_info(),
             to: recipient_ata.to_account_info(),
             mint: mint.clone(),
-            amount: escrow.amount(),
+            amount: escrow_ata.amount,
             program: token_program.clone(),
         },
         Some(&[&seeds]),
@@ -215,7 +215,7 @@ where
                     .ok_or(EscrowError::MissingCreatorAta)?
                     .to_account_info(),
                 mint: mint.clone(),
-                amount: escrow.amount(),
+                amount: escrow_ata.amount,
                 program: token_program.clone(),
             },
             Some(&[&seeds]),

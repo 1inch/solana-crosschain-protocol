@@ -178,13 +178,18 @@ pub mod cross_chain_escrow_src {
             &[ctx.bumps.order],
         ];
 
+        let mut amount_to_transfer = amount;
+        if order.remaining_amount == amount && ctx.accounts.order_ata.amount > amount {
+            amount_to_transfer = ctx.accounts.order_ata.amount;
+        }
+
         uni_transfer(
             &UniTransferParams::TokenTransfer {
                 from: ctx.accounts.order_ata.to_account_info(),
                 authority: order.to_account_info(),
                 to: ctx.accounts.escrow_ata.to_account_info(),
                 mint: *ctx.accounts.mint.clone(),
-                amount,
+                amount: amount_to_transfer,
                 program: ctx.accounts.token_program.clone(),
             },
             Some(&[&order_seeds]),
