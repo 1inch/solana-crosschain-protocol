@@ -57,11 +57,11 @@ pub mod cross_chain_escrow_src {
             EscrowError::InvalidCancellationFee
         );
 
-        if allow_multiple_fills {
-            require!(parts_amount >= 2, EscrowError::InvalidPartsAmount);
-        } else {
-            require!(parts_amount == 1, EscrowError::InvalidPartsAmount);
-        }
+        require!(
+            (allow_multiple_fills && parts_amount >= 2)
+                || (!allow_multiple_fills && parts_amount == 1),
+            EscrowError::InvalidPartsAmount
+        );
 
         common::escrow::create(
             EscrowSrc::INIT_SPACE + constants::DISCRIMINATOR_BYTES, // Needed to check the safety deposit amount validity
@@ -114,11 +114,11 @@ pub mod cross_chain_escrow_src {
         let order = &mut ctx.accounts.order;
         let escrow = &mut ctx.accounts.escrow;
         let now = utils::get_current_timestamp()?;
-        if order.allow_multiple_fills {
-            require!(amount <= order.remaining_amount, EscrowError::InvalidAmount);
-        } else {
-            require!(amount == order.amount, EscrowError::InvalidAmount);
-        }
+        require!(
+            (order.allow_multiple_fills && amount <= order.remaining_amount)
+                || (!order.allow_multiple_fills && amount == order.amount),
+            EscrowError::InvalidAmount
+        );
 
         require!(now < order.expiration_time, EscrowError::OrderHasExpired);
 
