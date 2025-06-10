@@ -1,11 +1,9 @@
 use anchor_spl::associated_token::{
     spl_associated_token_account, spl_associated_token_account::instruction as spl_ata_instruction,
 };
-use anchor_spl::token::spl_token;
-use anchor_spl::token::spl_token::instruction::sync_native;
-use anchor_spl::token::spl_token::native_mint::ID as NATIVE_MINT;
 use anchor_spl::token::spl_token::{
-    instruction as spl_instruction,
+    instruction::{self as spl_instruction, sync_native},
+    native_mint::ID as NATIVE_MINT,
     state::{Account as SplTokenAccount, Mint},
     ID as spl_program_id,
 };
@@ -14,11 +12,10 @@ use anchor_spl::token_2022::spl_token_2022::{
     instruction as spl2022_instruction, state::Account as SplToken2022Account,
     state::Mint as SPL2022_Mint, ID as spl2022_program_id,
 };
-use cross_chain_escrow_src::get_escrow_hashlock;
 
 use async_trait::async_trait;
 use common::constants::RESCUE_DELAY;
-use cross_chain_escrow_src::merkle_tree::MerkleProof;
+use cross_chain_escrow_src::{get_escrow_hashlock, merkle_tree::MerkleProof};
 use solana_program::{
     instruction::Instruction,
     keccak::{hash, Hash},
@@ -30,8 +27,8 @@ use solana_program_runtime::invoke_context::BuiltinFunctionWithContext;
 use solana_program_test::{
     BanksClient, BanksClientError, ProgramTest, ProgramTestBanksClientExt, ProgramTestContext,
 };
-use solana_sdk::native_token::LAMPORTS_PER_SOL;
 use solana_sdk::{
+    native_token::LAMPORTS_PER_SOL,
     signature::Signer,
     signer::keypair::Keypair,
     system_instruction,
@@ -604,7 +601,7 @@ pub async fn create_wallet<S: TokenVariant>(
 }
 
 pub async fn sync_native_ata(ctx: &mut ProgramTestContext, ata: &Pubkey) {
-    let ix = sync_native(&spl_token::ID, ata).unwrap();
+    let ix = sync_native(&spl_program_id, ata).unwrap();
 
     let tx = Transaction::new_signed_with_payer(
         &[ix],
