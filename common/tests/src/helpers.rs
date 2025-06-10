@@ -130,7 +130,6 @@ pub struct TestStateBase<T: ?Sized, S: ?Sized> {
     pub secret: [u8; 32],
     pub order_hash: Hash,
     pub hashlock: Hash,
-    pub escrow_hashlock: Hash,
     pub token: Pubkey,
     pub payer_kp: Keypair,
     pub creator_wallet: Wallet,
@@ -472,7 +471,6 @@ where
             secret,
             order_hash: Hash::new_unique(),
             hashlock: hash(secret.as_ref()),
-            escrow_hashlock: hash(secret.as_ref()),
             token,
             payer_kp: payer_kp.insecure_clone(),
             creator_wallet,
@@ -507,7 +505,7 @@ pub fn get_escrow_addresses<T: EscrowVariant<S>, S: TokenVariant>(
 ) -> (Pubkey, Pubkey) {
     let program_id = T::get_program_spec().0;
     let hashlock = get_escrow_hashlock(
-        test_state.escrow_hashlock.to_bytes(),
+        test_state.hashlock.to_bytes(),
         test_state.test_arguments.merkle_proof.clone(),
     );
     let (escrow_pda, _) = Pubkey::find_program_address(

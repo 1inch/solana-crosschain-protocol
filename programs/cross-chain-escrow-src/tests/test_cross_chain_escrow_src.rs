@@ -1809,7 +1809,6 @@ mod local_helpers {
         };
 
         test_state.test_arguments.merkle_proof = Some(proof);
-        test_state.escrow_hashlock = Hash::new_from_array(hashed_secret);
         create_escrow_data(test_state)
     }
 
@@ -2533,7 +2532,6 @@ mod test_partial_fill_escrow_creation {
         test_state: &mut TestState,
     ) {
         create_order_for_partial_fill(test_state).await;
-
         let escrow_amount = DEFAULT_ESCROW_AMOUNT / DEFAULT_PARTS_AMOUNT_FOR_MULTIPLE * 3;
         create_escrow_for_partial_fill(test_state, escrow_amount).await;
         let (_, _, transaction) = create_escrow_for_partial_fill_data(
@@ -2684,7 +2682,6 @@ mod test_partial_fill_escrow_creation {
 
         let root: [u8; 32] = get_root(merkle_hashes.leaves.clone());
         test_state.hashlock = Hash::new_from_array(root);
-        test_state.escrow_hashlock = Hash::new_from_array(root);
         test_state.test_arguments.allow_multiple_fills = true;
         create_order(test_state).await;
 
