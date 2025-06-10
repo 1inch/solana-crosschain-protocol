@@ -3,6 +3,7 @@ use common_tests::dst_program::DstProgram;
 use common_tests::helpers::*;
 use common_tests::run_for_tokens;
 use common_tests::tests as common_escrow_tests;
+use common_tests::whitelist::prepare_resolvers;
 use solana_program::program_error::ProgramError;
 use solana_program_test::tokio;
 use solana_sdk::{signature::Signer, signer::keypair::Keypair, sysvar::clock::Clock};
@@ -21,7 +22,8 @@ run_for_tokens!(
 
             #[test_context(TestState)]
             #[tokio::test]
-            async fn test_escrow_creation(test_state: &mut TestState) {
+            async fn test_escrow_creation_only(test_state: &mut TestState) {
+                prepare_resolvers(test_state, &[test_state.creator_wallet.keypair.pubkey()]).await;
                 common_escrow_tests::test_escrow_creation(test_state).await
             }
 
@@ -30,6 +32,7 @@ run_for_tokens!(
             async fn test_escrow_creation_fails_with_insufficient_funds(
                 test_state: &mut TestState,
             ) {
+                prepare_resolvers(test_state, &[test_state.creator_wallet.keypair.pubkey()]).await;
                 common_escrow_tests::test_escrow_creation_fails_with_insufficient_funds(test_state)
                     .await
             }
@@ -39,6 +42,7 @@ run_for_tokens!(
             async fn test_escrow_creation_fails_with_zero_safety_deposit(
                 test_state: &mut TestState,
             ) {
+                prepare_resolvers(test_state, &[test_state.creator_wallet.keypair.pubkey()]).await;
                 common_escrow_tests::test_escrow_creation_fails_with_zero_safety_deposit(test_state)
                     .await
             }
@@ -48,6 +52,7 @@ run_for_tokens!(
             async fn test_escrow_creation_fails_with_insufficient_tokens(
                 test_state: &mut TestState,
             ) {
+                prepare_resolvers(test_state, &[test_state.creator_wallet.keypair.pubkey()]).await;
                 common_escrow_tests::test_escrow_creation_fails_with_insufficient_tokens(test_state)
                     .await
             }
@@ -57,6 +62,7 @@ run_for_tokens!(
             async fn test_escrow_creation_fails_with_existing_order_hash(
                 test_state: &mut TestState,
             ) {
+                prepare_resolvers(test_state, &[test_state.creator_wallet.keypair.pubkey()]).await;
                 common_escrow_tests::test_escrow_creation_fails_with_existing_order_hash(test_state)
                     .await
             }
@@ -66,6 +72,7 @@ run_for_tokens!(
             async fn test_escrow_creation_fails_if_finality_duration_overflows(
                 test_state: &mut TestState,
             ) {
+                prepare_resolvers(test_state, &[test_state.creator_wallet.keypair.pubkey()]).await;
                 common_escrow_tests::test_escrow_creation_fails_if_finality_duration_overflows(
                     test_state,
                 )
@@ -77,6 +84,7 @@ run_for_tokens!(
             async fn test_escrow_creation_fails_when_cancellation_start_gt_src_cancellation_timestamp(
                 test_state: &mut TestState,
             ) {
+                prepare_resolvers(test_state, &[test_state.creator_wallet.keypair.pubkey()]).await;
                 let c: Clock = test_state.client.get_sysvar().await.unwrap();
                 test_state.test_arguments.src_cancellation_timestamp = c.unix_timestamp as u32 + 1;
                 let (_, _, transaction) = create_escrow_data(test_state);
@@ -98,6 +106,7 @@ run_for_tokens!(
             #[test_context(TestState)]
             #[tokio::test]
             async fn test_withdraw(test_state: &mut TestState) {
+                prepare_resolvers(test_state, &[test_state.creator_wallet.keypair.pubkey()]).await;
                 let rent_recipient = test_state.creator_wallet.keypair.pubkey();
                 common_escrow_tests::test_withdraw(test_state, rent_recipient).await
             }
@@ -105,12 +114,14 @@ run_for_tokens!(
             #[test_context(TestState)]
             #[tokio::test]
             async fn test_withdraw_does_not_work_with_wrong_secret(test_state: &mut TestState) {
+                prepare_resolvers(test_state, &[test_state.creator_wallet.keypair.pubkey()]).await;
                 common_escrow_tests::test_withdraw_does_not_work_with_wrong_secret(test_state).await
             }
 
             #[test_context(TestState)]
             #[tokio::test]
             async fn test_withdraw_does_not_work_with_non_recipient(test_state: &mut TestState) {
+                prepare_resolvers(test_state, &[test_state.creator_wallet.keypair.pubkey()]).await;
                 common_escrow_tests::test_withdraw_does_not_work_with_non_recipient(test_state)
                     .await
             }
@@ -120,6 +131,7 @@ run_for_tokens!(
             async fn test_withdraw_does_not_work_with_wrong_recipient_ata(
                 test_state: &mut TestState,
             ) {
+                prepare_resolvers(test_state, &[test_state.creator_wallet.keypair.pubkey()]).await;
                 common_escrow_tests::test_withdraw_does_not_work_with_wrong_recipient_ata(
                     test_state,
                 )
@@ -129,6 +141,7 @@ run_for_tokens!(
             #[test_context(TestState)]
             #[tokio::test]
             async fn test_withdraw_does_not_work_with_wrong_escrow_ata(test_state: &mut TestState) {
+                prepare_resolvers(test_state, &[test_state.creator_wallet.keypair.pubkey()]).await;
                 let new_escrow_amount = test_state.test_arguments.escrow_amount + 1;
                 common_escrow_tests::test_withdraw_does_not_work_with_wrong_escrow_ata(
                     test_state,
@@ -142,6 +155,7 @@ run_for_tokens!(
             async fn test_withdraw_does_not_work_after_cancellation_start(
                 test_state: &mut TestState,
             ) {
+                prepare_resolvers(test_state, &[test_state.creator_wallet.keypair.pubkey()]).await;
                 common_escrow_tests::test_withdraw_does_not_work_after_cancellation_start(
                     test_state,
                 )
@@ -158,6 +172,14 @@ run_for_tokens!(
             async fn test_public_withdraw_fails_before_start_of_public_withdraw(
                 test_state: &mut TestState,
             ) {
+                prepare_resolvers(
+                    test_state,
+                    &[
+                        test_state.creator_wallet.keypair.pubkey(),
+                        test_state.context.payer.pubkey(),
+                    ],
+                )
+                .await;
                 common_escrow_tests::test_public_withdraw_fails_before_start_of_public_withdraw(
                     test_state,
                 )
@@ -169,6 +191,14 @@ run_for_tokens!(
             async fn test_public_withdraw_fails_after_cancellation_start(
                 test_state: &mut TestState,
             ) {
+                prepare_resolvers(
+                    test_state,
+                    &[
+                        test_state.creator_wallet.keypair.pubkey(),
+                        test_state.context.payer.pubkey(),
+                    ],
+                )
+                .await;
                 common_escrow_tests::test_public_withdraw_fails_after_cancellation_start(test_state)
                     .await
             }
@@ -182,6 +212,14 @@ run_for_tokens!(
             #[test_context(TestState)]
             #[tokio::test]
             async fn test_public_withdraw_tokens_by_creator(test_state: &mut TestState) {
+                prepare_resolvers(
+                    test_state,
+                    &[
+                        test_state.creator_wallet.keypair.pubkey(),
+                        test_state.context.payer.pubkey(),
+                    ],
+                )
+                .await;
                 let (escrow, escrow_ata) = create_escrow(test_state).await;
 
                 let transaction = DstProgram::get_public_withdraw_tx(
@@ -253,6 +291,14 @@ run_for_tokens!(
             #[tokio::test]
             async fn test_public_withdraw_tokens_by_any_account(test_state: &mut TestState) {
                 let withdrawer = Keypair::new();
+                prepare_resolvers(
+                    test_state,
+                    &[
+                        test_state.creator_wallet.keypair.pubkey(),
+                        withdrawer.pubkey(),
+                    ],
+                )
+                .await;
                 transfer_lamports(
                     &mut test_state.context,
                     WALLET_DEFAULT_LAMPORTS,
@@ -272,6 +318,14 @@ run_for_tokens!(
             #[test_context(TestState)]
             #[tokio::test]
             async fn test_public_withdraw_fails_with_wrong_secret(test_state: &mut TestState) {
+                prepare_resolvers(
+                    test_state,
+                    &[
+                        test_state.creator_wallet.keypair.pubkey(),
+                        test_state.context.payer.pubkey(),
+                    ],
+                )
+                .await;
                 common_escrow_tests::test_public_withdraw_fails_with_wrong_secret(test_state).await
             }
 
@@ -280,6 +334,14 @@ run_for_tokens!(
             async fn test_public_withdraw_fails_with_wrong_recipient_ata(
                 test_state: &mut TestState,
             ) {
+                prepare_resolvers(
+                    test_state,
+                    &[
+                        test_state.creator_wallet.keypair.pubkey(),
+                        test_state.recipient_wallet.keypair.pubkey(),
+                    ],
+                )
+                .await;
                 common_escrow_tests::test_public_withdraw_fails_with_wrong_recipient_ata(test_state)
                     .await
             }
@@ -287,6 +349,14 @@ run_for_tokens!(
             #[test_context(TestState)]
             #[tokio::test]
             async fn test_public_withdraw_fails_with_wrong_escrow_ata(test_state: &mut TestState) {
+                prepare_resolvers(
+                    test_state,
+                    &[
+                        test_state.creator_wallet.keypair.pubkey(),
+                        test_state.recipient_wallet.keypair.pubkey(),
+                    ],
+                )
+                .await;
                 let new_escrow_amount = test_state.test_arguments.escrow_amount + 1;
                 common_escrow_tests::test_public_withdraw_fails_with_wrong_escrow_ata(
                     test_state,
@@ -302,30 +372,35 @@ run_for_tokens!(
             #[test_context(TestState)]
             #[tokio::test]
             async fn test_cancel(test_state: &mut TestState) {
+                prepare_resolvers(test_state, &[test_state.creator_wallet.keypair.pubkey()]).await;
                 common_escrow_tests::test_cancel(test_state).await
             }
 
             #[test_context(TestState)]
             #[tokio::test]
             async fn test_cannot_cancel_by_non_creator(test_state: &mut TestState) {
+                prepare_resolvers(test_state, &[test_state.creator_wallet.keypair.pubkey()]).await;
                 common_escrow_tests::test_cannot_cancel_by_non_creator(test_state).await
             }
 
             #[test_context(TestState)]
             #[tokio::test]
             async fn test_cannot_cancel_with_wrong_creator_ata(test_state: &mut TestState) {
+                prepare_resolvers(test_state, &[test_state.creator_wallet.keypair.pubkey()]).await;
                 common_escrow_tests::test_cannot_cancel_with_wrong_creator_ata(test_state).await
             }
 
             #[test_context(TestState)]
             #[tokio::test]
             async fn test_cannot_cancel_with_wrong_escrow_ata(test_state: &mut TestState) {
+                prepare_resolvers(test_state, &[test_state.creator_wallet.keypair.pubkey()]).await;
                 common_escrow_tests::test_cannot_cancel_with_wrong_escrow_ata(test_state).await
             }
 
             #[test_context(TestState)]
             #[tokio::test]
             async fn test_cannot_cancel_before_cancellation_start(test_state: &mut TestState) {
+                prepare_resolvers(test_state, &[test_state.creator_wallet.keypair.pubkey()]).await;
                 common_escrow_tests::test_cannot_cancel_before_cancellation_start(test_state).await
             }
         }
@@ -335,18 +410,42 @@ run_for_tokens!(
             #[test_context(TestState)]
             #[tokio::test]
             async fn test_rescue_all_tokens_and_close_ata(test_state: &mut TestState) {
+                prepare_resolvers(
+                    test_state,
+                    &[
+                        test_state.creator_wallet.keypair.pubkey(),
+                        test_state.recipient_wallet.keypair.pubkey(),
+                    ],
+                )
+                .await;
                 common_escrow_tests::test_rescue_all_tokens_and_close_ata(test_state).await
             }
 
             #[test_context(TestState)]
             #[tokio::test]
             async fn test_rescue_part_of_tokens_and_not_close_ata(test_state: &mut TestState) {
+                prepare_resolvers(
+                    test_state,
+                    &[
+                        test_state.creator_wallet.keypair.pubkey(),
+                        test_state.recipient_wallet.keypair.pubkey(),
+                    ],
+                )
+                .await;
                 common_escrow_tests::test_rescue_part_of_tokens_and_not_close_ata(test_state).await
             }
 
             #[test_context(TestState)]
             #[tokio::test]
             async fn test_cannot_rescue_funds_before_rescue_delay_pass(test_state: &mut TestState) {
+                prepare_resolvers(
+                    test_state,
+                    &[
+                        test_state.creator_wallet.keypair.pubkey(),
+                        test_state.recipient_wallet.keypair.pubkey(),
+                    ],
+                )
+                .await;
                 common_escrow_tests::test_cannot_rescue_funds_before_rescue_delay_pass(test_state)
                     .await
             }
@@ -354,12 +453,28 @@ run_for_tokens!(
             #[test_context(TestState)]
             #[tokio::test]
             async fn test_cannot_rescue_funds_by_non_recipient(test_state: &mut TestState) {
+                prepare_resolvers(
+                    test_state,
+                    &[
+                        test_state.creator_wallet.keypair.pubkey(),
+                        test_state.recipient_wallet.keypair.pubkey(),
+                    ],
+                )
+                .await;
                 common_escrow_tests::test_cannot_rescue_funds_by_non_recipient(test_state).await
             }
 
             #[test_context(TestState)]
             #[tokio::test]
             async fn test_cannot_rescue_funds_with_wrong_recipient_ata(test_state: &mut TestState) {
+                prepare_resolvers(
+                    test_state,
+                    &[
+                        test_state.creator_wallet.keypair.pubkey(),
+                        test_state.recipient_wallet.keypair.pubkey(),
+                    ],
+                )
+                .await;
                 common_escrow_tests::test_cannot_rescue_funds_with_wrong_recipient_ata(test_state)
                     .await
             }
@@ -367,6 +482,14 @@ run_for_tokens!(
             #[test_context(TestState)]
             #[tokio::test]
             async fn test_cannot_rescue_funds_with_wrong_escrow_ata(test_state: &mut TestState) {
+                prepare_resolvers(
+                    test_state,
+                    &[
+                        test_state.creator_wallet.keypair.pubkey(),
+                        test_state.recipient_wallet.keypair.pubkey(),
+                    ],
+                )
+                .await;
                 common_escrow_tests::test_cannot_rescue_funds_with_wrong_escrow_ata(test_state)
                     .await
             }
@@ -387,6 +510,7 @@ mod test_escrow_native {
     async fn test_escrow_creation(test_state: &mut TestState) {
         test_state.token = NATIVE_MINT;
         test_state.test_arguments.asset_is_native = true;
+        prepare_resolvers(test_state, &[test_state.creator_wallet.keypair.pubkey()]).await;
         common_escrow_tests::test_escrow_creation_native(
             test_state,
             test_state.creator_wallet.keypair.pubkey(),
@@ -397,6 +521,7 @@ mod test_escrow_native {
     #[test_context(TestState)]
     #[tokio::test]
     async fn test_escrow_creation_fails_if_token_is_not_native(test_state: &mut TestState) {
+        prepare_resolvers(test_state, &[test_state.creator_wallet.keypair.pubkey()]).await;
         test_state.test_arguments.asset_is_native = true;
         common_escrow_tests::test_escrow_creation_fails_if_token_is_not_native(test_state).await
     }
@@ -404,6 +529,7 @@ mod test_escrow_native {
     #[test_context(TestState)]
     #[tokio::test]
     async fn test_withdraw(test_state: &mut TestState) {
+        prepare_resolvers(test_state, &[test_state.creator_wallet.keypair.pubkey()]).await;
         test_state.token = NATIVE_MINT;
         test_state.test_arguments.asset_is_native = true;
         let rent_recipient = test_state.creator_wallet.keypair.pubkey();
@@ -416,6 +542,14 @@ mod test_escrow_native {
         test_state.token = NATIVE_MINT;
         test_state.test_arguments.asset_is_native = true;
         let withdrawer = test_state.recipient_wallet.keypair.insecure_clone();
+        prepare_resolvers(
+            test_state,
+            &[
+                test_state.creator_wallet.keypair.pubkey(),
+                withdrawer.pubkey(),
+            ],
+        )
+        .await;
         let rent_recipient = test_state.creator_wallet.keypair.pubkey();
         common_escrow_tests::test_public_withdraw_tokens(test_state, withdrawer, rent_recipient)
             .await
@@ -427,6 +561,14 @@ mod test_escrow_native {
         test_state.token = NATIVE_MINT;
         test_state.test_arguments.asset_is_native = true;
         let withdrawer = Keypair::new();
+        prepare_resolvers(
+            test_state,
+            &[
+                test_state.creator_wallet.keypair.pubkey(),
+                withdrawer.pubkey(),
+            ],
+        )
+        .await;
         let payer_kp = &test_state.payer_kp;
         let context = &mut test_state.context;
 
@@ -445,6 +587,7 @@ mod test_escrow_native {
     #[test_context(TestState)]
     #[tokio::test]
     async fn test_cancel(test_state: &mut TestState) {
+        prepare_resolvers(test_state, &[test_state.creator_wallet.keypair.pubkey()]).await;
         test_state.token = NATIVE_MINT;
         test_state.test_arguments.asset_is_native = true;
         common_escrow_tests::test_cancel_native(test_state).await
@@ -453,6 +596,14 @@ mod test_escrow_native {
     #[test_context(TestState)]
     #[tokio::test]
     async fn test_rescue_all_tokens_and_close_ata(test_state: &mut TestState) {
+        prepare_resolvers(
+            test_state,
+            &[
+                test_state.creator_wallet.keypair.pubkey(),
+                test_state.recipient_wallet.keypair.pubkey(),
+            ],
+        )
+        .await;
         test_state.token = NATIVE_MINT;
         test_state.test_arguments.asset_is_native = true;
         common_escrow_tests::test_rescue_all_tokens_and_close_ata(test_state).await
@@ -461,6 +612,14 @@ mod test_escrow_native {
     #[test_context(TestState)]
     #[tokio::test]
     async fn test_rescue_part_of_tokens_and_not_close_ata(test_state: &mut TestState) {
+        prepare_resolvers(
+            test_state,
+            &[
+                test_state.creator_wallet.keypair.pubkey(),
+                test_state.recipient_wallet.keypair.pubkey(),
+            ],
+        )
+        .await;
         test_state.token = NATIVE_MINT;
         test_state.test_arguments.asset_is_native = true;
         common_escrow_tests::test_rescue_part_of_tokens_and_not_close_ata(test_state).await
@@ -476,6 +635,7 @@ mod test_escrow_wrapped_native {
     #[test_context(TestState)]
     #[tokio::test]
     async fn test_escrow_creation(test_state: &mut TestState) {
+        prepare_resolvers(test_state, &[test_state.creator_wallet.keypair.pubkey()]).await;
         test_state.token = NATIVE_MINT;
         common_escrow_tests::test_escrow_creation(test_state).await
     }
@@ -483,6 +643,7 @@ mod test_escrow_wrapped_native {
     #[test_context(TestState)]
     #[tokio::test]
     async fn test_withdraw(test_state: &mut TestState) {
+        prepare_resolvers(test_state, &[test_state.creator_wallet.keypair.pubkey()]).await;
         test_state.token = NATIVE_MINT;
         let rent_recipient = test_state.creator_wallet.keypair.pubkey();
         common_escrow_tests::test_withdraw(test_state, rent_recipient).await
@@ -493,6 +654,14 @@ mod test_escrow_wrapped_native {
     async fn test_public_withdraw_by_resolver(test_state: &mut TestState) {
         test_state.token = NATIVE_MINT;
         let withdrawer = test_state.recipient_wallet.keypair.insecure_clone();
+        prepare_resolvers(
+            test_state,
+            &[
+                test_state.creator_wallet.keypair.pubkey(),
+                withdrawer.pubkey(),
+            ],
+        )
+        .await;
         let rent_recipient = test_state.creator_wallet.keypair.pubkey();
         common_escrow_tests::test_public_withdraw_tokens(test_state, withdrawer, rent_recipient)
             .await
@@ -503,6 +672,14 @@ mod test_escrow_wrapped_native {
     async fn test_public_withdraw_by_any_account(test_state: &mut TestState) {
         test_state.token = NATIVE_MINT;
         let withdrawer = Keypair::new();
+        prepare_resolvers(
+            test_state,
+            &[
+                test_state.creator_wallet.keypair.pubkey(),
+                withdrawer.pubkey(),
+            ],
+        )
+        .await;
         let payer_kp = &test_state.payer_kp;
         let context = &mut test_state.context;
 
@@ -521,6 +698,7 @@ mod test_escrow_wrapped_native {
     #[test_context(TestState)]
     #[tokio::test]
     async fn test_cancel(test_state: &mut TestState) {
+        prepare_resolvers(test_state, &[test_state.creator_wallet.keypair.pubkey()]).await;
         test_state.token = NATIVE_MINT;
         common_escrow_tests::test_cancel(test_state).await
     }
@@ -528,6 +706,14 @@ mod test_escrow_wrapped_native {
     #[test_context(TestState)]
     #[tokio::test]
     async fn test_rescue_all_tokens_and_close_ata(test_state: &mut TestState) {
+        prepare_resolvers(
+            test_state,
+            &[
+                test_state.creator_wallet.keypair.pubkey(),
+                test_state.recipient_wallet.keypair.pubkey(),
+            ],
+        )
+        .await;
         test_state.token = NATIVE_MINT;
         common_escrow_tests::test_rescue_all_tokens_and_close_ata(test_state).await
     }
@@ -535,6 +721,14 @@ mod test_escrow_wrapped_native {
     #[test_context(TestState)]
     #[tokio::test]
     async fn test_rescue_part_of_tokens_and_not_close_ata(test_state: &mut TestState) {
+        prepare_resolvers(
+            test_state,
+            &[
+                test_state.creator_wallet.keypair.pubkey(),
+                test_state.recipient_wallet.keypair.pubkey(),
+            ],
+        )
+        .await;
         test_state.token = NATIVE_MINT;
         common_escrow_tests::test_rescue_part_of_tokens_and_not_close_ata(test_state).await
     }
@@ -546,6 +740,7 @@ mod test_escrow_creation_cost {
     #[test_context(TestState)]
     #[tokio::test]
     async fn test_escrow_creation_tx_cost(test_state: &mut TestState) {
+        prepare_resolvers(test_state, &[test_state.creator_wallet.keypair.pubkey()]).await;
         common_escrow_tests::test_escrow_creation_tx_cost(test_state).await
     }
 }
