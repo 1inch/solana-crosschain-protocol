@@ -3,7 +3,7 @@ use solana_program::keccak::hashv;
 #[account]
 pub struct MerkleProof {
     pub proof: Vec<[u8; 32]>,
-    pub index: u32,
+    pub index: u64,
     pub hashed_secret: [u8; 32],
 }
 
@@ -26,8 +26,9 @@ impl MerkleProof {
 
     /// Computes the hash of the leaf using index and hashed_secret.
     fn hash_leaf(&self) -> [u8; 32] {
-        let pair_data = [&(self.index as u64).to_be_bytes(), &self.hashed_secret[..]];
-
-        hashv(&pair_data).0
+        hashv(&[
+            &self.index.to_be_bytes(),
+            &self.hashed_secret[..]
+        ]).0
     }
 }
