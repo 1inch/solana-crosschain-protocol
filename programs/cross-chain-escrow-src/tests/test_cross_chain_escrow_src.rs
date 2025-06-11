@@ -9,6 +9,7 @@ use common_tests::src_program::{
     get_create_order_tx, get_order_addresses, get_order_data_len, SrcProgram,
 };
 use common_tests::tests as common_escrow_tests;
+use common_tests::whitelist::prepare_resolvers;
 use cross_chain_escrow_src::calculate_premium;
 use solana_program_test::tokio;
 use solana_sdk::clock::Clock;
@@ -245,6 +246,8 @@ run_for_tokens!(
             #[tokio::test]
             async fn test_escrow_creation(test_state: &mut TestState) {
                 create_order(test_state).await;
+                prepare_resolvers(test_state, &[test_state.recipient_wallet.keypair.pubkey()])
+                    .await;
                 common_escrow_tests::test_escrow_creation(test_state).await;
             }
 
@@ -265,6 +268,8 @@ run_for_tokens!(
                     };
 
                 create_order(test_state).await;
+                prepare_resolvers(test_state, &[test_state.recipient_wallet.keypair.pubkey()])
+                    .await;
                 common_escrow_tests::test_escrow_creation(test_state).await
             }
 
@@ -299,6 +304,8 @@ run_for_tokens!(
                             },
                         ],
                     };
+                prepare_resolvers(test_state, &[test_state.recipient_wallet.keypair.pubkey()])
+                    .await;
                 let (_, _, tx) = create_escrow_data(test_state);
                 test_state
                     .client
@@ -328,6 +335,8 @@ run_for_tokens!(
 
                 create_order(test_state).await;
 
+                prepare_resolvers(test_state, &[test_state.recipient_wallet.keypair.pubkey()])
+                    .await;
                 let (escrow, _) = create_escrow(test_state).await;
                 let escrow_account_data = test_state
                     .client
@@ -352,6 +361,8 @@ run_for_tokens!(
                 test_state: &mut TestState,
             ) {
                 // Create an escrow account without existing order account.
+                prepare_resolvers(test_state, &[test_state.recipient_wallet.keypair.pubkey()])
+                    .await;
                 let (escrow, escrow_ata, tx) = create_escrow_data(test_state);
 
                 test_state
@@ -378,6 +389,8 @@ run_for_tokens!(
             ) {
                 test_state.test_arguments.finality_duration = u32::MAX;
                 create_order(test_state).await;
+                prepare_resolvers(test_state, &[test_state.recipient_wallet.keypair.pubkey()])
+                    .await;
                 common_escrow_tests::test_escrow_creation_fails_if_finality_duration_overflows(
                     test_state,
                 )
@@ -391,6 +404,8 @@ run_for_tokens!(
             ) {
                 test_state.test_arguments.withdrawal_duration = u32::MAX;
                 create_order(test_state).await;
+                prepare_resolvers(test_state, &[test_state.recipient_wallet.keypair.pubkey()])
+                    .await;
                 common_escrow_tests::test_escrow_creation_fails_if_withdrawal_duration_overflows(
                     test_state,
                 )
@@ -404,6 +419,8 @@ run_for_tokens!(
             ) {
                 test_state.test_arguments.public_withdrawal_duration = u32::MAX;
                 create_order(test_state).await;
+                prepare_resolvers(test_state, &[test_state.recipient_wallet.keypair.pubkey()])
+                    .await;
                 common_escrow_tests::test_escrow_creation_fails_if_public_withdrawal_duration_overflows(
                     test_state,
                 )
@@ -417,6 +434,8 @@ run_for_tokens!(
             ) {
                 test_state.test_arguments.cancellation_duration = u32::MAX;
                 create_order(test_state).await;
+                prepare_resolvers(test_state, &[test_state.recipient_wallet.keypair.pubkey()])
+                    .await;
                 let (_, _, transaction) = create_escrow_data(test_state);
 
                 test_state
@@ -431,6 +450,8 @@ run_for_tokens!(
             async fn test_escrow_creation_fails_with_expired_order(test_state: &mut TestState) {
                 create_order(test_state).await;
 
+                prepare_resolvers(test_state, &[test_state.recipient_wallet.keypair.pubkey()])
+                    .await;
                 set_time(
                     &mut test_state.context,
                     test_state.init_timestamp + test_state.test_arguments.expiration_duration + 1,
@@ -451,6 +472,8 @@ run_for_tokens!(
                 test_state: &mut TestState,
             ) {
                 create_order(test_state).await;
+                prepare_resolvers(test_state, &[test_state.recipient_wallet.keypair.pubkey()])
+                    .await;
                 test_state.test_arguments.escrow_amount =
                     test_state.test_arguments.order_amount + 1;
                 let (_, _, transaction) = create_escrow_data(test_state);
@@ -461,6 +484,22 @@ run_for_tokens!(
                     .await
                     .expect_error((0, ProgramError::Custom(EscrowError::InvalidAmount.into())));
             }
+
+            #[test_context(TestState)]
+            #[tokio::test]
+            async fn test_escrow_creation_fails_witout_resolver_access(test_state: &mut TestState) {
+                create_order(test_state).await;
+                // test_state.recipient_wallet does not have resolver access
+                let (_, _, transaction) = create_escrow_data(test_state);
+                test_state
+                    .client
+                    .process_transaction(transaction)
+                    .await
+                    .expect_error((
+                        0,
+                        ProgramError::Custom(ErrorCode::AccountNotInitialized.into()),
+                    ));
+            }
         }
 
         mod test_escrow_withdraw {
@@ -470,6 +509,8 @@ run_for_tokens!(
             async fn test_withdraw_only(test_state: &mut TestState) {
                 create_order(test_state).await;
                 let rent_recipient = test_state.recipient_wallet.keypair.pubkey();
+                prepare_resolvers(test_state, &[test_state.recipient_wallet.keypair.pubkey()])
+                    .await;
                 common_escrow_tests::test_withdraw(test_state, rent_recipient).await
             }
 
@@ -477,6 +518,8 @@ run_for_tokens!(
             #[tokio::test]
             async fn test_withdraw_does_not_work_with_wrong_secret(test_state: &mut TestState) {
                 create_order(test_state).await;
+                prepare_resolvers(test_state, &[test_state.recipient_wallet.keypair.pubkey()])
+                    .await;
                 common_escrow_tests::test_withdraw_does_not_work_with_wrong_secret(test_state).await
             }
 
@@ -484,6 +527,8 @@ run_for_tokens!(
             #[tokio::test]
             async fn test_withdraw_does_not_work_with_non_recipient(test_state: &mut TestState) {
                 create_order(test_state).await;
+                prepare_resolvers(test_state, &[test_state.recipient_wallet.keypair.pubkey()])
+                    .await;
                 common_escrow_tests::test_withdraw_does_not_work_with_non_recipient(test_state)
                     .await
             }
@@ -494,6 +539,8 @@ run_for_tokens!(
                 test_state: &mut TestState,
             ) {
                 create_order(test_state).await;
+                prepare_resolvers(test_state, &[test_state.recipient_wallet.keypair.pubkey()])
+                    .await;
                 common_escrow_tests::test_withdraw_does_not_work_with_wrong_recipient_ata(
                     test_state,
                 )
@@ -509,6 +556,8 @@ run_for_tokens!(
                 create_order(test_state).await;
                 test_state.test_arguments.order_amount -= diff_amount;
                 create_order(test_state).await;
+                prepare_resolvers(test_state, &[test_state.recipient_wallet.keypair.pubkey()])
+                    .await;
                 common_escrow_tests::test_withdraw_does_not_work_with_wrong_escrow_ata(
                     test_state, new_amount,
                 )
@@ -521,6 +570,8 @@ run_for_tokens!(
                 test_state: &mut TestState,
             ) {
                 create_order(test_state).await;
+                prepare_resolvers(test_state, &[test_state.recipient_wallet.keypair.pubkey()])
+                    .await;
                 common_escrow_tests::test_withdraw_does_not_work_before_withdrawal_start(test_state)
                     .await
             }
@@ -531,6 +582,8 @@ run_for_tokens!(
                 test_state: &mut TestState,
             ) {
                 create_order(test_state).await;
+                prepare_resolvers(test_state, &[test_state.recipient_wallet.keypair.pubkey()])
+                    .await;
                 common_escrow_tests::test_withdraw_does_not_work_after_cancellation_start(
                     test_state,
                 )
@@ -546,6 +599,8 @@ run_for_tokens!(
             async fn test_public_withdraw_tokens_by_recipient(test_state: &mut TestState) {
                 create_order(test_state).await;
                 let rent_recipient = test_state.recipient_wallet.keypair.pubkey();
+                prepare_resolvers(test_state, &[test_state.recipient_wallet.keypair.pubkey()])
+                    .await;
                 common_escrow_tests::test_public_withdraw_tokens(
                     test_state,
                     test_state.recipient_wallet.keypair.insecure_clone(),
@@ -559,6 +614,14 @@ run_for_tokens!(
             async fn test_public_withdraw_tokens_by_any_account(test_state: &mut TestState) {
                 create_order(test_state).await;
                 let withdrawer = Keypair::new();
+                prepare_resolvers(
+                    test_state,
+                    &[
+                        test_state.recipient_wallet.keypair.pubkey(),
+                        withdrawer.pubkey(),
+                    ],
+                )
+                .await;
                 transfer_lamports(
                     &mut test_state.context,
                     WALLET_DEFAULT_LAMPORTS,
@@ -579,6 +642,14 @@ run_for_tokens!(
             #[tokio::test]
             async fn test_public_withdraw_fails_with_wrong_secret(test_state: &mut TestState) {
                 create_order(test_state).await;
+                prepare_resolvers(
+                    test_state,
+                    &[
+                        test_state.recipient_wallet.keypair.pubkey(),
+                        test_state.context.payer.pubkey(),
+                    ],
+                )
+                .await;
                 common_escrow_tests::test_public_withdraw_fails_with_wrong_secret(test_state).await
             }
 
@@ -588,6 +659,8 @@ run_for_tokens!(
                 test_state: &mut TestState,
             ) {
                 create_order(test_state).await;
+                prepare_resolvers(test_state, &[test_state.recipient_wallet.keypair.pubkey()])
+                    .await;
                 common_escrow_tests::test_public_withdraw_fails_with_wrong_recipient_ata(test_state)
                     .await
             }
@@ -601,6 +674,8 @@ run_for_tokens!(
                 create_order(test_state).await;
                 test_state.test_arguments.order_amount -= diff;
                 create_order(test_state).await;
+                prepare_resolvers(test_state, &[test_state.recipient_wallet.keypair.pubkey()])
+                    .await;
                 common_escrow_tests::test_public_withdraw_fails_with_wrong_escrow_ata(
                     test_state, new_amount,
                 )
@@ -613,6 +688,14 @@ run_for_tokens!(
                 test_state: &mut TestState,
             ) {
                 create_order(test_state).await;
+                prepare_resolvers(
+                    test_state,
+                    &[
+                        test_state.recipient_wallet.keypair.pubkey(),
+                        test_state.context.payer.pubkey(),
+                    ],
+                )
+                .await;
                 common_escrow_tests::test_public_withdraw_fails_before_start_of_public_withdraw(
                     test_state,
                 )
@@ -625,8 +708,45 @@ run_for_tokens!(
                 test_state: &mut TestState,
             ) {
                 create_order(test_state).await;
+                prepare_resolvers(
+                    test_state,
+                    &[
+                        test_state.recipient_wallet.keypair.pubkey(),
+                        test_state.context.payer.pubkey(),
+                    ],
+                )
+                .await;
                 common_escrow_tests::test_public_withdraw_fails_after_cancellation_start(test_state)
                     .await
+            }
+
+            #[test_context(TestState)]
+            #[tokio::test]
+            async fn test_public_withdraw_fails_without_resolver_access(
+                test_state: &mut TestState,
+            ) {
+                create_order(test_state).await;
+                prepare_resolvers(test_state, &[test_state.recipient_wallet.keypair.pubkey()])
+                    .await;
+                let (escrow, escrow_ata) = create_escrow(test_state).await;
+
+                let withdrawer = Keypair::new();
+                // withdrawer does not have resolver access
+                let transaction = SrcProgram::get_public_withdraw_tx(
+                    test_state,
+                    &escrow,
+                    &escrow_ata,
+                    &withdrawer,
+                );
+
+                test_state
+                    .client
+                    .process_transaction(transaction)
+                    .await
+                    .expect_error((
+                        0,
+                        ProgramError::Custom(ErrorCode::AccountNotInitialized.into()),
+                    ));
             }
         }
 
@@ -637,6 +757,8 @@ run_for_tokens!(
             #[tokio::test]
             async fn test_cancel(test_state: &mut TestState) {
                 create_order(test_state).await;
+                prepare_resolvers(test_state, &[test_state.recipient_wallet.keypair.pubkey()])
+                    .await;
                 common_escrow_tests::test_cancel(test_state).await
             }
 
@@ -644,6 +766,8 @@ run_for_tokens!(
             #[tokio::test]
             async fn test_cannot_cancel_by_non_creator(test_state: &mut TestState) {
                 create_order(test_state).await;
+                prepare_resolvers(test_state, &[test_state.recipient_wallet.keypair.pubkey()])
+                    .await;
                 common_escrow_tests::test_cannot_cancel_by_non_creator(test_state).await
             }
 
@@ -651,6 +775,8 @@ run_for_tokens!(
             #[tokio::test]
             async fn test_cannot_cancel_with_wrong_creator_ata(test_state: &mut TestState) {
                 create_order(test_state).await;
+                prepare_resolvers(test_state, &[test_state.recipient_wallet.keypair.pubkey()])
+                    .await;
                 common_escrow_tests::test_cannot_cancel_with_wrong_creator_ata(test_state).await
             }
 
@@ -658,6 +784,8 @@ run_for_tokens!(
             #[tokio::test]
             async fn test_cannot_cancel_with_wrong_escrow_ata(test_state: &mut TestState) {
                 create_order(test_state).await;
+                prepare_resolvers(test_state, &[test_state.recipient_wallet.keypair.pubkey()])
+                    .await;
                 let (escrow, _) = create_escrow(test_state).await;
 
                 test_state.test_arguments.order_amount += 1;
@@ -682,6 +810,8 @@ run_for_tokens!(
             #[tokio::test]
             async fn test_cannot_cancel_before_cancellation_start(test_state: &mut TestState) {
                 create_order(test_state).await;
+                prepare_resolvers(test_state, &[test_state.recipient_wallet.keypair.pubkey()])
+                    .await;
                 common_escrow_tests::test_cannot_cancel_before_cancellation_start(test_state).await
             }
         }
@@ -692,6 +822,8 @@ run_for_tokens!(
             #[test_context(TestState)]
             #[tokio::test]
             async fn test_order_cancel(test_state: &mut TestState) {
+                prepare_resolvers(test_state, &[test_state.recipient_wallet.keypair.pubkey()])
+                    .await;
                 local_helpers::test_order_cancel(test_state).await;
             }
         }
@@ -704,6 +836,8 @@ run_for_tokens!(
             async fn test_cancel_by_resolver_for_free_at_the_auction_start(
                 test_state: &mut TestState,
             ) {
+                prepare_resolvers(test_state, &[test_state.recipient_wallet.keypair.pubkey()])
+                    .await;
                 local_helpers::test_cancel_by_resolver_for_free_at_the_auction_start(test_state)
                     .await;
             }
@@ -718,6 +852,8 @@ run_for_tokens!(
             #[test_context(TestState)]
             #[tokio::test]
             async fn test_cancel_by_resolver_after_auction(test_state: &mut TestState) {
+                prepare_resolvers(test_state, &[test_state.recipient_wallet.keypair.pubkey()])
+                    .await;
                 local_helpers::test_cancel_by_resolver_after_auction(test_state).await;
             }
 
@@ -726,6 +862,8 @@ run_for_tokens!(
             async fn test_cancel_by_resolver_reward_less_then_auction_calculated(
                 test_state: &mut TestState,
             ) {
+                prepare_resolvers(test_state, &[test_state.recipient_wallet.keypair.pubkey()])
+                    .await;
                 local_helpers::test_cancel_by_resolver_reward_less_then_auction_calculated(
                     test_state,
                 )
@@ -739,6 +877,8 @@ run_for_tokens!(
             ) {
                 let (order, order_ata) = create_order(test_state).await;
 
+                prepare_resolvers(test_state, &[test_state.recipient_wallet.keypair.pubkey()])
+                    .await;
                 let transaction =
                     get_cancel_order_by_resolver_tx(test_state, &order, &order_ata, None);
 
@@ -749,6 +889,25 @@ run_for_tokens!(
                     .expect_error((0, ProgramError::Custom(EscrowError::OrderNotExpired.into())));
             }
 
+            #[test_context(TestState)]
+            #[tokio::test]
+            async fn test_cancel_by_resolver_fails_without_resolver_access(
+                test_state: &mut TestState,
+            ) {
+                let (order, order_ata) = create_order(test_state).await;
+                // test_state.recipient_wallet does not have resolver access
+                let transaction =
+                    get_cancel_order_by_resolver_tx(test_state, &order, &order_ata, None);
+                test_state
+                    .client
+                    .process_transaction(transaction)
+                    .await
+                    .expect_error((
+                        0,
+                        ProgramError::Custom(ErrorCode::AccountNotInitialized.into()),
+                    ));
+            }
+
             mod test_order_public_cancel {
                 use super::local_helpers::*;
                 use super::*;
@@ -756,6 +915,8 @@ run_for_tokens!(
                 #[test_context(TestState)]
                 #[tokio::test]
                 async fn test_public_cancel_by_taker(test_state: &mut TestState) {
+                    prepare_resolvers(test_state, &[test_state.recipient_wallet.keypair.pubkey()])
+                        .await;
                     test_public_cancel_escrow(
                         test_state,
                         &test_state.recipient_wallet.keypair.insecure_clone(),
@@ -775,6 +936,14 @@ run_for_tokens!(
                     )
                     .await;
 
+                    prepare_resolvers(
+                        test_state,
+                        &[
+                            test_state.recipient_wallet.keypair.pubkey(),
+                            canceller.pubkey(),
+                        ],
+                    )
+                    .await;
                     test_public_cancel_escrow(test_state, &canceller).await;
                 }
 
@@ -784,6 +953,14 @@ run_for_tokens!(
                     test_state: &mut TestState,
                 ) {
                     create_order(test_state).await;
+                    prepare_resolvers(
+                        test_state,
+                        &[
+                            test_state.recipient_wallet.keypair.pubkey(),
+                            test_state.payer_kp.pubkey(),
+                        ],
+                    )
+                    .await;
                     let (escrow, escrow_ata) = create_escrow(test_state).await;
                     let transaction = create_public_escrow_cancel_tx(
                         test_state,
@@ -801,7 +978,43 @@ run_for_tokens!(
                         .client
                         .process_transaction(transaction)
                         .await
-                        .expect_error((0, ProgramError::Custom(EscrowError::InvalidTime.into())))
+                        .expect_error((0, ProgramError::Custom(EscrowError::InvalidTime.into())));
+                }
+
+                #[test_context(TestState)]
+                #[tokio::test]
+                async fn test_public_cancel_fails_without_resolver_access(
+                    test_state: &mut TestState,
+                ) {
+                    let canceller = Keypair::new();
+                    transfer_lamports(
+                        &mut test_state.context,
+                        WALLET_DEFAULT_LAMPORTS,
+                        &test_state.payer_kp,
+                        &canceller.pubkey(),
+                    )
+                    .await;
+
+                    create_order(test_state).await;
+                    prepare_resolvers(test_state, &[test_state.recipient_wallet.keypair.pubkey()])
+                        .await;
+                    let (escrow, escrow_ata) = create_escrow(test_state).await;
+
+                    // canceller does not have resolver access
+                    let transaction = create_public_escrow_cancel_tx(
+                        test_state,
+                        &escrow,
+                        &escrow_ata,
+                        &canceller,
+                    );
+                    test_state
+                        .client
+                        .process_transaction(transaction)
+                        .await
+                        .expect_error((
+                            0,
+                            ProgramError::Custom(ErrorCode::AccountNotInitialized.into()),
+                        ));
                 }
             }
 
@@ -813,6 +1026,8 @@ run_for_tokens!(
                 async fn test_rescue_all_tokens_from_order_and_close_ata(
                     test_state: &mut TestState,
                 ) {
+                    prepare_resolvers(test_state, &[test_state.recipient_wallet.keypair.pubkey()])
+                        .await;
                     local_helpers::test_rescue_all_tokens_from_order_and_close_ata(test_state).await
                 }
 
@@ -821,6 +1036,8 @@ run_for_tokens!(
                 async fn test_rescue_part_of_tokens_from_order_and_not_close_ata(
                     test_state: &mut TestState,
                 ) {
+                    prepare_resolvers(test_state, &[test_state.recipient_wallet.keypair.pubkey()])
+                        .await;
                     local_helpers::test_rescue_part_of_tokens_from_order_and_not_close_ata(
                         test_state,
                     )
@@ -832,23 +1049,32 @@ run_for_tokens!(
                 async fn test_cannot_rescue_funds_from_order_before_rescue_delay_pass(
                     test_state: &mut TestState,
                 ) {
+                    prepare_resolvers(test_state, &[test_state.recipient_wallet.keypair.pubkey()])
+                        .await;
                     local_helpers::test_cannot_rescue_funds_from_order_before_rescue_delay_pass(
                         test_state,
                     )
                     .await
                 }
 
-                // #[test_context(TestState)]
-                // #[tokio::test]
-                // async fn test_cannot_rescue_funds_from_order_by_non_recipient(test_state: &mut TestState) { // TODO: return after implement whitelist
-                //     local_helpers::test_cannot_rescue_funds_from_order_by_non_recipient(test_state).await
-                // }
+                #[test_context(TestState)]
+                #[tokio::test]
+                async fn test_cannot_rescue_funds_from_order_by_non_whitelisted_resolver(
+                    test_state: &mut TestState,
+                ) {
+                    local_helpers::test_cannot_rescue_funds_from_order_by_non_whitelisted_resolver(
+                        test_state,
+                    )
+                    .await
+                }
 
                 #[test_context(TestState)]
                 #[tokio::test]
                 async fn test_cannot_rescue_funds_from_order_with_wrong_recipient_ata(
                     test_state: &mut TestState,
                 ) {
+                    prepare_resolvers(test_state, &[test_state.recipient_wallet.keypair.pubkey()])
+                        .await;
                     local_helpers::test_cannot_rescue_funds_from_order_with_wrong_recipient_ata(
                         test_state,
                     )
@@ -860,6 +1086,8 @@ run_for_tokens!(
                 async fn test_cannot_rescue_funds_from_order_with_wrong_order_ata(
                     test_state: &mut TestState,
                 ) {
+                    prepare_resolvers(test_state, &[test_state.recipient_wallet.keypair.pubkey()])
+                        .await;
                     local_helpers::test_cannot_rescue_funds_from_order_with_wrong_orders_ata(
                         test_state,
                     )
@@ -874,6 +1102,8 @@ run_for_tokens!(
                 #[tokio::test]
                 async fn test_rescue_all_tokens_and_close_ata(test_state: &mut TestState) {
                     create_order(test_state).await;
+                    prepare_resolvers(test_state, &[test_state.recipient_wallet.keypair.pubkey()])
+                        .await;
                     common_escrow_tests::test_rescue_all_tokens_and_close_ata(test_state).await
                 }
 
@@ -881,6 +1111,8 @@ run_for_tokens!(
                 #[tokio::test]
                 async fn test_rescue_part_of_tokens_and_not_close_ata(test_state: &mut TestState) {
                     create_order(test_state).await;
+                    prepare_resolvers(test_state, &[test_state.recipient_wallet.keypair.pubkey()])
+                        .await;
                     common_escrow_tests::test_rescue_part_of_tokens_and_not_close_ata(test_state)
                         .await
                 }
@@ -891,6 +1123,8 @@ run_for_tokens!(
                     test_state: &mut TestState,
                 ) {
                     create_order(test_state).await;
+                    prepare_resolvers(test_state, &[test_state.recipient_wallet.keypair.pubkey()])
+                        .await;
                     common_escrow_tests::test_cannot_rescue_funds_before_rescue_delay_pass(
                         test_state,
                     )
@@ -901,6 +1135,8 @@ run_for_tokens!(
                 #[tokio::test]
                 async fn test_cannot_rescue_funds_by_non_recipient(test_state: &mut TestState) {
                     create_order(test_state).await;
+                    prepare_resolvers(test_state, &[test_state.recipient_wallet.keypair.pubkey()])
+                        .await;
                     common_escrow_tests::test_cannot_rescue_funds_by_non_recipient(test_state).await
                 }
 
@@ -910,6 +1146,8 @@ run_for_tokens!(
                     test_state: &mut TestState,
                 ) {
                     create_order(test_state).await;
+                    prepare_resolvers(test_state, &[test_state.recipient_wallet.keypair.pubkey()])
+                        .await;
                     common_escrow_tests::test_cannot_rescue_funds_with_wrong_recipient_ata(
                         test_state,
                     )
@@ -920,6 +1158,8 @@ run_for_tokens!(
                 #[tokio::test]
                 async fn test_cannot_rescue_funds_with_wrong_order_ata(test_state: &mut TestState) {
                     create_order(test_state).await;
+                    prepare_resolvers(test_state, &[test_state.recipient_wallet.keypair.pubkey()])
+                        .await;
                     common_escrow_tests::test_cannot_rescue_funds_with_wrong_escrow_ata(test_state)
                         .await
                 }
@@ -931,6 +1171,8 @@ run_for_tokens!(
                 #[test_context(TestState)]
                 #[tokio::test]
                 async fn test_order_creation_tx_cost(test_state: &mut TestState) {
+                    prepare_resolvers(test_state, &[test_state.recipient_wallet.keypair.pubkey()])
+                        .await;
                     common_escrow_tests::test_escrow_creation_tx_cost(test_state).await
                 }
             }
@@ -942,6 +1184,7 @@ mod local_helpers {
     use super::*;
 
     use anchor_lang::InstructionData;
+    use common_tests::whitelist::get_whitelist_access_address;
     use cross_chain_escrow_src::merkle_tree::MerkleProof;
     use solana_program::instruction::{AccountMeta, Instruction};
     use solana_program::pubkey::Pubkey;
@@ -964,6 +1207,7 @@ mod local_helpers {
             InstructionData::data(&cross_chain_escrow_src::instruction::PublicCancelEscrow {});
 
         let (creator_ata, _) = find_user_ata(test_state);
+        let (whitelist_access, _) = get_whitelist_access_address(&canceller.pubkey());
 
         let instruction: Instruction = Instruction {
             program_id: cross_chain_escrow_src::id(),
@@ -972,6 +1216,7 @@ mod local_helpers {
                 AccountMeta::new(test_state.creator_wallet.keypair.pubkey(), false),
                 AccountMeta::new_readonly(test_state.token, false),
                 AccountMeta::new(canceller.pubkey(), true),
+                AccountMeta::new_readonly(whitelist_access, false),
                 AccountMeta::new(*escrow, false),
                 AccountMeta::new(*escrow_ata, false),
                 AccountMeta::new(creator_ata, false),
@@ -1150,10 +1395,14 @@ mod local_helpers {
                 rescue_amount: test_state.test_arguments.rescue_amount,
             });
 
+        let (whitelist_access, _) =
+            get_whitelist_access_address(&test_state.recipient_wallet.keypair.pubkey());
+
         let instruction: Instruction = Instruction {
             program_id: cross_chain_escrow_src::id(),
             accounts: vec![
                 AccountMeta::new(test_state.recipient_wallet.keypair.pubkey(), true),
+                AccountMeta::new_readonly(whitelist_access, false),
                 AccountMeta::new_readonly(*token_to_rescue, false),
                 AccountMeta::new(*order, false),
                 AccountMeta::new(*order_ata, false),
@@ -1344,8 +1593,9 @@ mod local_helpers {
             .expect_error((0, ProgramError::Custom(EscrowError::InvalidTime.into())));
     }
 
-    pub async fn _test_cannot_rescue_funds_from_order_by_non_recipient<S: TokenVariant>(
-        // TODO: use after implement whitelist
+    pub async fn test_cannot_rescue_funds_from_order_by_non_whitelisted_resolver<
+        S: TokenVariant,
+    >(
         test_state: &mut TestStateBase<SrcProgram, S>,
     ) {
         let (order, _) = create_order(test_state).await;
@@ -1389,7 +1639,10 @@ mod local_helpers {
             .client
             .process_transaction(transaction)
             .await
-            .expect_error((0, ProgramError::Custom(ErrorCode::ConstraintSeeds.into())))
+            .expect_error((
+                0,
+                ProgramError::Custom(ErrorCode::AccountNotInitialized.into()),
+            ))
     }
 
     pub async fn test_cannot_rescue_funds_from_order_with_wrong_recipient_ata<S: TokenVariant>(
@@ -1579,6 +1832,11 @@ mod local_helpers {
                         / (100 * 100)
             })
             .collect();
+        prepare_resolvers(
+            init_test_state,
+            &[init_test_state.recipient_wallet.keypair.pubkey()],
+        )
+        .await;
 
         for &cancellation_point in &cancellation_points {
             let max_cancellation_premiums: Vec<f64> = vec![1.0, 2.5, 7.5]
@@ -1592,6 +1850,8 @@ mod local_helpers {
                 // Create a new test state for each cancellation point and premium
                 let mut test_state =
                     local_helpers::reset_test_state(PhantomData::<TestState>).await;
+                prepare_resolvers(&test_state, &[test_state.recipient_wallet.keypair.pubkey()])
+                    .await;
 
                 // Set max cancellation premium
                 test_state.test_arguments.max_cancellation_premium =
@@ -1909,6 +2169,7 @@ mod test_native_src {
         test_state.token = NATIVE_MINT;
         test_state.test_arguments.asset_is_native = true;
         create_order(test_state).await;
+        prepare_resolvers(test_state, &[test_state.recipient_wallet.keypair.pubkey()]).await;
         common_escrow_tests::test_escrow_creation_native(
             test_state,
             test_state.recipient_wallet.keypair.pubkey(),
@@ -1938,6 +2199,7 @@ mod test_native_src {
         test_state.test_arguments.asset_is_native = true;
         create_order(test_state).await;
         let rent_recipient = test_state.recipient_wallet.keypair.pubkey();
+        prepare_resolvers(test_state, &[test_state.recipient_wallet.keypair.pubkey()]).await;
         common_escrow_tests::test_withdraw(test_state, rent_recipient).await
     }
 
@@ -1949,6 +2211,7 @@ mod test_native_src {
         create_order(test_state).await;
         let withdrawer = test_state.recipient_wallet.keypair.insecure_clone();
         let rent_recipient = test_state.recipient_wallet.keypair.pubkey();
+        prepare_resolvers(test_state, &[test_state.recipient_wallet.keypair.pubkey()]).await;
         common_escrow_tests::test_public_withdraw_tokens(test_state, withdrawer, rent_recipient)
             .await
     }
@@ -1971,6 +2234,14 @@ mod test_native_src {
         )
         .await;
         let rent_recipient = test_state.recipient_wallet.keypair.pubkey();
+        prepare_resolvers(
+            test_state,
+            &[
+                test_state.recipient_wallet.keypair.pubkey(),
+                withdrawer.pubkey(),
+            ],
+        )
+        .await;
         common_escrow_tests::test_public_withdraw_tokens(test_state, withdrawer, rent_recipient)
             .await
     }
@@ -1980,6 +2251,7 @@ mod test_native_src {
     async fn test_order_cancel(test_state: &mut TestState) {
         test_state.token = NATIVE_MINT;
         test_state.test_arguments.asset_is_native = true;
+        prepare_resolvers(test_state, &[test_state.recipient_wallet.keypair.pubkey()]).await;
         local_helpers::test_order_cancel(test_state).await;
     }
 
@@ -2016,6 +2288,7 @@ mod test_native_src {
     async fn test_cancel_by_resolver_for_free_at_the_auction_start(test_state: &mut TestState) {
         test_state.token = NATIVE_MINT;
         test_state.test_arguments.asset_is_native = true;
+        prepare_resolvers(test_state, &[test_state.recipient_wallet.keypair.pubkey()]).await;
         local_helpers::test_cancel_by_resolver_for_free_at_the_auction_start(test_state).await;
     }
 
@@ -2035,6 +2308,7 @@ mod test_native_src {
     async fn test_cancel_by_resolver_after_auction(test_state: &mut TestState) {
         test_state.token = NATIVE_MINT;
         test_state.test_arguments.asset_is_native = true;
+        prepare_resolvers(test_state, &[test_state.recipient_wallet.keypair.pubkey()]).await;
         local_helpers::test_cancel_by_resolver_after_auction(test_state).await;
     }
 
@@ -2045,6 +2319,7 @@ mod test_native_src {
     ) {
         test_state.token = NATIVE_MINT;
         test_state.test_arguments.asset_is_native = true;
+        prepare_resolvers(test_state, &[test_state.recipient_wallet.keypair.pubkey()]).await;
         local_helpers::test_cancel_by_resolver_reward_less_then_auction_calculated(test_state)
             .await;
     }
@@ -2058,6 +2333,7 @@ mod test_native_src {
         test_state.test_arguments.asset_is_native = true;
         let (order, order_ata) = create_order(test_state).await;
 
+        prepare_resolvers(test_state, &[test_state.recipient_wallet.keypair.pubkey()]).await;
         set_time(
             &mut test_state.context,
             test_state.init_timestamp + test_state.test_arguments.expiration_duration,
@@ -2086,6 +2362,7 @@ mod test_native_src {
         test_state.token = NATIVE_MINT;
         test_state.test_arguments.asset_is_native = true;
         create_order(test_state).await;
+        prepare_resolvers(test_state, &[test_state.recipient_wallet.keypair.pubkey()]).await;
         common_escrow_tests::test_cancel_native(test_state).await
     }
 
@@ -2095,9 +2372,18 @@ mod test_native_src {
         test_state.token = NATIVE_MINT;
         test_state.test_arguments.asset_is_native = true;
         create_order(test_state).await;
-        let (escrow, escrow_ata) = create_escrow(test_state).await;
 
         let canceller = Keypair::new();
+        prepare_resolvers(
+            test_state,
+            &[
+                test_state.recipient_wallet.keypair.pubkey(),
+                canceller.pubkey(),
+            ],
+        )
+        .await;
+
+        let (escrow, escrow_ata) = create_escrow(test_state).await;
         transfer_lamports(
             &mut test_state.context,
             WALLET_DEFAULT_LAMPORTS,
@@ -2162,6 +2448,7 @@ mod test_native_src {
         test_state.token = NATIVE_MINT;
         test_state.test_arguments.asset_is_native = true;
         create_order(test_state).await;
+        prepare_resolvers(test_state, &[test_state.recipient_wallet.keypair.pubkey()]).await;
         common_escrow_tests::test_rescue_all_tokens_and_close_ata(test_state).await
     }
 
@@ -2171,6 +2458,7 @@ mod test_native_src {
         test_state.token = NATIVE_MINT;
         test_state.test_arguments.asset_is_native = true;
         create_order(test_state).await;
+        prepare_resolvers(test_state, &[test_state.recipient_wallet.keypair.pubkey()]).await;
         common_escrow_tests::test_rescue_part_of_tokens_and_not_close_ata(test_state).await
     }
 
@@ -2179,6 +2467,7 @@ mod test_native_src {
     async fn test_rescue_all_tokens_from_order_and_close_ata(test_state: &mut TestState) {
         test_state.token = NATIVE_MINT;
         test_state.test_arguments.asset_is_native = true;
+        prepare_resolvers(test_state, &[test_state.recipient_wallet.keypair.pubkey()]).await;
         local_helpers::test_rescue_all_tokens_from_order_and_close_ata(test_state).await
     }
 
@@ -2187,6 +2476,7 @@ mod test_native_src {
     async fn test_rescue_part_of_tokens_from_order_and_not_close_ata(test_state: &mut TestState) {
         test_state.token = NATIVE_MINT;
         test_state.test_arguments.asset_is_native = true;
+        prepare_resolvers(test_state, &[test_state.recipient_wallet.keypair.pubkey()]).await;
         local_helpers::test_rescue_part_of_tokens_from_order_and_not_close_ata(test_state).await
     }
 }
@@ -2201,6 +2491,7 @@ mod test_wrapped_native {
     #[tokio::test]
     async fn test_order_creation(test_state: &mut TestState) {
         test_state.token = NATIVE_MINT;
+        prepare_resolvers(test_state, &[test_state.recipient_wallet.keypair.pubkey()]).await;
         local_helpers::test_order_creation(test_state).await
     }
 
@@ -2209,6 +2500,7 @@ mod test_wrapped_native {
     async fn test_escrow_creation(test_state: &mut TestState) {
         test_state.token = NATIVE_MINT;
         create_order(test_state).await;
+        prepare_resolvers(test_state, &[test_state.recipient_wallet.keypair.pubkey()]).await;
         common_escrow_tests::test_escrow_creation(test_state).await
     }
 
@@ -2218,6 +2510,7 @@ mod test_wrapped_native {
         test_state.token = NATIVE_MINT;
         create_order(test_state).await;
         let rent_recipient = test_state.recipient_wallet.keypair.pubkey();
+        prepare_resolvers(test_state, &[test_state.recipient_wallet.keypair.pubkey()]).await;
         common_escrow_tests::test_withdraw(test_state, rent_recipient).await
     }
 
@@ -2228,6 +2521,7 @@ mod test_wrapped_native {
         create_order(test_state).await;
         let withdrawer = test_state.recipient_wallet.keypair.insecure_clone();
         let rent_recipient = test_state.recipient_wallet.keypair.pubkey();
+        prepare_resolvers(test_state, &[test_state.recipient_wallet.keypair.pubkey()]).await;
         common_escrow_tests::test_public_withdraw_tokens(test_state, withdrawer, rent_recipient)
             .await
     }
@@ -2249,6 +2543,14 @@ mod test_wrapped_native {
         )
         .await;
         let rent_recipient = test_state.recipient_wallet.keypair.pubkey();
+        prepare_resolvers(
+            test_state,
+            &[
+                test_state.recipient_wallet.keypair.pubkey(),
+                withdrawer.pubkey(),
+            ],
+        )
+        .await;
         common_escrow_tests::test_public_withdraw_tokens(test_state, withdrawer, rent_recipient)
             .await
     }
@@ -2291,12 +2593,14 @@ mod test_wrapped_native {
     #[tokio::test]
     async fn test_cancel_by_resolver_for_free_at_the_auction_start(test_state: &mut TestState) {
         test_state.token = NATIVE_MINT;
+        prepare_resolvers(test_state, &[test_state.recipient_wallet.keypair.pubkey()]).await;
         local_helpers::test_cancel_by_resolver_for_free_at_the_auction_start(test_state).await;
     }
 
     #[test_context(TestState)]
     #[tokio::test]
     async fn test_cancel_by_resolver_at_different_points(test_state: &mut TestState) {
+        prepare_resolvers(test_state, &[test_state.recipient_wallet.keypair.pubkey()]).await;
         local_helpers::test_cancel_by_resolver_at_different_points(
             test_state,
             false,
@@ -2309,6 +2613,7 @@ mod test_wrapped_native {
     #[tokio::test]
     async fn test_cancel_by_resolver_after_auction(test_state: &mut TestState) {
         test_state.token = NATIVE_MINT;
+        prepare_resolvers(test_state, &[test_state.recipient_wallet.keypair.pubkey()]).await;
         local_helpers::test_cancel_by_resolver_after_auction(test_state).await;
     }
 
@@ -2318,6 +2623,7 @@ mod test_wrapped_native {
         test_state: &mut TestState,
     ) {
         test_state.token = NATIVE_MINT;
+        prepare_resolvers(test_state, &[test_state.recipient_wallet.keypair.pubkey()]).await;
         local_helpers::test_cancel_by_resolver_reward_less_then_auction_calculated(test_state)
             .await;
     }
@@ -2330,6 +2636,7 @@ mod test_wrapped_native {
         test_state.token = NATIVE_MINT;
         let (order, order_ata) = create_order(test_state).await;
 
+        prepare_resolvers(test_state, &[test_state.recipient_wallet.keypair.pubkey()]).await;
         set_time(
             &mut test_state.context,
             test_state.init_timestamp + test_state.test_arguments.expiration_duration,
@@ -2357,6 +2664,7 @@ mod test_wrapped_native {
     async fn test_cancel(test_state: &mut TestState) {
         test_state.token = NATIVE_MINT;
         create_order(test_state).await;
+        prepare_resolvers(test_state, &[test_state.recipient_wallet.keypair.pubkey()]).await;
         common_escrow_tests::test_cancel(test_state).await
     }
 
@@ -2367,9 +2675,17 @@ mod test_wrapped_native {
 
         create_order(test_state).await;
 
+        let canceller = Keypair::new();
+        prepare_resolvers(
+            test_state,
+            &[
+                test_state.recipient_wallet.keypair.pubkey(),
+                canceller.pubkey(),
+            ],
+        )
+        .await;
         let (escrow, escrow_ata) = create_escrow(test_state).await;
 
-        let canceller = Keypair::new();
         transfer_lamports(
             &mut test_state.context,
             WALLET_DEFAULT_LAMPORTS,
@@ -2433,6 +2749,7 @@ mod test_wrapped_native {
     async fn test_rescue_all_tokens_and_close_ata(test_state: &mut TestState) {
         test_state.token = NATIVE_MINT;
         create_order(test_state).await;
+        prepare_resolvers(test_state, &[test_state.recipient_wallet.keypair.pubkey()]).await;
         common_escrow_tests::test_rescue_all_tokens_and_close_ata(test_state).await
     }
 
@@ -2441,6 +2758,7 @@ mod test_wrapped_native {
     async fn test_rescue_part_of_tokens_and_not_close_ata(test_state: &mut TestState) {
         test_state.token = NATIVE_MINT;
         create_order(test_state).await;
+        prepare_resolvers(test_state, &[test_state.recipient_wallet.keypair.pubkey()]).await;
         common_escrow_tests::test_rescue_part_of_tokens_and_not_close_ata(test_state).await
     }
 }
@@ -2459,6 +2777,7 @@ mod test_partial_fill_escrow_creation {
     #[tokio::test]
     async fn test_create_escrow_with_merkle_proof_and_leaf_validation(test_state: &mut TestState) {
         let (order, order_ata) = create_order_for_partial_fill(test_state).await;
+        prepare_resolvers(test_state, &[test_state.recipient_wallet.keypair.pubkey()]).await;
 
         let escrow_amount = DEFAULT_ESCROW_AMOUNT / DEFAULT_PARTS_AMOUNT_FOR_MULTIPLE * 3;
         create_escrow_for_partial_fill(test_state, escrow_amount).await;
@@ -2475,6 +2794,7 @@ mod test_partial_fill_escrow_creation {
     #[tokio::test]
     async fn test_create_two_escrows_for_separate_parts(test_state: &mut TestState) {
         let (order, order_ata) = create_order_for_partial_fill(test_state).await;
+        prepare_resolvers(test_state, &[test_state.recipient_wallet.keypair.pubkey()]).await;
 
         let escrow_amount = DEFAULT_ESCROW_AMOUNT / DEFAULT_PARTS_AMOUNT_FOR_MULTIPLE;
         create_escrow_for_partial_fill(test_state, escrow_amount).await;
@@ -2494,6 +2814,7 @@ mod test_partial_fill_escrow_creation {
         test_state: &mut TestState,
     ) {
         let (order, order_ata) = create_order_for_partial_fill(test_state).await;
+        prepare_resolvers(test_state, &[test_state.recipient_wallet.keypair.pubkey()]).await;
 
         create_escrow_for_partial_fill(test_state, DEFAULT_ESCROW_AMOUNT).await;
 
@@ -2509,6 +2830,7 @@ mod test_partial_fill_escrow_creation {
     #[tokio::test]
     async fn test_create_two_escrows_for_full_order(test_state: &mut TestState) {
         let (order, order_ata) = create_order_for_partial_fill(test_state).await;
+        prepare_resolvers(test_state, &[test_state.recipient_wallet.keypair.pubkey()]).await;
 
         let escrow_amount = DEFAULT_ESCROW_AMOUNT / DEFAULT_PARTS_AMOUNT_FOR_MULTIPLE;
         create_escrow_for_partial_fill(test_state, escrow_amount).await;
@@ -2532,6 +2854,7 @@ mod test_partial_fill_escrow_creation {
         test_state: &mut TestState,
     ) {
         create_order_for_partial_fill(test_state).await;
+        prepare_resolvers(test_state, &[test_state.recipient_wallet.keypair.pubkey()]).await;
         let escrow_amount = DEFAULT_ESCROW_AMOUNT / DEFAULT_PARTS_AMOUNT_FOR_MULTIPLE * 3;
         create_escrow_for_partial_fill(test_state, escrow_amount).await;
         let (_, _, transaction) = create_escrow_for_partial_fill_data(
@@ -2553,6 +2876,7 @@ mod test_partial_fill_escrow_creation {
         test_state: &mut TestState,
     ) {
         create_order_for_partial_fill(test_state).await;
+        prepare_resolvers(test_state, &[test_state.recipient_wallet.keypair.pubkey()]).await;
 
         let escrow_amount = DEFAULT_ESCROW_AMOUNT / DEFAULT_PARTS_AMOUNT_FOR_MULTIPLE + 1;
         create_escrow_for_partial_fill(test_state, escrow_amount).await;
@@ -2578,6 +2902,7 @@ mod test_partial_fill_escrow_creation {
         test_state.hashlock = hashv(&[b"incorrect_root"]);
         test_state.test_arguments.allow_multiple_fills = true;
         create_order(test_state).await;
+        prepare_resolvers(test_state, &[test_state.recipient_wallet.keypair.pubkey()]).await;
 
         test_state.test_arguments.escrow_amount =
             DEFAULT_ESCROW_AMOUNT / DEFAULT_PARTS_AMOUNT_FOR_MULTIPLE;
@@ -2607,6 +2932,7 @@ mod test_partial_fill_escrow_creation {
     #[tokio::test]
     async fn test_create_escrow_fails_with_incorrect_merkle_proof(test_state: &mut TestState) {
         create_order_for_partial_fill(test_state).await;
+        prepare_resolvers(test_state, &[test_state.recipient_wallet.keypair.pubkey()]).await;
 
         let merkle_hashes = compute_merkle_leaves(test_state);
         test_state.test_arguments.escrow_amount =
@@ -2639,6 +2965,7 @@ mod test_partial_fill_escrow_creation {
     #[tokio::test]
     async fn test_create_escrow_fails_with_incorrect_secret_for_leaf(test_state: &mut TestState) {
         create_order_for_partial_fill(test_state).await;
+        prepare_resolvers(test_state, &[test_state.recipient_wallet.keypair.pubkey()]).await;
 
         let merkle_hashes = compute_merkle_leaves(test_state);
         test_state.test_arguments.escrow_amount =
@@ -2670,6 +2997,7 @@ mod test_partial_fill_escrow_creation {
     #[tokio::test]
     async fn test_create_escrow_fails_without_merkle_proof(test_state: &mut TestState) {
         create_order_for_partial_fill(test_state).await;
+        prepare_resolvers(test_state, &[test_state.recipient_wallet.keypair.pubkey()]).await;
 
         // test_state.test_arguments.merkle_proof is none
         let (_, _, transaction) = create_escrow_data(test_state);
@@ -2696,6 +3024,7 @@ mod test_partial_fill_escrow_creation {
         test_state.hashlock = Hash::new_from_array(root);
         // test_state.test_arguments.allow_multiple_fills is false;
         create_order(test_state).await;
+        prepare_resolvers(test_state, &[test_state.recipient_wallet.keypair.pubkey()]).await;
 
         let index_to_validate =
             get_index_for_escrow_amount(test_state, test_state.test_arguments.escrow_amount); // fill the full order
