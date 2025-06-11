@@ -60,9 +60,7 @@ pub mod cross_chain_escrow_dst {
             now,
         )?;
 
-        let escrow = &mut ctx.accounts.escrow;
-
-        escrow.set_inner(EscrowDst {
+        ctx.accounts.escrow.set_inner(EscrowDst {
             order_hash,
             hashlock,
             creator: ctx.accounts.creator.key(),

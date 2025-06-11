@@ -45,13 +45,7 @@ pub mod cross_chain_escrow_src {
         allow_multiple_fills: bool,
         _dst_chain_params: DstChainParams,
     ) -> Result<()> {
-        let now = utils::get_current_timestamp()?;
-
         require!(expiration_duration != 0, EscrowError::InvalidTime);
-
-        let expiration_time = now
-            .checked_add(expiration_duration)
-            .ok_or(ProgramError::ArithmeticOverflow)?;
 
         require!(
             ctx.accounts.order_ata.to_account_info().lamports() >= max_cancellation_premium,
@@ -64,6 +58,7 @@ pub mod cross_chain_escrow_src {
             EscrowError::InvalidPartsAmount
         );
 
+        let now = utils::get_current_timestamp()?;
         common::escrow::create(
             EscrowSrc::INIT_SPACE + constants::DISCRIMINATOR_BYTES, // Needed to check the safety deposit amount validity
             EscrowType::Src, // Hardcoded to Src type to sync native ata if applicable
@@ -80,8 +75,11 @@ pub mod cross_chain_escrow_src {
             now,
         )?;
 
-        let order = &mut ctx.accounts.order;
-        order.set_inner(Order {
+        let expiration_time = now
+            .checked_add(expiration_duration)
+            .ok_or(ProgramError::ArithmeticOverflow)?;
+
+        ctx.accounts.order.set_inner(Order {
             order_hash,
             hashlock,
             creator: ctx.accounts.creator.key(),
@@ -114,14 +112,13 @@ pub mod cross_chain_escrow_src {
         merkle_proof: Option<MerkleProof>,
     ) -> Result<()> {
         let order = &mut ctx.accounts.order;
-        let escrow = &mut ctx.accounts.escrow;
-        let now = utils::get_current_timestamp()?;
         require!(
             (order.allow_multiple_fills && amount <= order.remaining_amount)
                 || (!order.allow_multiple_fills && amount == order.amount),
             EscrowError::InvalidAmount
         );
 
+        let now = utils::get_current_timestamp()?;
         require!(now < order.expiration_time, EscrowError::OrderHasExpired);
 
         let calculated_hash = hashv(&[&dutch_auction_data.try_to_vec()?]).to_bytes();
@@ -130,29 +127,29 @@ pub mod cross_chain_escrow_src {
             EscrowError::DutchAuctionDataHashMismatch
         );
 
-        let hashlock = match (order.allow_multiple_fills, &merkle_proof) {
-            (true, Some(proof)) => {
-                require!(
-                    proof.verify(order.hashlock),
-                    EscrowError::InvalidMerkleProof
-                );
-                require!(
-                    is_valid_partial_fill(
-                        amount,
-                        order.remaining_amount,
-                        order.amount,
-                        order.parts_amount,
-                        proof.index as u64,
-                    ),
-                    EscrowError::InvalidPartialFill
-                );
-                proof.hashed_secret
-            }
-            (false, None) => {
-                // single fill, no merkle proof expected — OK
-                order.hashlock
-            }
-            _ => return Err(EscrowError::InconsistentMerkleProofTrait.into()),
+        require!(
+            order.allow_multiple_fills == merkle_proof.is_some(),
+            EscrowError::InconsistentMerkleProofTrait
+        );
+
+        let hashlock = if let Some(proof) = merkle_proof {
+            require!(
+                proof.verify(order.hashlock),
+                EscrowError::InvalidMerkleProof
+            );
+            require!(
+                is_valid_partial_fill(
+                    amount,
+                    order.remaining_amount,
+                    order.amount,
+                    order.parts_amount,
+                    proof.index as u64,
+                ),
+                EscrowError::InvalidPartialFill
+            );
+            proof.hashed_secret
+        } else {
+            order.hashlock
         };
 
         let withdrawal_start = now
@@ -180,12 +177,11 @@ pub mod cross_chain_escrow_src {
             &[ctx.bumps.order],
         ];
 
-        let amount_to_transfer =
-            if order.remaining_amount == amount && ctx.accounts.order_ata.amount > amount {
-                ctx.accounts.order_ata.amount
-            } else {
-                amount
-            };
+        let mut amount_to_transfer = amount;
+        if order.remaining_amount == amount {
+            // Transfer amount may be increased due to external transfers
+            amount_to_transfer = ctx.accounts.order_ata.amount;
+        }
 
         uni_transfer(
             &UniTransferParams::TokenTransfer {
@@ -199,7 +195,7 @@ pub mod cross_chain_escrow_src {
             Some(&[&order_seeds]),
         )?;
 
-        escrow.set_inner(EscrowSrc {
+        ctx.accounts.escrow.set_inner(EscrowSrc {
             order_hash: order.order_hash,
             hashlock,
             maker: order.creator,
@@ -830,7 +826,7 @@ pub struct CancelEscrow<'info> {
 #[derive(Accounts)]
 pub struct CancelOrder<'info> {
     /// Account that created the order
-    #[account(mut, signer)]
+    #[account(mut)]
     creator: Signer<'info>,
     mint: Box<InterfaceAccount<'info, Mint>>,
     #[account(
@@ -839,8 +835,8 @@ pub struct CancelOrder<'info> {
             "order".as_bytes(),
             order.order_hash.as_ref(),
             order.hashlock.as_ref(),
-            order.creator.as_ref(),
-            order.token.key().as_ref(),
+            creator.key().as_ref(),
+            mint.key().as_ref(),
             order.amount.to_be_bytes().as_ref(),
             order.safety_deposit.to_be_bytes().as_ref(),
             order.rescue_start.to_be_bytes().as_ref(),
