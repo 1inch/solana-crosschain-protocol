@@ -512,12 +512,13 @@ run_for_tokens!(
                     .await
             }
 
-            #[test_context(TestState)]
-            #[tokio::test]
-            async fn test_rescue_fails_for_unwhitelisted_account(test_state: &mut TestState) {
-                local_helpers::test_cannot_rescue_funds_by_non_whitelisted_resolver(test_state)
-                    .await;
-            }
+            // TODO: Replace with a test that non-recipient cannot rescue funds
+            // #[test_context(TestState)]
+            // #[tokio::test]
+            // async fn test_rescue_fails_for_unwhitelisted_account(test_state: &mut TestState) {
+            //     local_helpers::test_cannot_rescue_funds_by_non_whitelisted_resolver(test_state)
+            //         .await;
+            // }
         }
     }
 );
@@ -902,8 +903,6 @@ mod test_escrow_creation_cost {
 }
 
 mod local_helpers {
-    use common::constants::RESCUE_DELAY;
-
     use super::*;
     use solana_program::pubkey::Pubkey;
 
@@ -923,54 +922,54 @@ mod local_helpers {
         .await;
     }
 
-    pub async fn test_cannot_rescue_funds_by_non_whitelisted_resolver<S: TokenVariant>(
-        test_state: &mut TestStateBase<DstProgram, S>,
-    ) {
-        let (escrow, _) = create_escrow(test_state).await;
+    // pub async fn test_cannot_rescue_funds_by_non_whitelisted_resolver<S: TokenVariant>(
+    //     test_state: &mut TestStateBase<DstProgram, S>,
+    // ) {
+    //     let (escrow, _) = create_escrow(test_state).await;
 
-        let token_to_rescue = S::deploy_spl_token(&mut test_state.context).await.pubkey();
-        let escrow_ata = S::initialize_spl_associated_account(
-            &mut test_state.context,
-            &token_to_rescue,
-            &escrow,
-        )
-        .await;
-        let creator_ata = S::initialize_spl_associated_account(
-            &mut test_state.context,
-            &token_to_rescue,
-            &test_state.creator_wallet.keypair.pubkey(),
-        )
-        .await;
+    //     let token_to_rescue = S::deploy_spl_token(&mut test_state.context).await.pubkey();
+    //     let escrow_ata = S::initialize_spl_associated_account(
+    //         &mut test_state.context,
+    //         &token_to_rescue,
+    //         &escrow,
+    //     )
+    //     .await;
+    //     let creator_ata = S::initialize_spl_associated_account(
+    //         &mut test_state.context,
+    //         &token_to_rescue,
+    //         &test_state.creator_wallet.keypair.pubkey(),
+    //     )
+    //     .await;
 
-        S::mint_spl_tokens(
-            &mut test_state.context,
-            &token_to_rescue,
-            &escrow_ata,
-            &test_state.payer_kp.pubkey(),
-            &test_state.payer_kp,
-            test_state.test_arguments.rescue_amount,
-        )
-        .await;
+    //     S::mint_spl_tokens(
+    //         &mut test_state.context,
+    //         &token_to_rescue,
+    //         &escrow_ata,
+    //         &test_state.payer_kp.pubkey(),
+    //         &test_state.payer_kp,
+    //         test_state.test_arguments.rescue_amount,
+    //     )
+    //     .await;
 
-        let transaction = DstProgram::get_rescue_funds_tx(
-            test_state,
-            &escrow,
-            &token_to_rescue,
-            &escrow_ata,
-            &creator_ata,
-        );
+    //     let transaction = DstProgram::get_rescue_funds_tx(
+    //         test_state,
+    //         &escrow,
+    //         &token_to_rescue,
+    //         &escrow_ata,
+    //         &creator_ata,
+    //     );
 
-        set_time(
-            &mut test_state.context,
-            test_state.init_timestamp + RESCUE_DELAY + 100,
-        );
-        test_state
-            .client
-            .process_transaction(transaction)
-            .await
-            .expect_error((
-                0,
-                ProgramError::Custom(ErrorCode::AccountNotInitialized.into()),
-            ));
-    }
+    //     set_time(
+    //         &mut test_state.context,
+    //         test_state.init_timestamp + RESCUE_DELAY + 100,
+    //     );
+    //     test_state
+    //         .client
+    //         .process_transaction(transaction)
+    //         .await
+    //         .expect_error((
+    //             0,
+    //             ProgramError::Custom(ErrorCode::AccountNotInitialized.into()),
+    //         ));
+    // }
 }

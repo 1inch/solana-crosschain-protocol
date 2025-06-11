@@ -208,14 +208,10 @@ impl<S: TokenVariant> EscrowVariant<S> for DstProgram {
                 rescue_amount: test_state.test_arguments.rescue_amount,
             });
 
-        let (whitelist_access, _) =
-            get_whitelist_access_address(&test_state.recipient_wallet.keypair.pubkey());
-
         let instruction: Instruction = Instruction {
             program_id: cross_chain_escrow_dst::id(),
             accounts: vec![
                 AccountMeta::new(test_state.recipient_wallet.keypair.pubkey(), true),
-                AccountMeta::new_readonly(whitelist_access, false),
                 AccountMeta::new_readonly(*token_to_rescue, false),
                 AccountMeta::new(*escrow, false),
                 AccountMeta::new(*escrow_ata, false),
