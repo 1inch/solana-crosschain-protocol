@@ -244,7 +244,7 @@ where
             &[&seeds],
         ))?;
     } else {
-        // Handle native token (WSOL) withdrawal and ata closure
+        // Handle native token or WSOL withdrawal and ata closure
         close_and_withdraw_native_ata(escrow, escrow_ata, creator, token_program, seeds)?;
     }
     // Close the escrow account
