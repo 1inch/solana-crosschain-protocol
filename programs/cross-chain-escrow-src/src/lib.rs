@@ -178,10 +178,12 @@ pub mod cross_chain_escrow_src {
             &[ctx.bumps.order],
         ];
 
-        let mut amount_to_transfer = amount;
-        if order.remaining_amount == amount && ctx.accounts.order_ata.amount > amount {
-            amount_to_transfer = ctx.accounts.order_ata.amount;
-        }
+        let amount_to_transfer =
+            if order.remaining_amount == amount && ctx.accounts.order_ata.amount > amount {
+                ctx.accounts.order_ata.amount
+            } else {
+                amount
+            };
 
         uni_transfer(
             &UniTransferParams::TokenTransfer {
