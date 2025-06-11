@@ -24,6 +24,7 @@ pub mod cross_chain_escrow_src {
 
     use super::*;
 
+    #[allow(clippy::too_many_arguments)]
     pub fn create(
         ctx: Context<Create>,
         order_hash: [u8; 32],
@@ -143,7 +144,7 @@ pub mod cross_chain_escrow_src {
                     order.remaining_amount,
                     order.amount,
                     order.parts_amount,
-                    proof.index as u64,
+                    proof.index,
                 ),
                 EscrowError::InvalidPartialFill
             );

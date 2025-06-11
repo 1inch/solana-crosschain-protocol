@@ -304,7 +304,6 @@ where
     Ok(())
 }
 
-#[allow(clippy::too_many_arguments)]
 pub fn rescue_funds<'info>(
     escrow: &AccountInfo<'info>,
     rescue_start: u32,
