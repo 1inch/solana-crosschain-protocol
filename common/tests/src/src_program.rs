@@ -4,6 +4,7 @@ use anchor_lang::prelude::AccountInfo;
 use anchor_lang::solana_program::hash::hashv;
 use anchor_lang::AnchorSerialize;
 use anchor_lang::InstructionData;
+use primitive_types::U256;
 use solana_program_runtime::invoke_context::BuiltinFunctionWithContext;
 use solana_program_test::processor;
 use solana_sdk::{signature::Signer, signer::keypair::Keypair, transaction::Transaction};

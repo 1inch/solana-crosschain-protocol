@@ -2,6 +2,7 @@ use anchor_lang::{error::ErrorCode, prelude::ProgramError};
 use anchor_spl::token::spl_token::native_mint::ID as NATIVE_MINT;
 use anchor_spl::token::spl_token::state::Account as SplTokenAccount;
 use common::error::EscrowError;
+use primitive_types::U256;
 use common_tests::helpers::*;
 use common_tests::run_for_tokens;
 use common_tests::src_program::{
@@ -345,11 +346,12 @@ run_for_tokens!(
                 let dst_amount = local_helpers::get_dst_amount(&escrow_account_data)
                     .expect("Failed to read dst_amount from escrow account data");
 
-                assert_eq!(
-                    dst_amount,
-                    test_state.test_arguments.dst_amount * EXPECTED_MULTIPLIER_NUMERATOR
-                        / EXPECTED_MULTIPLIER_DENOMINATOR,
-                );
+                let expected = test_state
+                    .test_arguments
+                    .dst_amount
+                    * U256::from(EXPECTED_MULTIPLIER_NUMERATOR)
+                    / U256::from(EXPECTED_MULTIPLIER_DENOMINATOR);
+                assert_eq!(dst_amount, expected);
             }
 
             #[test_context(TestState)]
@@ -1107,8 +1109,9 @@ mod local_helpers {
     use solana_sdk::transaction::Transaction;
 
     /// Byte offset in the escrow account data where the `dst_amount` field is located
+    use primitive_types::U256;
     const DST_AMOUNT_OFFSET: usize = 205;
-    const U64_SIZE: usize = size_of::<u64>();
+    const U256_SIZE: usize = 32;
 
     pub fn create_public_escrow_cancel_tx<S: TokenVariant>(
         test_state: &TestStateBase<SrcProgram, S>,
@@ -1145,13 +1148,13 @@ mod local_helpers {
         )
     }
 
-    /// Reads the `dst_amount` field (u64) directly from the raw account data.
-    pub fn get_dst_amount(data: &[u8]) -> Option<u64> {
-        let end = DST_AMOUNT_OFFSET + U64_SIZE;
+    /// Reads the `dst_amount` field (U256) directly from the raw account data.
+    pub fn get_dst_amount(data: &[u8]) -> Option<U256> {
+        let end = DST_AMOUNT_OFFSET + U256_SIZE;
         let slice = data.get(DST_AMOUNT_OFFSET..end)?;
-        let mut arr = [0u8; U64_SIZE];
+        let mut arr = [0u8; 32];
         arr.copy_from_slice(slice);
-        Some(u64::from_le_bytes(arr))
+        Some(U256::from_little_endian(&arr))
     }
 
     pub async fn test_order_creation<S: TokenVariant>(

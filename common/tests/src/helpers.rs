@@ -58,7 +58,8 @@ pub enum PeriodType {
 }
 
 pub const DEFAULT_ESCROW_AMOUNT: u64 = 100000;
-pub const DEFAULT_DST_ESCROW_AMOUNT: u64 = 1000;
+use primitive_types::U256;
+pub const DEFAULT_DST_ESCROW_AMOUNT: U256 = U256([1000, 0, 0, 0]);
 pub const DEFAULT_RESCUE_AMOUNT: u64 = 100;
 pub const DEFAULT_SAFETY_DEPOSIT: u64 = 25;
 
@@ -78,7 +79,7 @@ pub struct TestArgs {
     pub rescue_amount: u64,
     pub expiration_duration: u32,
     pub asset_is_native: bool,
-    pub dst_amount: u64,
+    pub dst_amount: U256,
     pub dutch_auction_data: cross_chain_escrow_src::AuctionData,
     pub max_cancellation_premium: u64,
     pub cancellation_auction_duration: u32,

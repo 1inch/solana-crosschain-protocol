@@ -10,7 +10,7 @@ pub use common::constants;
 use common::error::EscrowError;
 use common::escrow::{uni_transfer, EscrowBase, EscrowType, UniTransferParams};
 use common::utils;
-use muldiv::MulDiv;
+use primitive_types::U256;
 
 use crate::merkle_tree::MerkleProof;
 
@@ -38,7 +38,7 @@ pub mod cross_chain_escrow_src {
         rescue_start: u32,
         expiration_duration: u32,
         asset_is_native: bool,
-        dst_amount: u64,
+        dst_amount: U256,
         dutch_auction_data_hash: [u8; 32],
         max_cancellation_premium: u64,
         cancellation_auction_duration: u32,
@@ -1053,7 +1053,7 @@ pub struct Order {
     rescue_start: u32,
     expiration_time: u32,
     asset_is_native: bool,
-    dst_amount: u64,
+    dst_amount: U256,
     dutch_auction_data_hash: [u8; 32],
     max_cancellation_premium: u64,
     cancellation_auction_duration: u32,
@@ -1076,7 +1076,7 @@ pub struct EscrowSrc {
     public_cancellation_start: u32,
     rescue_start: u32,
     asset_is_native: bool,
-    dst_amount: u64,
+    dst_amount: U256,
 }
 
 impl EscrowBase for EscrowSrc {
@@ -1133,11 +1133,17 @@ impl EscrowBase for EscrowSrc {
     }
 }
 
-fn get_dst_amount(dst_amount: u64, data: &AuctionData) -> Result<u64> {
+fn get_dst_amount(dst_amount: U256, data: &AuctionData) -> Result<U256> {
     let rate_bump = calculate_rate_bump(Clock::get()?.unix_timestamp as u64, data);
+    let multiplier = U256::from(constants::BASE_1E5 + rate_bump);
+    let base = U256::from(constants::BASE_1E5);
+
     let result = dst_amount
-        .mul_div_ceil(constants::BASE_1E5 + rate_bump, constants::BASE_1E5)
-        .ok_or(ProgramError::ArithmeticOverflow)?;
+        .checked_mul(multiplier)
+        .ok_or(ProgramError::ArithmeticOverflow)?
+        .checked_add(base - U256::one())
+        .ok_or(ProgramError::ArithmeticOverflow)?
+        / base;
     Ok(result)
 }
 
