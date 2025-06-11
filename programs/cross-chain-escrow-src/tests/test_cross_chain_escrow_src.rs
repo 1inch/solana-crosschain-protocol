@@ -276,6 +276,8 @@ run_for_tokens!(
             #[test_context(TestState)]
             #[tokio::test]
             async fn test_escrow_creation_with_excess_tokens(test_state: &mut TestState) {
+                prepare_resolvers(test_state, &[test_state.recipient_wallet.keypair.pubkey()])
+                    .await;
                 local_helpers::test_escrow_creation_with_excess_tokens(test_state).await;
             }
 
@@ -524,6 +526,8 @@ run_for_tokens!(
             #[tokio::test]
             async fn test_withdraw_with_excess_tokens(test_state: &mut TestState) {
                 create_order(test_state).await;
+                prepare_resolvers(test_state, &[test_state.recipient_wallet.keypair.pubkey()])
+                    .await;
                 let (escrow, escrow_ata) = create_escrow(test_state).await;
                 let transaction = SrcProgram::get_withdraw_tx(test_state, &escrow, &escrow_ata);
 
@@ -817,6 +821,8 @@ run_for_tokens!(
             #[tokio::test]
             async fn test_cancel_with_excess_tokens(test_state: &mut TestState) {
                 create_order(test_state).await;
+                prepare_resolvers(test_state, &[test_state.recipient_wallet.keypair.pubkey()])
+                    .await;
 
                 let (escrow, escrow_ata) = create_escrow(test_state).await;
                 let transaction = SrcProgram::get_cancel_tx(test_state, &escrow, &escrow_ata);
@@ -968,6 +974,8 @@ run_for_tokens!(
                 test_state: &mut TestState,
             ) {
                 let (order, order_ata) = create_order(test_state).await;
+                prepare_resolvers(test_state, &[test_state.recipient_wallet.keypair.pubkey()])
+                    .await;
                 let transaction =
                     get_cancel_order_by_resolver_tx(test_state, &order, &order_ata, None);
 
@@ -3053,6 +3061,7 @@ mod test_partial_fill_escrow_creation {
     async fn test_create_two_escrows_for_full_order_excess_tokens(test_state: &mut TestState) {
         let (order, order_ata) = create_order_for_partial_fill(test_state).await;
 
+        prepare_resolvers(test_state, &[test_state.recipient_wallet.keypair.pubkey()]).await;
         let escrow_amount = DEFAULT_ESCROW_AMOUNT / DEFAULT_PARTS_AMOUNT_FOR_MULTIPLE;
         create_escrow_for_partial_fill(test_state, escrow_amount).await;
 
