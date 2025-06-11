@@ -963,7 +963,7 @@ mod local_helpers {
         let instruction_data =
             InstructionData::data(&cross_chain_escrow_src::instruction::PublicCancelEscrow {});
 
-        let (creator_ata, _) = find_user_ata(test_state);
+        let (_, recipient_ata) = find_user_ata(test_state);
 
         let instruction: Instruction = Instruction {
             program_id: cross_chain_escrow_src::id(),
@@ -974,7 +974,7 @@ mod local_helpers {
                 AccountMeta::new(canceller.pubkey(), true),
                 AccountMeta::new(*escrow, false),
                 AccountMeta::new(*escrow_ata, false),
-                AccountMeta::new(creator_ata, false),
+                AccountMeta::new(recipient_ata, false),
                 AccountMeta::new_readonly(S::get_token_program_id(), false),
                 AccountMeta::new_readonly(system_program_id, false),
             ],
