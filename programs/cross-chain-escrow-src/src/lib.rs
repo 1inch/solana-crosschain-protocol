@@ -1170,7 +1170,7 @@ fn get_dst_amount(dst_amount: [u64; 4], data: &AuctionData) -> Result<[u64; 4]> 
 
     let result = U256(dst_amount)
         .checked_mul(U256::from(multiplier))
-        .expect("Overflow when multipling destination amount with rate bump")
+        .expect("Overflow when multiplying destination amount with rate bump")
         .checked_add(U256::from(constants::BASE_1E5 - 1)) // To ensure rounding up
         .expect("Overflow when adding BASE_1E5 - 1")
         .checked_div(U256::from(constants::BASE_1E5))
