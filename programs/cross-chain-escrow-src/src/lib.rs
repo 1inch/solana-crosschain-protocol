@@ -1,14 +1,16 @@
 use anchor_lang::prelude::*;
+use anchor_lang::solana_program::keccak::hash;
 use anchor_lang::solana_program::hash::hashv;
 use anchor_spl::associated_token::{AssociatedToken, ID as ASSOCIATED_TOKEN_PROGRAM_ID};
 use anchor_spl::token::spl_token::native_mint;
 use anchor_spl::token_interface::{
-    close_account, CloseAccount, Mint, TokenAccount, TokenInterface,
+    close_account, transfer_checked, CloseAccount, Mint, TokenAccount, TokenInterface,
+    TransferChecked,
 };
 pub use auction::{calculate_premium, calculate_rate_bump, AuctionData};
 pub use common::constants;
 use common::error::EscrowError;
-use common::escrow::{uni_transfer, EscrowBase, EscrowType, UniTransferParams};
+use common::escrow::{EscrowBase, EscrowType};
 use common::utils;
 use muldiv::MulDiv;
 
@@ -63,9 +65,9 @@ pub mod cross_chain_escrow_src {
             EscrowError::InvalidPartsAmount
         );
 
-        common::escrow::create(
-            EscrowSrc::INIT_SPACE + constants::DISCRIMINATOR_BYTES, // Needed to check the safety deposit amount validity
-            EscrowType::Src, // Hardcoded to Src type to sync native ata if applicable
+        create(
+            EscrowSrc::INIT_SPACE + constants::DISCRIMINATOR_BYTES,
+            EscrowType::Src,
             &ctx.accounts.creator,
             asset_is_native,
             &ctx.accounts.order_ata,
@@ -247,7 +249,7 @@ pub mod cross_chain_escrow_src {
         // In a standard withdrawal, the rent recipient receives the entire rent amount, including the safety deposit,
         // because they initially covered the entire rent during order creation.
 
-        common::escrow::withdraw(
+        withdraw(
             &ctx.accounts.escrow,
             ctx.bumps.escrow,
             &ctx.accounts.escrow_ata,
@@ -272,7 +274,7 @@ pub mod cross_chain_escrow_src {
         // In a public withdrawal, the rent recipient receives the rent minus the safety deposit
         // while the safety deposit is awarded to the payer who executed the public withdrawal
 
-        common::escrow::withdraw(
+        withdraw(
             &ctx.accounts.escrow,
             ctx.bumps.escrow,
             &ctx.accounts.escrow_ata,
@@ -296,7 +298,7 @@ pub mod cross_chain_escrow_src {
         // In a standard cancel, the taker receives the entire rent amount, including the safety deposit,
         // because they initially covered the entire rent during escrow creation.
 
-        common::escrow::cancel(
+        cancel(
             &ctx.accounts.escrow,
             ctx.bumps.escrow,
             &ctx.accounts.escrow_ata,
@@ -460,7 +462,7 @@ pub mod cross_chain_escrow_src {
             EscrowError::InvalidTime
         );
 
-        common::escrow::cancel(
+        cancel(
             &ctx.accounts.escrow,
             ctx.bumps.escrow,
             &ctx.accounts.escrow_ata,
@@ -498,7 +500,7 @@ pub mod cross_chain_escrow_src {
             &[ctx.bumps.escrow],
         ];
 
-        common::escrow::rescue_funds(
+        rescue_funds(
             &ctx.accounts.escrow,
             rescue_start,
             &ctx.accounts.escrow_ata,
@@ -534,7 +536,7 @@ pub mod cross_chain_escrow_src {
             &[ctx.bumps.order],
         ];
 
-        common::escrow::rescue_funds(
+        rescue_funds(
             &ctx.accounts.order,
             rescue_start,
             &ctx.accounts.order_ata,
@@ -1205,4 +1207,316 @@ pub fn get_escrow_hashlock(order_hash: [u8; 32], merkle_proof: Option<MerkleProo
     } else {
         order_hash
     }
+}
+
+#[derive(AnchorSerialize, AnchorDeserialize, Clone, Copy, PartialEq)]
+pub enum UniTransferParams<'info> {
+    NativeTransfer {
+        from: AccountInfo<'info>,
+        to: AccountInfo<'info>,
+        amount: u64,
+        program: Program<'info, System>,
+    },
+    TokenTransfer {
+        from: AccountInfo<'info>,
+        authority: AccountInfo<'info>,
+        to: AccountInfo<'info>,
+        mint: InterfaceAccount<'info, Mint>,
+        amount: u64,
+        program: Interface<'info, TokenInterface>,
+    },
+}
+
+fn uni_transfer(
+    params: &UniTransferParams<'_>,
+    signer_seeds: Option<&[&[&[u8]]]>,
+) -> Result<()> {
+    match params {
+        UniTransferParams::NativeTransfer {
+            from,
+            to,
+            amount,
+            program,
+        } => {
+            let ctx = anchor_lang::system_program::Transfer {
+                from: from.to_account_info(),
+                to: to.to_account_info(),
+            };
+            let cpi_ctx = match signer_seeds {
+                Some(seeds) => CpiContext::new_with_signer(program.to_account_info(), ctx, seeds),
+                None => CpiContext::new(program.to_account_info(), ctx),
+            };
+            anchor_lang::system_program::transfer(cpi_ctx, *amount)
+        }
+        UniTransferParams::TokenTransfer {
+            from,
+            authority,
+            to,
+            mint,
+            amount,
+            program,
+        } => {
+            let ctx = TransferChecked {
+                from: from.to_account_info(),
+                mint: mint.to_account_info(),
+                to: to.to_account_info(),
+                authority: authority.to_account_info(),
+            };
+            let cpi_ctx = match signer_seeds {
+                Some(seeds) => CpiContext::new_with_signer(program.to_account_info(), ctx, seeds),
+                None => CpiContext::new(program.to_account_info(), ctx),
+            };
+            transfer_checked(cpi_ctx, *amount, mint.decimals)
+        }
+    }
+}
+
+fn close_escrow_account<'info, T>(
+    escrow: &Account<'info, T>,
+    safety_deposit_recipient: &AccountInfo<'info>,
+    rent_recipient: &AccountInfo<'info>,
+) -> Result<()>
+where
+    T: EscrowBase + AccountSerialize + AccountDeserialize + Clone,
+{
+    if rent_recipient.key() != safety_deposit_recipient.key() {
+        let safety_deposit = escrow.safety_deposit();
+        escrow.sub_lamports(safety_deposit)?;
+        safety_deposit_recipient.add_lamports(safety_deposit)?;
+    }
+    escrow.close(rent_recipient.to_account_info())?;
+    Ok(())
+}
+
+fn close_and_withdraw_native_ata<'info, T>(
+    escrow: &Account<'info, T>,
+    escrow_ata: &InterfaceAccount<'info, TokenAccount>,
+    recipient: &AccountInfo<'info>,
+    token_program: &Interface<'info, TokenInterface>,
+    seeds: [&[u8]; 10],
+) -> Result<()>
+where
+    T: EscrowBase + AccountSerialize + AccountDeserialize + Clone,
+{
+    close_account(CpiContext::new_with_signer(
+        token_program.to_account_info(),
+        CloseAccount {
+            account: escrow_ata.to_account_info(),
+            destination: escrow.to_account_info(),
+            authority: escrow.to_account_info(),
+        },
+        &[&seeds],
+    ))?;
+    escrow.sub_lamports(escrow.amount())?;
+    recipient.add_lamports(escrow.amount())?;
+    Ok(())
+}
+
+fn create<'info>(
+    escrow_size: usize,
+    escrow_type: EscrowType,
+    creator: &AccountInfo<'info>,
+    asset_is_native: bool,
+    escrow_ata: &InterfaceAccount<'info, TokenAccount>,
+    creator_ata: Option<&InterfaceAccount<'info, TokenAccount>>,
+    mint: &InterfaceAccount<'info, Mint>,
+    token_program: &Interface<'info, TokenInterface>,
+    sys_program: &Program<'info, System>,
+    amount: u64,
+    safety_deposit: u64,
+    rescue_start: u32,
+    now: u32,
+) -> Result<()> {
+    require!(rescue_start >= now + common::constants::RESCUE_DELAY, EscrowError::InvalidRescueStart);
+    require!(amount != 0 && safety_deposit != 0, EscrowError::ZeroAmountOrDeposit);
+    let rent_exempt_reserve = Rent::get()?.minimum_balance(escrow_size);
+    require!(safety_deposit <= rent_exempt_reserve, EscrowError::SafetyDepositTooLarge);
+    require!(mint.key() == anchor_spl::token::spl_token::native_mint::ID || !asset_is_native, EscrowError::InconsistentNativeTrait);
+    if asset_is_native {
+        uni_transfer(
+            &UniTransferParams::NativeTransfer {
+                from: creator.to_account_info(),
+                to: escrow_ata.to_account_info(),
+                amount,
+                program: sys_program.clone(),
+            },
+            None,
+        )?;
+        if escrow_type == EscrowType::Src {
+            anchor_spl::token::sync_native(CpiContext::new(
+                token_program.to_account_info(),
+                anchor_spl::token::SyncNative {
+                    account: escrow_ata.to_account_info(),
+                },
+            ))?;
+        }
+    } else {
+        uni_transfer(
+            &UniTransferParams::TokenTransfer {
+                from: creator_ata
+                    .ok_or(EscrowError::MissingCreatorAta)?
+                    .to_account_info(),
+                authority: creator.to_account_info(),
+                to: escrow_ata.to_account_info(),
+                mint: mint.clone(),
+                amount,
+                program: token_program.clone(),
+            },
+            None,
+        )?;
+    }
+    Ok(())
+}
+
+fn withdraw<'info, T>(
+    escrow: &Account<'info, T>,
+    escrow_bump: u8,
+    escrow_ata: &InterfaceAccount<'info, TokenAccount>,
+    recipient: &AccountInfo<'info>,
+    recipient_ata: Option<&InterfaceAccount<'info, TokenAccount>>,
+    mint: &InterfaceAccount<'info, Mint>,
+    token_program: &Interface<'info, TokenInterface>,
+    rent_recipient: &AccountInfo<'info>,
+    safety_deposit_recipient: &AccountInfo<'info>,
+    secret: [u8; 32],
+) -> Result<()>
+where
+    T: EscrowBase + AccountSerialize + AccountDeserialize + Clone,
+{
+    require!(hash(&secret).to_bytes() == *escrow.hashlock(), EscrowError::InvalidSecret);
+    let seeds = [
+        "escrow".as_bytes(),
+        escrow.order_hash(),
+        escrow.hashlock(),
+        escrow.creator().as_ref(),
+        escrow.recipient().as_ref(),
+        escrow.token().as_ref(),
+        &escrow.amount().to_be_bytes(),
+        &escrow.safety_deposit().to_be_bytes(),
+        &escrow.rescue_start().to_be_bytes(),
+        &[escrow_bump],
+    ];
+    if escrow.escrow_type() == EscrowType::Dst && escrow.asset_is_native() {
+        close_and_withdraw_native_ata(escrow, escrow_ata, recipient, token_program, seeds)?;
+    } else {
+        uni_transfer(
+            &UniTransferParams::TokenTransfer {
+                from: escrow_ata.to_account_info(),
+                authority: escrow.to_account_info(),
+                to: recipient_ata
+                    .ok_or(EscrowError::MissingRecipientAta)?
+                    .to_account_info(),
+                mint: mint.clone(),
+                amount: escrow_ata.amount,
+                program: token_program.clone(),
+            },
+            Some(&[&seeds]),
+        )?;
+        close_account(CpiContext::new_with_signer(
+            token_program.to_account_info(),
+            CloseAccount {
+                account: escrow_ata.to_account_info(),
+                destination: rent_recipient.to_account_info(),
+                authority: escrow.to_account_info(),
+            },
+            &[&seeds],
+        ))?;
+    }
+    close_escrow_account(escrow, safety_deposit_recipient, rent_recipient)?;
+    Ok(())
+}
+
+fn cancel<'info, T>(
+    escrow: &Account<'info, T>,
+    escrow_bump: u8,
+    escrow_ata: &InterfaceAccount<'info, TokenAccount>,
+    creator_ata: Option<&InterfaceAccount<'info, TokenAccount>>,
+    mint: &InterfaceAccount<'info, Mint>,
+    token_program: &Interface<'info, TokenInterface>,
+    rent_recipient: &AccountInfo<'info>,
+    creator: &AccountInfo<'info>,
+    safety_deposit_recipient: &AccountInfo<'info>,
+) -> Result<()>
+where
+    T: EscrowBase + AccountSerialize + AccountDeserialize + Clone,
+{
+    let seeds = [
+        "escrow".as_bytes(),
+        escrow.order_hash(),
+        escrow.hashlock(),
+        escrow.creator().as_ref(),
+        escrow.recipient().as_ref(),
+        escrow.token().as_ref(),
+        &escrow.amount().to_be_bytes(),
+        &escrow.safety_deposit().to_be_bytes(),
+        &escrow.rescue_start().to_be_bytes(),
+        &[escrow_bump],
+    ];
+    if !escrow.asset_is_native() {
+        uni_transfer(
+            &UniTransferParams::TokenTransfer {
+                from: escrow_ata.to_account_info(),
+                authority: escrow.to_account_info(),
+                to: creator_ata
+                    .ok_or(EscrowError::MissingCreatorAta)?
+                    .to_account_info(),
+                mint: mint.clone(),
+                amount: escrow_ata.amount,
+                program: token_program.clone(),
+            },
+            Some(&[&seeds]),
+        )?;
+        close_account(CpiContext::new_with_signer(
+            token_program.to_account_info(),
+            CloseAccount {
+                account: escrow_ata.to_account_info(),
+                destination: rent_recipient.to_account_info(),
+                authority: escrow.to_account_info(),
+            },
+            &[&seeds],
+        ))?;
+    } else {
+        close_and_withdraw_native_ata(escrow, escrow_ata, creator, token_program, seeds)?;
+    }
+    close_escrow_account(escrow, safety_deposit_recipient, rent_recipient)?;
+    Ok(())
+}
+
+#[allow(clippy::too_many_arguments)]
+fn rescue_funds<'info>(
+    escrow: &AccountInfo<'info>,
+    rescue_start: u32,
+    escrow_ata: &InterfaceAccount<'info, TokenAccount>,
+    recipient: &AccountInfo<'info>,
+    recipient_ata: &InterfaceAccount<'info, TokenAccount>,
+    mint: &InterfaceAccount<'info, Mint>,
+    token_program: &Interface<'info, TokenInterface>,
+    rescue_amount: u64,
+    seeds: &[&[u8]],
+) -> Result<()> {
+    let now = common::utils::get_current_timestamp()?;
+    require!(now >= rescue_start, EscrowError::InvalidTime);
+    uni_transfer(
+        &UniTransferParams::TokenTransfer {
+            from: escrow_ata.to_account_info(),
+            to: recipient_ata.to_account_info(),
+            authority: escrow.to_account_info(),
+            mint: mint.clone(),
+            amount: rescue_amount,
+            program: token_program.clone(),
+        },
+        Some(&[seeds]),
+    )?;
+    if rescue_amount == escrow_ata.amount {
+        close_account(CpiContext::new_with_signer(
+            token_program.to_account_info(),
+            CloseAccount {
+                account: escrow_ata.to_account_info(),
+                destination: recipient.to_account_info(),
+                authority: escrow.to_account_info(),
+            },
+            &[seeds],
+        ))?;
+    }
+    Ok(())
 }
