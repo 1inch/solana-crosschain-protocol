@@ -290,7 +290,7 @@ pub mod cross_chain_escrow_src {
             &ctx.accounts.escrow,
             ctx.bumps.escrow,
             &ctx.accounts.escrow_ata,
-            ctx.accounts.maker_ata.as_deref(),
+            ctx.accounts.taker_ata.as_deref(),
             &ctx.accounts.mint,
             &ctx.accounts.token_program,
             &ctx.accounts.taker,
@@ -454,7 +454,7 @@ pub mod cross_chain_escrow_src {
             &ctx.accounts.escrow,
             ctx.bumps.escrow,
             &ctx.accounts.escrow_ata,
-            ctx.accounts.maker_ata.as_deref(),
+            ctx.accounts.taker_ata.as_deref(),
             &ctx.accounts.mint,
             &ctx.accounts.token_program,
             &ctx.accounts.taker,
@@ -795,11 +795,11 @@ pub struct CancelEscrow<'info> {
     #[account(
         mut,
         associated_token::mint = mint,
-        associated_token::authority = maker,
+        associated_token::authority = taker,
         associated_token::token_program = token_program
     )]
     // Optional if the token is native
-    maker_ata: Option<Box<InterfaceAccount<'info, TokenAccount>>>,
+    taker_ata: Option<Box<InterfaceAccount<'info, TokenAccount>>>,
     token_program: Interface<'info, TokenInterface>,
     system_program: Program<'info, System>,
 }
@@ -933,11 +933,11 @@ pub struct PublicCancelEscrow<'info> {
     #[account(
         mut,
         associated_token::mint = mint,
-        associated_token::authority = escrow.maker,
+        associated_token::authority = taker,
         associated_token::token_program = token_program
     )]
     // Optional if the token is native
-    maker_ata: Option<Box<InterfaceAccount<'info, TokenAccount>>>,
+    taker_ata: Option<Box<InterfaceAccount<'info, TokenAccount>>>,
     token_program: Interface<'info, TokenInterface>,
     system_program: Program<'info, System>,
 }
