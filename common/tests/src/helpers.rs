@@ -16,6 +16,7 @@ use anchor_spl::token_2022::spl_token_2022::{
 use async_trait::async_trait;
 use common::constants::RESCUE_DELAY;
 use cross_chain_escrow_src::{get_escrow_hashlock, merkle_tree::MerkleProof};
+use primitive_types::U256;
 use solana_program::{
     instruction::Instruction,
     keccak::{hash, Hash},
@@ -78,7 +79,7 @@ pub struct TestArgs {
     pub rescue_amount: u64,
     pub expiration_duration: u32,
     pub asset_is_native: bool,
-    pub dst_amount: u64,
+    pub dst_amount: [u64; 4],
     pub dutch_auction_data: cross_chain_escrow_src::AuctionData,
     pub max_cancellation_premium: u64,
     pub cancellation_auction_duration: u32,
@@ -105,7 +106,7 @@ pub fn get_default_testargs(nowsecs: u32) -> TestArgs {
         rescue_amount: DEFAULT_RESCUE_AMOUNT,
         expiration_duration: DEFAULT_PERIOD_DURATION,
         asset_is_native: false, // This is set to false by default, will be changed for native tests.
-        dst_amount: DEFAULT_DST_ESCROW_AMOUNT,
+        dst_amount: U256::from(DEFAULT_DST_ESCROW_AMOUNT).0,
         dutch_auction_data: cross_chain_escrow_src::AuctionData {
             start_time: nowsecs,
             duration: DEFAULT_PERIOD_DURATION,
