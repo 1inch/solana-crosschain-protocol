@@ -1,15 +1,18 @@
-use anchor_lang::prelude::{AccountInfo, AccountMeta};
+use anchor_lang::prelude::AccountMeta;
 use anchor_lang::InstructionData;
-use common_tests::{helpers::*, wrap_entry};
+use common_tests::{
+    helpers::*,
+    whitelist::{
+        get_program_whitelist_spec, get_whitelist_access_address, get_whitelist_state_address,
+    },
+};
 use solana_program::{instruction::Instruction, pubkey::Pubkey};
-use solana_program_test::processor;
 
 use solana_sdk::{
     signature::Keypair, signer::Signer, system_program::ID as system_program_id,
     transaction::Transaction,
 };
 
-use solana_program_runtime::invoke_context::BuiltinFunctionWithContext;
 use solana_program_test::{BanksClient, ProgramTest, ProgramTestContext};
 use std::time::{SystemTime, UNIX_EPOCH};
 
@@ -21,10 +24,6 @@ pub struct TestState {
     pub authority_kp: Keypair,
     pub whitelisted_kp: Keypair,
     pub someone_kp: Keypair,
-}
-
-fn get_program_whitelist_spec() -> (Pubkey, Option<BuiltinFunctionWithContext>) {
-    (whitelist::id(), wrap_entry!(whitelist::entry))
 }
 
 impl AsyncTestContext for TestState {
@@ -75,19 +74,6 @@ impl AsyncTestContext for TestState {
             someone_kp,
         }
     }
-}
-
-pub fn get_whitelist_state_address() -> (Pubkey, Pubkey) {
-    let program_id = whitelist::id();
-    let (whitelist_state, _) = Pubkey::find_program_address(&[b"whitelist_state"], &program_id);
-    (whitelist_state, program_id)
-}
-
-pub fn get_whitelist_access_address(user: &Pubkey) -> (Pubkey, u8) {
-    let program_id = whitelist::id();
-    let (whitelist_access, bump) =
-        Pubkey::find_program_address(&[b"resolver_access", user.as_ref()], &program_id);
-    (whitelist_access, bump)
 }
 
 pub fn init_whitelist_data(test_state: &TestState) -> (Pubkey, Transaction) {

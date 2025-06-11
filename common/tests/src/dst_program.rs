@@ -1,4 +1,4 @@
-use crate::helpers::*;
+use crate::{helpers::*, whitelist::get_whitelist_access_address};
 use anchor_lang::prelude::AccountInfo;
 use solana_program_runtime::invoke_context::BuiltinFunctionWithContext;
 use solana_sdk::{signature::Signer, signer::keypair::Keypair, transaction::Transaction};
@@ -41,6 +41,7 @@ impl<S: TokenVariant> EscrowVariant<S> for DstProgram {
             });
 
         let (_, recipient_ata) = find_user_ata(test_state);
+        let (whitelist_access, _) = get_whitelist_access_address(&withdrawer.pubkey());
 
         let instruction: Instruction = Instruction {
             program_id: cross_chain_escrow_dst::id(),
@@ -48,6 +49,7 @@ impl<S: TokenVariant> EscrowVariant<S> for DstProgram {
                 AccountMeta::new(test_state.creator_wallet.keypair.pubkey(), false),
                 AccountMeta::new(test_state.recipient_wallet.keypair.pubkey(), false),
                 AccountMeta::new(withdrawer.pubkey(), true),
+                AccountMeta::new_readonly(whitelist_access, false),
                 AccountMeta::new_readonly(test_state.token, false),
                 AccountMeta::new(*escrow, false),
                 AccountMeta::new(*escrow_ata, false),
@@ -198,7 +200,6 @@ impl<S: TokenVariant> EscrowVariant<S> for DstProgram {
             InstructionData::data(&cross_chain_escrow_dst::instruction::RescueFunds {
                 hashlock: test_state.hashlock.to_bytes(),
                 order_hash: test_state.order_hash.to_bytes(),
-                escrow_creator: test_state.creator_wallet.keypair.pubkey(),
                 escrow_mint: test_state.token,
                 escrow_amount: test_state.test_arguments.escrow_amount,
                 safety_deposit: test_state.test_arguments.safety_deposit,
@@ -209,7 +210,8 @@ impl<S: TokenVariant> EscrowVariant<S> for DstProgram {
         let instruction: Instruction = Instruction {
             program_id: cross_chain_escrow_dst::id(),
             accounts: vec![
-                AccountMeta::new(test_state.recipient_wallet.keypair.pubkey(), true),
+                AccountMeta::new(test_state.creator_wallet.keypair.pubkey(), true),
+                AccountMeta::new_readonly(test_state.recipient_wallet.keypair.pubkey(), false),
                 AccountMeta::new_readonly(*token_to_rescue, false),
                 AccountMeta::new(*escrow, false),
                 AccountMeta::new(*escrow_ata, false),
@@ -225,7 +227,7 @@ impl<S: TokenVariant> EscrowVariant<S> for DstProgram {
             Some(&test_state.payer_kp.pubkey()),
             &[
                 &test_state.context.payer,
-                &test_state.recipient_wallet.keypair,
+                &test_state.creator_wallet.keypair,
             ],
             test_state.context.last_blockhash,
         )

@@ -1,4 +1,5 @@
 use crate::helpers::*;
+use crate::whitelist::get_whitelist_access_address;
 use crate::wrap_entry;
 use anchor_lang::prelude::AccountInfo;
 use anchor_lang::solana_program::hash::hashv;
@@ -78,12 +79,14 @@ impl<S: TokenVariant> EscrowVariant<S> for SrcProgram {
             });
 
         let (_, recipient_ata) = find_user_ata(test_state);
+        let (whitelist_access, _) = get_whitelist_access_address(&withdrawer.pubkey());
 
         let instruction: Instruction = Instruction {
             program_id: cross_chain_escrow_src::id(),
             accounts: vec![
                 AccountMeta::new(test_state.recipient_wallet.keypair.pubkey(), false),
                 AccountMeta::new(withdrawer.pubkey(), true),
+                AccountMeta::new_readonly(whitelist_access, false),
                 AccountMeta::new_readonly(test_state.token, false),
                 AccountMeta::new(*escrow, false),
                 AccountMeta::new(*escrow_ata, false),
@@ -153,11 +156,14 @@ impl<S: TokenVariant> EscrowVariant<S> for SrcProgram {
             });
 
         let (order, order_ata) = get_order_addresses(test_state);
+        let (whitelist_access, _) =
+            get_whitelist_access_address(&test_state.recipient_wallet.keypair.pubkey());
 
         let instruction: Instruction = Instruction {
             program_id: cross_chain_escrow_src::id(),
             accounts: vec![
                 AccountMeta::new(test_state.recipient_wallet.keypair.pubkey(), true),
+                AccountMeta::new_readonly(whitelist_access, false),
                 AccountMeta::new(test_state.creator_wallet.keypair.pubkey(), false),
                 AccountMeta::new_readonly(test_state.token, false),
                 AccountMeta::new(order, false),
@@ -390,6 +396,8 @@ pub fn get_cancel_order_by_resolver_tx<T: EscrowVariant<S>, S: TokenVariant>(
     let instruction_data = InstructionData::data(
         &cross_chain_escrow_src::instruction::CancelOrderByResolver { reward_limit },
     );
+    let (whitelist_access, _) =
+        get_whitelist_access_address(&test_state.recipient_wallet.keypair.pubkey());
 
     let creator_ata = if let Some(ata) = opt_creator_ata {
         *ata
@@ -402,6 +410,7 @@ pub fn get_cancel_order_by_resolver_tx<T: EscrowVariant<S>, S: TokenVariant>(
         program_id: cross_chain_escrow_src::id(),
         accounts: vec![
             AccountMeta::new(test_state.recipient_wallet.keypair.pubkey(), true),
+            AccountMeta::new_readonly(whitelist_access, false),
             AccountMeta::new(test_state.creator_wallet.keypair.pubkey(), false),
             AccountMeta::new_readonly(test_state.token, false),
             AccountMeta::new(*order, false),
