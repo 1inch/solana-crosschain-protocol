@@ -10,7 +10,7 @@ pub use common::constants;
 use common::error::EscrowError;
 use common::escrow::{uni_transfer, EscrowBase, EscrowType, UniTransferParams};
 use common::utils;
-use primitive_types::U256;
+use common::U256;
 
 use crate::merkle_tree::MerkleProof;
 

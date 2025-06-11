@@ -2,7 +2,7 @@ use anchor_lang::{error::ErrorCode, prelude::ProgramError};
 use anchor_spl::token::spl_token::native_mint::ID as NATIVE_MINT;
 use anchor_spl::token::spl_token::state::Account as SplTokenAccount;
 use common::error::EscrowError;
-use primitive_types::U256;
+use common::U256;
 use common_tests::helpers::*;
 use common_tests::run_for_tokens;
 use common_tests::src_program::{
@@ -1109,7 +1109,7 @@ mod local_helpers {
     use solana_sdk::transaction::Transaction;
 
     /// Byte offset in the escrow account data where the `dst_amount` field is located
-    use primitive_types::U256;
+    use common::U256;
     const DST_AMOUNT_OFFSET: usize = 205;
     const U256_SIZE: usize = 32;
 

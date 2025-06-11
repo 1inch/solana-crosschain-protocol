@@ -58,8 +58,8 @@ pub enum PeriodType {
 }
 
 pub const DEFAULT_ESCROW_AMOUNT: u64 = 100000;
-use primitive_types::U256;
-pub const DEFAULT_DST_ESCROW_AMOUNT: U256 = U256([1000, 0, 0, 0]);
+use common::{U256, u256::PrimitiveU256};
+pub const DEFAULT_DST_ESCROW_AMOUNT: U256 = U256(PrimitiveU256([1000, 0, 0, 0]));
 pub const DEFAULT_RESCUE_AMOUNT: u64 = 100;
 pub const DEFAULT_SAFETY_DEPOSIT: u64 = 25;
 
