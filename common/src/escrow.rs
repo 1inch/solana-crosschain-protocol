@@ -41,6 +41,7 @@ pub trait EscrowBase {
     fn escrow_type(&self) -> EscrowType;
 }
 
+#[allow(clippy::too_many_arguments)]
 pub fn create<'info>(
     escrow_size: usize,
     escrow_type: EscrowType,
