@@ -2272,7 +2272,7 @@ mod local_helpers {
         let proof_hashes = get_proof(merkle_hashes.leaves.clone(), index_to_validate);
         let proof = MerkleProof {
             proof: proof_hashes,
-            index: index_to_validate as u32,
+            index: index_to_validate as u64,
             hashed_secret,
         };
 
@@ -2318,22 +2318,22 @@ mod local_helpers {
         test_state: &TestStateBase<T, S>,
     ) -> MerkleHashes {
         let secret_amount = (test_state.test_arguments.order_parts_amount + 1) as usize;
-        let mut leaves = Vec::with_capacity(secret_amount);
+        let mut hashed_leaves = Vec::with_capacity(secret_amount);
         let mut hashed_secrets = Vec::with_capacity(secret_amount);
 
         for i in 0..secret_amount {
             let i_bytes = (i as u64).to_be_bytes();
-            let hashed_bytes = hashv(&[&i_bytes]).0;
-            let hashed_secret = hashv(&[&hashed_bytes]).0;
+            let secret = hashv(&[&i_bytes]).0; // For example secret is hashv(index)
+            let hashed_secret = hashv(&[&secret]).0;
             hashed_secrets.push(hashed_secret);
 
             let pair_data = [&i_bytes[..], &hashed_secret[..]];
             let hashed_pair = hashv(&pair_data).0;
-            leaves.push(hashed_pair);
+            hashed_leaves.push(hashed_pair);
         }
 
         MerkleHashes {
-            leaves,
+            leaves: hashed_leaves,
             hashed_secrets,
         }
     }
@@ -3160,7 +3160,7 @@ mod test_partial_fill_escrow_creation {
         let proof_hashes = get_proof(merkle_hashes.leaves.clone(), index_to_validate);
         let proof = MerkleProof {
             proof: proof_hashes,
-            index: index_to_validate as u32,
+            index: index_to_validate as u64,
             hashed_secret,
         };
         test_state.test_arguments.merkle_proof = Some(proof);
@@ -3193,7 +3193,7 @@ mod test_partial_fill_escrow_creation {
 
         let proof = MerkleProof {
             proof: incorrect_proof_hashes,
-            index: index_to_validate as u32,
+            index: index_to_validate as u64,
             hashed_secret,
         };
         test_state.test_arguments.merkle_proof = Some(proof);
@@ -3225,7 +3225,7 @@ mod test_partial_fill_escrow_creation {
         // Incorrect hashed_secret
         let proof = MerkleProof {
             proof: proof_hashes,
-            index: index_to_validate as u32,
+            index: index_to_validate as u64,
             hashed_secret: merkle_hashes.hashed_secrets[index_to_validate + 1],
         };
         test_state.test_arguments.merkle_proof = Some(proof);
@@ -3280,7 +3280,7 @@ mod test_partial_fill_escrow_creation {
         let proof_hashes = get_proof(merkle_hashes.leaves.clone(), index_to_validate);
         let proof = MerkleProof {
             proof: proof_hashes,
-            index: index_to_validate as u32,
+            index: index_to_validate as u64,
             hashed_secret,
         };
         test_state.test_arguments.merkle_proof = Some(proof);

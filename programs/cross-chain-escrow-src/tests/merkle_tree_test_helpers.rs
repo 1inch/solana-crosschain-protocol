@@ -1,6 +1,6 @@
 use solana_program::keccak::hashv;
 
-pub fn hash_leaf_pairs(left: &[u8; 32], right: &[u8; 32]) -> [u8; 32] {
+pub fn hash_nodes(left: &[u8; 32], right: &[u8; 32]) -> [u8; 32] {
     let (first, second) = if left < right {
         (left, right)
     } else {
@@ -14,12 +14,12 @@ pub fn hash_level(data: &[[u8; 32]]) -> Vec<[u8; 32]> {
 
     let mut i = 0;
     while i + 1 < data.len() {
-        result.push(hash_leaf_pairs(&data[i], &data[i + 1]));
+        result.push(hash_nodes(&data[i], &data[i + 1]));
         i += 2;
     }
 
     if data.len() % 2 == 1 {
-        result.push(hash_leaf_pairs(&data[data.len() - 1], &[0u8; 32]));
+        result.push(hash_nodes(&data[data.len() - 1], &[0u8; 32]));
     }
 
     result
