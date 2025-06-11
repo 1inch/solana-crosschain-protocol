@@ -104,6 +104,50 @@ run_for_tokens!(
 
             #[test_context(TestState)]
             #[tokio::test]
+            async fn test_withdraw_with_excess_tokens(test_state: &mut TestState) {
+                let (escrow, escrow_ata) = create_escrow(test_state).await;
+                let transaction = DstProgram::get_withdraw_tx(test_state, &escrow, &escrow_ata);
+
+                set_time(
+                    &mut test_state.context,
+                    test_state.init_timestamp
+                        + DEFAULT_PERIOD_DURATION * PeriodType::Withdrawal as u32,
+                );
+
+                let (_, recipient_ata) = find_user_ata(test_state);
+
+                let excess_amount = 1000;
+                // Send excess tokens to the escrow account
+                local_helpers::mint_excess_tokens(test_state, &escrow_ata, excess_amount).await;
+                test_state
+                    .expect_balance_change(
+                        transaction,
+                        &[token_change(
+                            recipient_ata,
+                            test_state.test_arguments.escrow_amount + excess_amount,
+                        )],
+                    )
+                    .await;
+
+                // Assert escrow was closed
+                assert!(test_state
+                    .client
+                    .get_account(escrow)
+                    .await
+                    .unwrap()
+                    .is_none());
+
+                // Assert escrow_ata was closed
+                assert!(test_state
+                    .client
+                    .get_account(escrow_ata)
+                    .await
+                    .unwrap()
+                    .is_none());
+            }
+
+            #[test_context(TestState)]
+            #[tokio::test]
             async fn test_withdraw_does_not_work_with_wrong_secret(test_state: &mut TestState) {
                 common_escrow_tests::test_withdraw_does_not_work_with_wrong_secret(test_state).await
             }
@@ -303,6 +347,41 @@ run_for_tokens!(
             #[tokio::test]
             async fn test_cancel(test_state: &mut TestState) {
                 common_escrow_tests::test_cancel(test_state).await
+            }
+
+            #[test_context(TestState)]
+            #[tokio::test]
+            async fn test_cancel_with_excess_tokens(test_state: &mut TestState) {
+                let (escrow, escrow_ata) = create_escrow(test_state).await;
+                let transaction = DstProgram::get_cancel_tx(test_state, &escrow, &escrow_ata);
+
+                set_time(
+                    &mut test_state.context,
+                    test_state.init_timestamp
+                        + DEFAULT_PERIOD_DURATION * PeriodType::Cancellation as u32,
+                );
+
+                let (creator_ata, _) = find_user_ata(test_state);
+
+                let excess_amount = 1000;
+                // Send excess tokens to the escrow account
+                local_helpers::mint_excess_tokens(test_state, &escrow_ata, excess_amount).await;
+
+                test_state
+                    .expect_balance_change(
+                        transaction,
+                        &[token_change(
+                            creator_ata,
+                            test_state.test_arguments.escrow_amount + excess_amount,
+                        )],
+                    )
+                    .await;
+
+                let acc_lookup_result = test_state.client.get_account(escrow_ata).await.unwrap();
+                assert!(acc_lookup_result.is_none());
+
+                let acc_lookup_result = test_state.client.get_account(escrow).await.unwrap();
+                assert!(acc_lookup_result.is_none());
             }
 
             #[test_context(TestState)]
@@ -547,5 +626,26 @@ mod test_escrow_creation_cost {
     #[tokio::test]
     async fn test_escrow_creation_tx_cost(test_state: &mut TestState) {
         common_escrow_tests::test_escrow_creation_tx_cost(test_state).await
+    }
+}
+
+mod local_helpers {
+    use super::*;
+    use solana_program::pubkey::Pubkey;
+
+    pub async fn mint_excess_tokens<S: TokenVariant>(
+        test_state: &mut TestStateBase<DstProgram, S>,
+        escrow_ata: &Pubkey,
+        excess_amount: u64,
+    ) {
+        S::mint_spl_tokens(
+            &mut test_state.context,
+            &test_state.token,
+            escrow_ata,
+            &test_state.payer_kp.pubkey(),
+            &test_state.payer_kp,
+            excess_amount,
+        )
+        .await;
     }
 }
