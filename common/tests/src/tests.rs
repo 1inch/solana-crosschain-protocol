@@ -1,6 +1,6 @@
 use std::any::TypeId;
 
-use crate::{helpers::*, src_program::SrcProgram};
+use crate::{dst_program::DstProgram, helpers::*, src_program::SrcProgram};
 use anchor_lang::error::ErrorCode;
 use anchor_spl::token::spl_token::{error::TokenError, native_mint::ID as NATIVE_MINT};
 use common::{constants::RESCUE_DELAY, error::EscrowError};
@@ -682,12 +682,18 @@ pub async fn test_cannot_cancel_by_non_creator<T: EscrowVariant<S> + 'static, S:
         .expect_error((0, ProgramError::Custom(EscrowError::InvalidAccount.into())))
 }
 
-pub async fn test_cannot_cancel_with_wrong_creator_ata<T: EscrowVariant<S>, S: TokenVariant>(
+pub async fn test_cannot_cancel_with_wrong_creator_ata<
+    T: EscrowVariant<S> + 'static,
+    S: TokenVariant,
+>(
     test_state: &mut TestStateBase<T, S>,
 ) {
     let (escrow, escrow_ata) = create_escrow(test_state).await;
-
-    test_state.creator_wallet.token_account = test_state.recipient_wallet.token_account;
+    if TypeId::of::<T>() == TypeId::of::<DstProgram>() {
+        test_state.creator_wallet.token_account = test_state.recipient_wallet.token_account;
+    } else {
+        test_state.recipient_wallet.token_account = test_state.creator_wallet.token_account;
+    }
     let transaction = T::get_cancel_tx(test_state, &escrow, &escrow_ata);
 
     test_state
