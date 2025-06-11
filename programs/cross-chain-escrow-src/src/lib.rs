@@ -294,7 +294,7 @@ pub mod cross_chain_escrow_src {
             &ctx.accounts.mint,
             &ctx.accounts.token_program,
             &ctx.accounts.taker,
-            &ctx.accounts.maker,
+            &ctx.accounts.taker,
             &ctx.accounts.taker,
         )
     }
@@ -458,7 +458,7 @@ pub mod cross_chain_escrow_src {
             &ctx.accounts.mint,
             &ctx.accounts.token_program,
             &ctx.accounts.taker,
-            &ctx.accounts.maker,
+            &ctx.accounts.taker,
             &ctx.accounts.payer,
         )
     }
