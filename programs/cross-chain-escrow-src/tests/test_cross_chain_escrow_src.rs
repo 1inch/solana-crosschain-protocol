@@ -19,6 +19,7 @@ use test_context::test_context;
 
 mod merkle_tree_test_helpers;
 use merkle_tree_test_helpers::{get_proof, get_root};
+use primitive_types::U256;
 
 run_for_tokens!(
     (TokenSPL, token_spl_tests),
@@ -356,11 +357,12 @@ run_for_tokens!(
                 let dst_amount = local_helpers::get_dst_amount(&escrow_account_data)
                     .expect("Failed to read dst_amount from escrow account data");
 
-                assert_eq!(
-                    dst_amount,
-                    test_state.test_arguments.dst_amount * EXPECTED_MULTIPLIER_NUMERATOR
-                        / EXPECTED_MULTIPLIER_DENOMINATOR,
-                );
+                let expected = U256(test_state.test_arguments.dst_amount)
+                    .checked_mul(U256::from(EXPECTED_MULTIPLIER_NUMERATOR))
+                    .unwrap()
+                    .checked_div(U256::from(EXPECTED_MULTIPLIER_DENOMINATOR))
+                    .unwrap();
+                assert_eq!(U256(dst_amount), expected);
             }
 
             #[test_context(TestState)]
@@ -1399,12 +1401,10 @@ mod local_helpers {
     }
 
     /// Reads the `dst_amount` field (u64) directly from the raw account data.
-    pub fn get_dst_amount(data: &[u8]) -> Option<u64> {
-        let end = DST_AMOUNT_OFFSET + U64_SIZE;
+    pub fn get_dst_amount(data: &[u8]) -> Option<[u64; 4]> {
+        let end = DST_AMOUNT_OFFSET + U64_SIZE * 4;
         let slice = data.get(DST_AMOUNT_OFFSET..end)?;
-        let mut arr = [0u8; U64_SIZE];
-        arr.copy_from_slice(slice);
-        Some(u64::from_le_bytes(arr))
+        Some(U256::from_little_endian(slice).0)
     }
 
     pub async fn test_order_creation<S: TokenVariant>(
