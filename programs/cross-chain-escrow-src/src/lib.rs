@@ -141,7 +141,7 @@ pub mod cross_chain_escrow_src {
                         order.remaining_amount,
                         order.amount,
                         order.parts_amount,
-                        proof.index as u64,
+                        proof.index,
                     ),
                     EscrowError::InvalidPartialFill
                 );
