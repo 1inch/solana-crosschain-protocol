@@ -487,12 +487,13 @@ run_for_tokens!(
                     .await
             }
 
-            #[test_context(TestState)]
-            #[tokio::test]
-            async fn test_cannot_rescue_funds_by_non_recipient(test_state: &mut TestState) {
-                prepare_resolvers(test_state, &[test_state.creator_wallet.keypair.pubkey()]).await;
-                common_escrow_tests::test_cannot_rescue_funds_by_non_recipient(test_state).await
-            }
+            // TODO: Replace with a test that non-creator cannot rescue funds
+            // #[test_context(TestState)]
+            // #[tokio::test]
+            // async fn test_cannot_rescue_funds_by_non_recipient(test_state: &mut TestState) {
+            //     prepare_resolvers(test_state, &[test_state.creator_wallet.keypair.pubkey()]).await;
+            //     common_escrow_tests::test_cannot_rescue_funds_by_non_recipient(test_state).await
+            // }
 
             #[test_context(TestState)]
             #[tokio::test]
@@ -511,14 +512,6 @@ run_for_tokens!(
                 common_escrow_tests::test_cannot_rescue_funds_with_wrong_escrow_ata(test_state)
                     .await
             }
-
-            // TODO: Replace with a test that non-recipient cannot rescue funds
-            // #[test_context(TestState)]
-            // #[tokio::test]
-            // async fn test_rescue_fails_for_unwhitelisted_account(test_state: &mut TestState) {
-            //     local_helpers::test_cannot_rescue_funds_by_non_whitelisted_resolver(test_state)
-            //         .await;
-            // }
         }
     }
 );

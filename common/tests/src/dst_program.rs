@@ -200,7 +200,6 @@ impl<S: TokenVariant> EscrowVariant<S> for DstProgram {
             InstructionData::data(&cross_chain_escrow_dst::instruction::RescueFunds {
                 hashlock: test_state.hashlock.to_bytes(),
                 order_hash: test_state.order_hash.to_bytes(),
-                escrow_creator: test_state.creator_wallet.keypair.pubkey(),
                 escrow_mint: test_state.token,
                 escrow_amount: test_state.test_arguments.escrow_amount,
                 safety_deposit: test_state.test_arguments.safety_deposit,
@@ -211,7 +210,8 @@ impl<S: TokenVariant> EscrowVariant<S> for DstProgram {
         let instruction: Instruction = Instruction {
             program_id: cross_chain_escrow_dst::id(),
             accounts: vec![
-                AccountMeta::new(test_state.recipient_wallet.keypair.pubkey(), true),
+                AccountMeta::new(test_state.creator_wallet.keypair.pubkey(), true),
+                AccountMeta::new_readonly(test_state.recipient_wallet.keypair.pubkey(), false),
                 AccountMeta::new_readonly(*token_to_rescue, false),
                 AccountMeta::new(*escrow, false),
                 AccountMeta::new(*escrow_ata, false),
@@ -227,7 +227,7 @@ impl<S: TokenVariant> EscrowVariant<S> for DstProgram {
             Some(&test_state.payer_kp.pubkey()),
             &[
                 &test_state.context.payer,
-                &test_state.recipient_wallet.keypair,
+                &test_state.creator_wallet.keypair,
             ],
             test_state.context.last_blockhash,
         )
