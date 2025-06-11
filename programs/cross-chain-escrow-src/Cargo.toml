@@ -25,6 +25,7 @@ anchor-spl = "0.31.1"
 common = { path = "../../common" }
 whitelist = { path = "../whitelist", features = ["no-entrypoint"] }
 muldiv = "1.0.1"
+primitive-types = "0.13.1"
 solana-program = "2.1.0"
 
 [dev-dependencies]
