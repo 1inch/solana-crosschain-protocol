@@ -923,9 +923,9 @@ run_for_tokens!(
 
         mod test_partial_fill_escrow_creation {
             use crate::local_helpers::{
-                compute_merkle_leaves, create_escrow_for_partial_fill,
-                create_escrow_for_partial_fill_data, create_order_for_partial_fill,
-                get_index_for_escrow_amount,
+                compute_merkle_leaves, create_escrow_for_partial_fill_data,
+                create_order_for_partial_fill, get_index_for_escrow_amount,
+                test_creation_escrow_for_partial_fill,
             };
 
             use super::*;
@@ -940,7 +940,7 @@ run_for_tokens!(
                 let (order, order_ata) = create_order_for_partial_fill(test_state).await;
 
                 let escrow_amount = DEFAULT_ESCROW_AMOUNT / DEFAULT_PARTS_AMOUNT_FOR_MULTIPLE * 3;
-                create_escrow_for_partial_fill(test_state, escrow_amount).await;
+                test_creation_escrow_for_partial_fill(test_state, escrow_amount).await;
 
                 // Check that the order accounts have not been closed.
                 let acc_lookup_result = test_state.client.get_account(order).await.unwrap();
@@ -956,8 +956,8 @@ run_for_tokens!(
                 let (order, order_ata) = create_order_for_partial_fill(test_state).await;
 
                 let escrow_amount = DEFAULT_ESCROW_AMOUNT / DEFAULT_PARTS_AMOUNT_FOR_MULTIPLE;
-                create_escrow_for_partial_fill(test_state, escrow_amount).await;
-                create_escrow_for_partial_fill(test_state, escrow_amount).await;
+                test_creation_escrow_for_partial_fill(test_state, escrow_amount).await;
+                test_creation_escrow_for_partial_fill(test_state, escrow_amount).await;
 
                 // Check that the order accounts have not been closed.
                 let acc_lookup_result = test_state.client.get_account(order).await.unwrap();
@@ -974,7 +974,7 @@ run_for_tokens!(
             ) {
                 let (order, order_ata) = create_order_for_partial_fill(test_state).await;
 
-                create_escrow_for_partial_fill(test_state, DEFAULT_ESCROW_AMOUNT).await;
+                test_creation_escrow_for_partial_fill(test_state, DEFAULT_ESCROW_AMOUNT).await;
 
                 // Check that the order accounts have been closed.
                 let acc_lookup_result = test_state.client.get_account(order).await.unwrap();
@@ -990,8 +990,8 @@ run_for_tokens!(
                 let (order, order_ata) = create_order_for_partial_fill(test_state).await;
 
                 let escrow_amount = DEFAULT_ESCROW_AMOUNT / DEFAULT_PARTS_AMOUNT_FOR_MULTIPLE;
-                create_escrow_for_partial_fill(test_state, escrow_amount).await;
-                create_escrow_for_partial_fill(
+                test_creation_escrow_for_partial_fill(test_state, escrow_amount).await;
+                test_creation_escrow_for_partial_fill(
                     test_state,
                     DEFAULT_ESCROW_AMOUNT - escrow_amount, // full fill
                 )
@@ -1012,7 +1012,7 @@ run_for_tokens!(
             ) {
                 create_order_for_partial_fill(test_state).await;
                 let escrow_amount = DEFAULT_ESCROW_AMOUNT / DEFAULT_PARTS_AMOUNT_FOR_MULTIPLE * 3;
-                create_escrow_for_partial_fill(test_state, escrow_amount).await;
+                test_creation_escrow_for_partial_fill(test_state, escrow_amount).await;
                 let (_, _, transaction) = create_escrow_for_partial_fill_data(
                     test_state,
                     DEFAULT_ESCROW_AMOUNT - escrow_amount + 1,
@@ -1034,7 +1034,7 @@ run_for_tokens!(
                 create_order_for_partial_fill(test_state).await;
 
                 let escrow_amount = DEFAULT_ESCROW_AMOUNT / DEFAULT_PARTS_AMOUNT_FOR_MULTIPLE + 1;
-                create_escrow_for_partial_fill(test_state, escrow_amount).await;
+                test_creation_escrow_for_partial_fill(test_state, escrow_amount).await;
                 let so_small_escrow_amount = 1;
                 let (_, _, transaction) =
                     create_escrow_for_partial_fill_data(test_state, so_small_escrow_amount).await;
@@ -2092,7 +2092,7 @@ mod local_helpers {
         create_escrow_data(test_state)
     }
 
-    pub async fn create_escrow_for_partial_fill<S: TokenVariant>(
+    pub async fn test_creation_escrow_for_partial_fill<S: TokenVariant>(
         test_state: &mut TestStateBase<SrcProgram, S>,
         escrow_amount: u64,
     ) -> (Pubkey, Pubkey) {
@@ -2104,6 +2104,11 @@ mod local_helpers {
             .process_transaction(transaction)
             .await
             .expect_success();
+
+        assert_eq!(
+            escrow_amount,
+            get_token_balance(&mut test_state.context, &escrow_ata).await
+        );
 
         test_state.test_arguments.order_remaining_amount -= escrow_amount;
         (escrow, escrow_ata)
