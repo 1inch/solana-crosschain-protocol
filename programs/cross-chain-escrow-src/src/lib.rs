@@ -8,7 +8,7 @@ use anchor_spl::token_interface::{
 pub use auction::{calculate_premium, calculate_rate_bump, AuctionData};
 pub use common::constants;
 use common::error::EscrowError;
-use common::escrow::{uni_transfer, EscrowBase, UniTransferParams};
+use common::escrow::{uni_transfer, EscrowBase, EscrowType, UniTransferParams};
 use common::utils;
 use muldiv::MulDiv;
 
@@ -65,6 +65,7 @@ pub mod cross_chain_escrow_src {
 
         common::escrow::create(
             EscrowSrc::INIT_SPACE + constants::DISCRIMINATOR_BYTES, // Needed to check the safety deposit amount validity
+            EscrowType::Src, // Hardcoded to Src type to sync native ata if applicable
             &ctx.accounts.creator,
             asset_is_native,
             &ctx.accounts.order_ata,
@@ -250,7 +251,8 @@ pub mod cross_chain_escrow_src {
             &ctx.accounts.escrow,
             ctx.bumps.escrow,
             &ctx.accounts.escrow_ata,
-            &ctx.accounts.taker_ata,
+            &ctx.accounts.taker,
+            ctx.accounts.taker_ata.as_deref(),
             &ctx.accounts.mint,
             &ctx.accounts.token_program,
             &ctx.accounts.taker,
@@ -274,7 +276,8 @@ pub mod cross_chain_escrow_src {
             &ctx.accounts.escrow,
             ctx.bumps.escrow,
             &ctx.accounts.escrow_ata,
-            &ctx.accounts.taker_ata,
+            &ctx.accounts.taker,
+            ctx.accounts.taker_ata.as_deref(),
             &ctx.accounts.mint,
             &ctx.accounts.token_program,
             &ctx.accounts.taker,
@@ -712,7 +715,7 @@ pub struct Withdraw<'info> {
         associated_token::authority = taker,
         associated_token::token_program = token_program
     )]
-    taker_ata: Box<InterfaceAccount<'info, TokenAccount>>,
+    taker_ata: Option<Box<InterfaceAccount<'info, TokenAccount>>>,
     token_program: Interface<'info, TokenInterface>,
     system_program: Program<'info, System>,
 }
@@ -757,7 +760,7 @@ pub struct PublicWithdraw<'info> {
         associated_token::authority = taker,
         associated_token::token_program = token_program
     )]
-    taker_ata: Box<InterfaceAccount<'info, TokenAccount>>,
+    taker_ata: Option<Box<InterfaceAccount<'info, TokenAccount>>>,
     token_program: Interface<'info, TokenInterface>,
     system_program: Program<'info, System>,
 }
@@ -1123,6 +1126,10 @@ impl EscrowBase for EscrowSrc {
 
     fn asset_is_native(&self) -> bool {
         self.asset_is_native
+    }
+
+    fn escrow_type(&self) -> EscrowType {
+        EscrowType::Src
     }
 }
 
