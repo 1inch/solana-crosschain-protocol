@@ -811,9 +811,7 @@ run_for_tokens!(
 
             #[test_context(TestState)]
             #[tokio::test]
-            async fn test_rescue_all_tokens_from_order_and_close_ata(
-                test_state: &mut TestState,
-            ) {
+            async fn test_rescue_all_tokens_from_order_and_close_ata(test_state: &mut TestState) {
                 local_helpers::test_rescue_all_tokens_from_order_and_close_ata(test_state).await
             }
 
@@ -822,10 +820,8 @@ run_for_tokens!(
             async fn test_rescue_part_of_tokens_from_order_and_not_close_ata(
                 test_state: &mut TestState,
             ) {
-                local_helpers::test_rescue_part_of_tokens_from_order_and_not_close_ata(
-                    test_state,
-                )
-                .await
+                local_helpers::test_rescue_part_of_tokens_from_order_and_not_close_ata(test_state)
+                    .await
             }
 
             #[test_context(TestState)]
@@ -861,10 +857,8 @@ run_for_tokens!(
             async fn test_cannot_rescue_funds_from_order_with_wrong_order_ata(
                 test_state: &mut TestState,
             ) {
-                local_helpers::test_cannot_rescue_funds_from_order_with_wrong_orders_ata(
-                    test_state,
-                )
-                .await
+                local_helpers::test_cannot_rescue_funds_from_order_with_wrong_orders_ata(test_state)
+                    .await
             }
         }
 
@@ -882,20 +876,15 @@ run_for_tokens!(
             #[tokio::test]
             async fn test_rescue_part_of_tokens_and_not_close_ata(test_state: &mut TestState) {
                 create_order(test_state).await;
-                common_escrow_tests::test_rescue_part_of_tokens_and_not_close_ata(test_state)
-                    .await
+                common_escrow_tests::test_rescue_part_of_tokens_and_not_close_ata(test_state).await
             }
 
             #[test_context(TestState)]
             #[tokio::test]
-            async fn test_cannot_rescue_funds_before_rescue_delay_pass(
-                test_state: &mut TestState,
-            ) {
+            async fn test_cannot_rescue_funds_before_rescue_delay_pass(test_state: &mut TestState) {
                 create_order(test_state).await;
-                common_escrow_tests::test_cannot_rescue_funds_before_rescue_delay_pass(
-                    test_state,
-                )
-                .await
+                common_escrow_tests::test_cannot_rescue_funds_before_rescue_delay_pass(test_state)
+                    .await
             }
 
             #[test_context(TestState)]
@@ -907,14 +896,10 @@ run_for_tokens!(
 
             #[test_context(TestState)]
             #[tokio::test]
-            async fn test_cannot_rescue_funds_with_wrong_recipient_ata(
-                test_state: &mut TestState,
-            ) {
+            async fn test_cannot_rescue_funds_with_wrong_recipient_ata(test_state: &mut TestState) {
                 create_order(test_state).await;
-                common_escrow_tests::test_cannot_rescue_funds_with_wrong_recipient_ata(
-                    test_state,
-                )
-                .await
+                common_escrow_tests::test_cannot_rescue_funds_with_wrong_recipient_ata(test_state)
+                    .await
             }
 
             #[test_context(TestState)]
