@@ -37,10 +37,13 @@ pub trait EscrowBase {
     fn rescue_start(&self) -> u32;
 
     fn asset_is_native(&self) -> bool;
+
+    fn escrow_type(&self) -> EscrowType;
 }
 
 pub fn create<'info>(
     escrow_size: usize,
+    escrow_type: EscrowType,
     creator: &AccountInfo<'info>,
     asset_is_native: bool,
     escrow_ata: &InterfaceAccount<'info, TokenAccount>,
@@ -89,12 +92,14 @@ pub fn create<'info>(
             None,
         )?;
 
-        anchor_spl::token::sync_native(CpiContext::new(
-            token_program.to_account_info(),
-            anchor_spl::token::SyncNative {
-                account: escrow_ata.to_account_info(),
-            },
-        ))?;
+        if escrow_type == EscrowType::Src {
+            anchor_spl::token::sync_native(CpiContext::new(
+                token_program.to_account_info(),
+                anchor_spl::token::SyncNative {
+                    account: escrow_ata.to_account_info(),
+                },
+            ))?;
+        }
     } else {
         // Do SPL token transfer
         uni_transfer(
@@ -119,7 +124,8 @@ pub fn withdraw<'info, T>(
     escrow: &Account<'info, T>,
     escrow_bump: u8,
     escrow_ata: &InterfaceAccount<'info, TokenAccount>,
-    recipient_ata: &InterfaceAccount<'info, TokenAccount>,
+    recipient: &AccountInfo<'info>,
+    recipient_ata: Option<&InterfaceAccount<'info, TokenAccount>>,
     mint: &InterfaceAccount<'info, Mint>,
     token_program: &Interface<'info, TokenInterface>,
     rent_recipient: &AccountInfo<'info>,
@@ -148,29 +154,35 @@ where
         &[escrow_bump],
     ];
 
-    // Transfer tokens from escrow to recipient
-    uni_transfer(
-        &UniTransferParams::TokenTransfer {
-            from: escrow_ata.to_account_info(),
-            authority: escrow.to_account_info(),
-            to: recipient_ata.to_account_info(),
-            mint: mint.clone(),
-            amount: escrow.amount(),
-            program: token_program.clone(),
-        },
-        Some(&[&seeds]),
-    )?;
+    if escrow.escrow_type() == EscrowType::Dst && escrow.asset_is_native() {
+        close_and_withdraw_native_ata(escrow, escrow_ata, recipient, token_program, seeds)?;
+    } else {
+        // Transfer tokens from escrow to recipient
+        uni_transfer(
+            &UniTransferParams::TokenTransfer {
+                from: escrow_ata.to_account_info(),
+                authority: escrow.to_account_info(),
+                to: recipient_ata
+                    .ok_or(EscrowError::MissingRecipientAta)?
+                    .to_account_info(),
+                mint: mint.clone(),
+                amount: escrow_ata.amount,
+                program: token_program.clone(),
+            },
+            Some(&[&seeds]),
+        )?;
 
-    // Close the escrow_ata account
-    close_account(CpiContext::new_with_signer(
-        token_program.to_account_info(),
-        CloseAccount {
-            account: escrow_ata.to_account_info(),
-            destination: rent_recipient.to_account_info(),
-            authority: escrow.to_account_info(),
-        },
-        &[&seeds],
-    ))?;
+        // Close the escrow_ata account
+        close_account(CpiContext::new_with_signer(
+            token_program.to_account_info(),
+            CloseAccount {
+                account: escrow_ata.to_account_info(),
+                destination: rent_recipient.to_account_info(),
+                authority: escrow.to_account_info(),
+            },
+            &[&seeds],
+        ))?;
+    }
 
     // Close the escrow account
     close_escrow_account(escrow, safety_deposit_recipient, rent_recipient)?;
@@ -215,7 +227,7 @@ where
                     .ok_or(EscrowError::MissingCreatorAta)?
                     .to_account_info(),
                 mint: mint.clone(),
-                amount: escrow.amount(),
+                amount: escrow_ata.amount,
                 program: token_program.clone(),
             },
             Some(&[&seeds]),
@@ -232,7 +244,7 @@ where
             &[&seeds],
         ))?;
     } else {
-        // Handle native token (WSOL) withdrawal and ata closure
+        // Handle native token or WSOL withdrawal and ata closure
         close_and_withdraw_native_ata(escrow, escrow_ata, creator, token_program, seeds)?;
     }
     // Close the escrow account
@@ -401,4 +413,10 @@ pub fn uni_transfer(
             transfer_checked(cpi_ctx, *amount, mint.decimals)
         }
     }
+}
+
+#[derive(AnchorSerialize, AnchorDeserialize, Clone, Copy, PartialEq)]
+pub enum EscrowType {
+    Src,
+    Dst,
 }

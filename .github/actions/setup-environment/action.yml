@@ -18,7 +18,9 @@ runs:
 
     # Anchor 0.31.1 requires this library to be installed on the system.
     - shell: bash
-      run: sudo apt-get install libudev-dev
+      run: |
+        sudo apt-get update
+        sudo apt-get install libudev-dev
 
     # Rust and Cargo
     - name: Set up Rust

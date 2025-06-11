@@ -1,6 +1,6 @@
 use std::any::TypeId;
 
-use crate::{helpers::*, src_program::SrcProgram};
+use crate::{dst_program::DstProgram, helpers::*, src_program::SrcProgram};
 use anchor_lang::error::ErrorCode;
 use anchor_spl::token::spl_token::{error::TokenError, native_mint::ID as NATIVE_MINT};
 use common::{constants::RESCUE_DELAY, error::EscrowError};
@@ -231,7 +231,7 @@ pub async fn test_escrow_creation_fails_with_invalid_rescue_start<
     assert!(acc_lookup_result.is_none());
 }
 
-pub async fn test_withdraw<T: EscrowVariant<S>, S: TokenVariant>(
+pub async fn test_withdraw<T: EscrowVariant<S> + 'static, S: TokenVariant>(
     test_state: &mut TestStateBase<T, S>,
     rent_recipient: Pubkey,
 ) {
@@ -249,14 +249,27 @@ pub async fn test_withdraw<T: EscrowVariant<S>, S: TokenVariant>(
 
     let (_, recipient_ata) = find_user_ata(test_state);
 
+    let balance_changes: Vec<BalanceChange> = if test_state.test_arguments.asset_is_native
+        && TypeId::of::<T>() == TypeId::of::<DstProgram>()
+    {
+        [
+            native_change(rent_recipient, token_account_rent + escrow_rent),
+            native_change(
+                test_state.recipient_wallet.keypair.pubkey(),
+                test_state.test_arguments.escrow_amount,
+            ),
+        ]
+        .into()
+    } else {
+        [
+            native_change(rent_recipient, token_account_rent + escrow_rent),
+            token_change(recipient_ata, test_state.test_arguments.escrow_amount),
+        ]
+        .into()
+    };
+
     test_state
-        .expect_balance_change(
-            transaction,
-            &[
-                native_change(rent_recipient, token_account_rent + escrow_rent),
-                token_change(recipient_ata, test_state.test_arguments.escrow_amount),
-            ],
-        )
+        .expect_balance_change(transaction, &balance_changes)
         .await;
 
     // Assert escrow was closed
@@ -421,7 +434,7 @@ pub async fn test_withdraw_does_not_work_after_cancellation_start<
         .expect_error((0, ProgramError::Custom(EscrowError::InvalidTime.into())))
 }
 
-pub async fn test_public_withdraw_tokens<T: EscrowVariant<S>, S: TokenVariant>(
+pub async fn test_public_withdraw_tokens<T: EscrowVariant<S> + 'static, S: TokenVariant>(
     test_state: &mut TestStateBase<T, S>,
     withdrawer: Keypair,
     rent_recipient: Pubkey,
@@ -451,35 +464,70 @@ pub async fn test_public_withdraw_tokens<T: EscrowVariant<S>, S: TokenVariant>(
 
     let (_, recipient_ata) = find_user_ata(test_state);
 
-    if withdrawer.pubkey() == rent_recipient {
-        test_state
-            .expect_balance_change(
-                transaction,
-                &[
-                    native_change(rent_recipient, token_account_rent + rent_lamports),
-                    token_change(recipient_ata, test_state.test_arguments.escrow_amount),
-                ],
-            )
-            .await;
-    } else {
-        test_state
-            .expect_balance_change(
-                transaction,
-                &[
-                    native_change(
-                        withdrawer.pubkey(),
-                        test_state.test_arguments.safety_deposit,
-                    ),
-                    native_change(
-                        rent_recipient,
-                        token_account_rent + rent_lamports
-                            - test_state.test_arguments.safety_deposit,
-                    ),
-                    token_change(recipient_ata, test_state.test_arguments.escrow_amount),
-                ],
-            )
-            .await;
+    let balance_changes: Vec<BalanceChange> = match (
+        test_state.test_arguments.asset_is_native,
+        TypeId::of::<T>() == TypeId::of::<DstProgram>(),
+        withdrawer.pubkey(),
+    ) {
+        (true, true, pubkey) if pubkey == rent_recipient => {
+            vec![
+                native_change(rent_recipient, token_account_rent + rent_lamports),
+                native_change(
+                    test_state.recipient_wallet.keypair.pubkey(),
+                    test_state.test_arguments.escrow_amount,
+                ),
+            ]
+        }
+        (true, true, pubkey) if pubkey == test_state.recipient_wallet.keypair.pubkey() => {
+            vec![
+                native_change(
+                    rent_recipient,
+                    token_account_rent + rent_lamports - test_state.test_arguments.safety_deposit,
+                ),
+                native_change(
+                    pubkey,
+                    test_state.test_arguments.escrow_amount
+                        + test_state.test_arguments.safety_deposit,
+                ),
+            ]
+        }
+        (true, true, pubkey) => {
+            vec![
+                native_change(
+                    rent_recipient,
+                    token_account_rent + rent_lamports - test_state.test_arguments.safety_deposit,
+                ),
+                native_change(pubkey, test_state.test_arguments.safety_deposit),
+                native_change(
+                    test_state.recipient_wallet.keypair.pubkey(),
+                    test_state.test_arguments.escrow_amount,
+                ),
+            ]
+        }
+        (_, _, pubkey) if pubkey == rent_recipient => {
+            vec![
+                native_change(rent_recipient, token_account_rent + rent_lamports),
+                token_change(recipient_ata, test_state.test_arguments.escrow_amount),
+            ]
+        }
+        _ => {
+            vec![
+                native_change(
+                    rent_recipient,
+                    token_account_rent + rent_lamports - test_state.test_arguments.safety_deposit,
+                ),
+                native_change(
+                    withdrawer.pubkey(),
+                    test_state.test_arguments.safety_deposit,
+                ),
+                token_change(recipient_ata, test_state.test_arguments.escrow_amount),
+            ]
+        }
     };
+
+    test_state
+        .expect_balance_change(transaction, &balance_changes)
+        .await;
 
     // Assert accounts were closed
     assert!(test_state

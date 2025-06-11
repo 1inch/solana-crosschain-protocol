@@ -47,7 +47,7 @@ impl<S: TokenVariant> EscrowVariant<S> for DstProgram {
             program_id: cross_chain_escrow_dst::id(),
             accounts: vec![
                 AccountMeta::new(test_state.creator_wallet.keypair.pubkey(), false),
-                AccountMeta::new_readonly(test_state.recipient_wallet.keypair.pubkey(), false),
+                AccountMeta::new(test_state.recipient_wallet.keypair.pubkey(), false),
                 AccountMeta::new(withdrawer.pubkey(), true),
                 AccountMeta::new_readonly(whitelist_access, false),
                 AccountMeta::new_readonly(test_state.token, false),
@@ -84,7 +84,7 @@ impl<S: TokenVariant> EscrowVariant<S> for DstProgram {
             program_id: cross_chain_escrow_dst::id(),
             accounts: vec![
                 AccountMeta::new(test_state.creator_wallet.keypair.pubkey(), true),
-                AccountMeta::new_readonly(test_state.recipient_wallet.keypair.pubkey(), false),
+                AccountMeta::new(test_state.recipient_wallet.keypair.pubkey(), false),
                 AccountMeta::new_readonly(test_state.token, false),
                 AccountMeta::new(*escrow, false),
                 AccountMeta::new(*escrow_ata, false),
