@@ -991,12 +991,6 @@ run_for_tokens!(
                 .await
             }
 
-            // #[test_context(TestState)]
-            // #[tokio::test]
-            // async fn test_cannot_rescue_funds_from_order_by_non_recipient(test_state: &mut TestState) { // TODO: return after implement whitelist
-            //     local_helpers::test_cannot_rescue_funds_from_order_by_non_recipient(test_state).await
-            // }
-
             #[test_context(TestState)]
             #[tokio::test]
             async fn test_cannot_rescue_funds_from_order_with_wrong_recipient_ata(
@@ -1381,12 +1375,9 @@ run_for_tokens!(
 
                 let excess_amount = 1000;
                 // Send excess tokens to the order ATA.
-                TokenSPL::mint_spl_tokens(
-                    &mut test_state.context,
-                    &test_state.token,
+                local_helpers::mint_excess_tokens(
+                    test_state,
                     &order_ata,
-                    &test_state.payer_kp.pubkey(),
-                    &test_state.payer_kp,
                     excess_amount,
                 )
                 .await;
@@ -1817,54 +1808,6 @@ mod local_helpers {
             .process_transaction(transaction)
             .await
             .expect_error((0, ProgramError::Custom(EscrowError::InvalidTime.into())));
-    }
-
-    pub async fn _test_cannot_rescue_funds_from_order_by_non_recipient<S: TokenVariant>(
-        // TODO: use after implement whitelist
-        test_state: &mut TestStateBase<SrcProgram, S>,
-    ) {
-        let (order, _) = create_order(test_state).await;
-
-        let token_to_rescue = S::deploy_spl_token(&mut test_state.context).await.pubkey();
-        let order_ata =
-            S::initialize_spl_associated_account(&mut test_state.context, &token_to_rescue, &order)
-                .await;
-        test_state.recipient_wallet = test_state.creator_wallet.clone(); // Use different wallet as recipient
-        let recipient_ata = S::initialize_spl_associated_account(
-            &mut test_state.context,
-            &token_to_rescue,
-            &test_state.recipient_wallet.keypair.pubkey(),
-        )
-        .await;
-
-        S::mint_spl_tokens(
-            &mut test_state.context,
-            &token_to_rescue,
-            &order_ata,
-            &test_state.payer_kp.pubkey(),
-            &test_state.payer_kp,
-            test_state.test_arguments.rescue_amount,
-        )
-        .await;
-
-        let transaction = get_rescue_funds_from_order_tx(
-            test_state,
-            &order,
-            &order_ata,
-            &token_to_rescue,
-            &recipient_ata,
-        );
-
-        set_time(
-            &mut test_state.context,
-            test_state.init_timestamp + common::constants::RESCUE_DELAY + 100,
-        );
-
-        test_state
-            .client
-            .process_transaction(transaction)
-            .await
-            .expect_error((0, ProgramError::Custom(ErrorCode::ConstraintSeeds.into())))
     }
 
     pub async fn test_cannot_rescue_funds_from_order_with_wrong_recipient_ata<S: TokenVariant>(
@@ -2340,16 +2283,33 @@ mod local_helpers {
         let (escrow, escrow_ata, transaction) =
             create_escrow_for_partial_fill_data(test_state, escrow_amount).await;
 
+        let order_ata = get_order_addresses(test_state).1;
+
+        let expect_amount = get_token_balance(&mut test_state.context, &order_ata).await;
+
         test_state
             .client
             .process_transaction(transaction)
             .await
             .expect_success();
 
-        assert_eq!(
-            escrow_amount,
-            get_token_balance(&mut test_state.context, &escrow_ata).await
-        );
+        if test_state
+            .client
+            .get_account(order_ata)
+            .await
+            .unwrap()
+            .is_none()
+        {
+            assert_eq!(
+                expect_amount,
+                get_token_balance(&mut test_state.context, &escrow_ata).await
+            );
+        } else {
+            assert_eq!(
+                escrow_amount,
+                get_token_balance(&mut test_state.context, &escrow_ata).await
+            );
+        }
 
         test_state.test_arguments.order_remaining_amount -= escrow_amount;
         (escrow, escrow_ata)
