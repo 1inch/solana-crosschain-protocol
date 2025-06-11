@@ -217,7 +217,10 @@ where
         &[escrow_bump],
     ];
 
-    if !escrow.asset_is_native() {
+    if escrow.asset_is_native() {
+        // Handle native token or WSOL withdrawal and ata closure
+        close_and_withdraw_native_ata(escrow, escrow_ata, creator, token_program, seeds)?;
+    } else {
         // Return tokens to creator
         uni_transfer(
             &UniTransferParams::TokenTransfer {
@@ -243,10 +246,8 @@ where
             },
             &[&seeds],
         ))?;
-    } else {
-        // Handle native token or WSOL withdrawal and ata closure
-        close_and_withdraw_native_ata(escrow, escrow_ata, creator, token_program, seeds)?;
     }
+
     // Close the escrow account
     close_escrow_account(escrow, safety_deposit_recipient, rent_recipient)?;
 
