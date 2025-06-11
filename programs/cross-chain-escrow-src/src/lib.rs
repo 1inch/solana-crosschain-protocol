@@ -252,7 +252,7 @@ pub mod cross_chain_escrow_src {
             ctx.bumps.escrow,
             &ctx.accounts.escrow_ata,
             &ctx.accounts.taker,
-            Some(&ctx.accounts.taker_ata),
+            ctx.accounts.taker_ata.as_deref(),
             &ctx.accounts.mint,
             &ctx.accounts.token_program,
             &ctx.accounts.taker,
@@ -277,7 +277,7 @@ pub mod cross_chain_escrow_src {
             ctx.bumps.escrow,
             &ctx.accounts.escrow_ata,
             &ctx.accounts.taker,
-            Some(&ctx.accounts.taker_ata),
+            ctx.accounts.taker_ata.as_deref(),
             &ctx.accounts.mint,
             &ctx.accounts.token_program,
             &ctx.accounts.taker,
@@ -715,7 +715,7 @@ pub struct Withdraw<'info> {
         associated_token::authority = taker,
         associated_token::token_program = token_program
     )]
-    taker_ata: Box<InterfaceAccount<'info, TokenAccount>>,
+    taker_ata: Option<Box<InterfaceAccount<'info, TokenAccount>>>,
     token_program: Interface<'info, TokenInterface>,
     system_program: Program<'info, System>,
 }
@@ -760,7 +760,7 @@ pub struct PublicWithdraw<'info> {
         associated_token::authority = taker,
         associated_token::token_program = token_program
     )]
-    taker_ata: Box<InterfaceAccount<'info, TokenAccount>>,
+    taker_ata: Option<Box<InterfaceAccount<'info, TokenAccount>>>,
     token_program: Interface<'info, TokenInterface>,
     system_program: Program<'info, System>,
 }
