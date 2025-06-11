@@ -397,7 +397,7 @@ pub struct RescueFunds<'info> {
     #[account(
         mut, // Needed because this account receives lamports from closed token account.
     )]
-    creator: Signer<'info>,
+    recipient: Signer<'info>,
     mint: Box<InterfaceAccount<'info, Mint>>,
     /// CHECK: We don't accept escrow as 'Account<'info, Escrow>' because it may be already closed at the time of rescue funds.
     #[account(
