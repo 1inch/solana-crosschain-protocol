@@ -197,12 +197,6 @@ pub struct Create<'info> {
         mut, // Needed because this account transfers lamports if the token is native and to pay for the order creation
     )]
     creator: Signer<'info>,
-    #[account(
-        seeds = [whitelist::RESOLVER_ACCESS_SEED, creator.key().as_ref()],
-        bump = resolver_access.bump,
-        seeds::program = whitelist::ID,
-    )]
-    resolver_access: Account<'info, whitelist::ResolverAccess>,
     /// CHECK: check is not necessary as token is only used as a constraint to creator_ata and escrow_ata
     mint: Box<InterfaceAccount<'info, Mint>>,
     #[account(
