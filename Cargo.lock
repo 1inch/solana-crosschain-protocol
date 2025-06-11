@@ -1040,6 +1040,7 @@ dependencies = [
  "solana-program-test",
  "solana-sdk",
  "test-context",
+ "whitelist",
 ]
 
 [[package]]
@@ -1148,6 +1149,7 @@ dependencies = [
  "solana-program-test",
  "solana-sdk",
  "test-context",
+ "whitelist",
 ]
 
 [[package]]
@@ -1165,6 +1167,7 @@ dependencies = [
  "solana-program-test",
  "solana-sdk",
  "test-context",
+ "whitelist",
 ]
 
 [[package]]

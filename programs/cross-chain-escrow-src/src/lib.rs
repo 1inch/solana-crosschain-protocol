@@ -606,6 +606,12 @@ pub struct CreateEscrow<'info> {
     #[account(mut)]
     taker: Signer<'info>,
     #[account(
+        seeds = [whitelist::RESOLVER_ACCESS_SEED, taker.key().as_ref()],
+        bump = resolver_access.bump,
+        seeds::program = whitelist::ID,
+    )]
+    resolver_access: Account<'info, whitelist::ResolverAccess>,
+    #[account(
         mut, // Necessary because lamports will be transferred to this account when the order accounts are closed.
         constraint = maker.key() == order.creator @ EscrowError::InvalidAccount
     )]
@@ -730,6 +736,12 @@ pub struct PublicWithdraw<'info> {
     taker: AccountInfo<'info>,
     #[account(mut)]
     payer: Signer<'info>,
+    #[account(
+        seeds = [whitelist::RESOLVER_ACCESS_SEED, payer.key().as_ref()],
+        bump = resolver_access.bump,
+        seeds::program = whitelist::ID,
+    )]
+    resolver_access: Account<'info, whitelist::ResolverAccess>,
     mint: Box<InterfaceAccount<'info, Mint>>,
     #[account(
         mut,
@@ -859,6 +871,12 @@ pub struct CancelOrderbyResolver<'info> {
     /// Account that cancels the escrow
     #[account(mut, signer)]
     resolver: Signer<'info>,
+    #[account(
+        seeds = [whitelist::RESOLVER_ACCESS_SEED, resolver.key().as_ref()],
+        bump = resolver_access.bump,
+        seeds::program = whitelist::ID,
+    )]
+    resolver_access: Account<'info, whitelist::ResolverAccess>,
     /// CHECK: Currently only used for the token-authority check and to receive lamports if the token is native
     #[account(
         mut, // Needed because this account receives lamports if the token is native
@@ -917,6 +935,12 @@ pub struct PublicCancelEscrow<'info> {
     mint: Box<InterfaceAccount<'info, Mint>>,
     #[account(mut)]
     payer: Signer<'info>,
+    #[account(
+        seeds = [whitelist::RESOLVER_ACCESS_SEED, payer.key().as_ref()],
+        bump = resolver_access.bump,
+        seeds::program = whitelist::ID,
+    )]
+    resolver_access: Account<'info, whitelist::ResolverAccess>,
     #[account(
         mut,
         seeds = [
@@ -1001,6 +1025,12 @@ pub struct RescueFundsForOrder<'info> {
         mut, // Needed because this account receives lamports from closed token account.
     )]
     resolver: Signer<'info>,
+    #[account(
+        seeds = [whitelist::RESOLVER_ACCESS_SEED, resolver.key().as_ref()],
+        bump = resolver_access.bump,
+        seeds::program = whitelist::ID,
+    )]
+    resolver_access: Account<'info, whitelist::ResolverAccess>,
     mint: Box<InterfaceAccount<'info, Mint>>,
     /// CHECK: We don't accept order as 'Account<'info, Order>' because it may be already closed at the time of rescue funds.
     #[account(

@@ -154,7 +154,6 @@ pub mod cross_chain_escrow_dst {
         ctx: Context<RescueFunds>,
         order_hash: [u8; 32],
         hashlock: [u8; 32],
-        escrow_creator: Pubkey,
         escrow_mint: Pubkey,
         escrow_amount: u64,
         safety_deposit: u64,
@@ -162,11 +161,12 @@ pub mod cross_chain_escrow_dst {
         rescue_amount: u64,
     ) -> Result<()> {
         let recipient_pubkey = ctx.accounts.recipient.key();
+        let creator_pubkey = ctx.accounts.creator.key();
         let seeds = [
             "escrow".as_bytes(),
             order_hash.as_ref(),
             hashlock.as_ref(),
-            escrow_creator.as_ref(),
+            creator_pubkey.as_ref(),
             recipient_pubkey.as_ref(),
             escrow_mint.as_ref(),
             &escrow_amount.to_be_bytes(),
@@ -179,8 +179,8 @@ pub mod cross_chain_escrow_dst {
             &ctx.accounts.escrow,
             rescue_start,
             &ctx.accounts.escrow_ata,
-            &ctx.accounts.recipient,
-            &ctx.accounts.recipient_ata,
+            &ctx.accounts.creator,
+            &ctx.accounts.creator_ata,
             &ctx.accounts.mint,
             &ctx.accounts.token_program,
             rescue_amount,
@@ -306,6 +306,12 @@ pub struct PublicWithdraw<'info> {
     recipient: AccountInfo<'info>,
     #[account(mut)]
     payer: Signer<'info>,
+    #[account(
+        seeds = [whitelist::RESOLVER_ACCESS_SEED, payer.key().as_ref()],
+        bump = resolver_access.bump,
+        seeds::program = whitelist::ID,
+    )]
+    resolver_access: Account<'info, whitelist::ResolverAccess>,
     mint: Box<InterfaceAccount<'info, Mint>>,
     #[account(
         mut,
@@ -386,12 +392,13 @@ pub struct Cancel<'info> {
 }
 
 #[derive(Accounts)]
-#[instruction(order_hash: [u8; 32], hashlock: [u8; 32], escrow_creator: Pubkey, escrow_mint: Pubkey, escrow_amount: u64, safety_deposit: u64, rescue_start: u32)]
+#[instruction(order_hash: [u8; 32], hashlock: [u8; 32], escrow_mint: Pubkey, escrow_amount: u64, safety_deposit: u64, rescue_start: u32)]
 pub struct RescueFunds<'info> {
     #[account(
         mut, // Needed because this account receives lamports from closed token account.
     )]
-    recipient: Signer<'info>,
+    creator: Signer<'info>,
+    recipient: AccountInfo<'info>,
     mint: Box<InterfaceAccount<'info, Mint>>,
     /// CHECK: We don't accept escrow as 'Account<'info, Escrow>' because it may be already closed at the time of rescue funds.
     #[account(
@@ -399,7 +406,7 @@ pub struct RescueFunds<'info> {
             "escrow".as_bytes(),
             order_hash.as_ref(),
             hashlock.as_ref(),
-            escrow_creator.as_ref(),
+            creator.key().as_ref(),
             recipient.key().as_ref(),
             escrow_mint.as_ref(),
             escrow_amount.to_be_bytes().as_ref(),
@@ -419,10 +426,10 @@ pub struct RescueFunds<'info> {
     #[account(
         mut,
         associated_token::mint = mint,
-        associated_token::authority = recipient,
+        associated_token::authority = creator,
         associated_token::token_program = token_program
     )]
-    recipient_ata: Box<InterfaceAccount<'info, TokenAccount>>,
+    creator_ata: Box<InterfaceAccount<'info, TokenAccount>>,
     token_program: Interface<'info, TokenInterface>,
     system_program: Program<'info, System>,
 }
