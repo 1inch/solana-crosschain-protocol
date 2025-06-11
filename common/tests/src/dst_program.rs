@@ -162,14 +162,11 @@ impl<S: TokenVariant> EscrowVariant<S> for DstProgram {
             });
 
         let (creator_ata, _) = find_user_ata(test_state);
-        let (whitelist_access, _) =
-            get_whitelist_access_address(&test_state.creator_wallet.keypair.pubkey());
 
         let instruction: Instruction = Instruction {
             program_id: cross_chain_escrow_dst::id(),
             accounts: vec![
                 AccountMeta::new(test_state.creator_wallet.keypair.pubkey(), true),
-                AccountMeta::new_readonly(whitelist_access, false),
                 AccountMeta::new_readonly(test_state.token, false),
                 AccountMeta::new(creator_ata, false),
                 AccountMeta::new(*escrow, false),
