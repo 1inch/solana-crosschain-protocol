@@ -1,11 +1,9 @@
 use anchor_spl::associated_token::{
     spl_associated_token_account, spl_associated_token_account::instruction as spl_ata_instruction,
 };
-use anchor_spl::token::spl_token;
-use anchor_spl::token::spl_token::instruction::sync_native;
-use anchor_spl::token::spl_token::native_mint::ID as NATIVE_MINT;
 use anchor_spl::token::spl_token::{
-    instruction as spl_instruction,
+    instruction::{self as spl_instruction, sync_native},
+    native_mint::ID as NATIVE_MINT,
     state::{Account as SplTokenAccount, Mint},
     ID as spl_program_id,
 };
@@ -17,6 +15,7 @@ use anchor_spl::token_2022::spl_token_2022::{
 
 use async_trait::async_trait;
 use common::constants::RESCUE_DELAY;
+use cross_chain_escrow_src::{get_escrow_hashlock, merkle_tree::MerkleProof};
 use solana_program::{
     instruction::Instruction,
     keccak::{hash, Hash},
@@ -28,8 +27,8 @@ use solana_program_runtime::invoke_context::BuiltinFunctionWithContext;
 use solana_program_test::{
     BanksClient, BanksClientError, ProgramTest, ProgramTestBanksClientExt, ProgramTestContext,
 };
-use solana_sdk::native_token::LAMPORTS_PER_SOL;
 use solana_sdk::{
+    native_token::LAMPORTS_PER_SOL,
     signature::Signer,
     signer::keypair::Keypair,
     system_instruction,
@@ -47,6 +46,8 @@ pub const WALLET_DEFAULT_LAMPORTS: u64 = 10 * LAMPORTS_PER_SOL;
 pub const WALLET_DEFAULT_TOKENS: u64 = 1000000000;
 
 pub const DEFAULT_PERIOD_DURATION: u32 = 100;
+pub const DEFAULT_PARTS_AMOUNT: u64 = 1;
+pub const DEFAULT_PARTS_AMOUNT_FOR_MULTIPLE: u64 = 4;
 
 pub enum PeriodType {
     Finality = 0,
@@ -62,6 +63,9 @@ pub const DEFAULT_RESCUE_AMOUNT: u64 = 100;
 pub const DEFAULT_SAFETY_DEPOSIT: u64 = 25;
 
 pub struct TestArgs {
+    pub order_amount: u64,
+    pub order_parts_amount: u64,
+    pub order_remaining_amount: u64,
     pub escrow_amount: u64,
     pub safety_deposit: u64,
     pub finality_duration: u32,
@@ -79,11 +83,17 @@ pub struct TestArgs {
     pub max_cancellation_premium: u64,
     pub cancellation_auction_duration: u32,
     pub reward_limit: u64,
+    pub merkle_proof: Option<MerkleProof>,
+    pub merkle_root: Hash,
+    pub allow_multiple_fills: bool,
 }
 
 pub fn get_default_testargs(nowsecs: u32) -> TestArgs {
     TestArgs {
+        order_amount: DEFAULT_ESCROW_AMOUNT,
+        order_remaining_amount: DEFAULT_ESCROW_AMOUNT,
         escrow_amount: DEFAULT_ESCROW_AMOUNT,
+        order_parts_amount: DEFAULT_PARTS_AMOUNT,
         safety_deposit: DEFAULT_SAFETY_DEPOSIT,
         finality_duration: DEFAULT_PERIOD_DURATION,
         withdrawal_duration: DEFAULT_PERIOD_DURATION,
@@ -105,6 +115,9 @@ pub fn get_default_testargs(nowsecs: u32) -> TestArgs {
         max_cancellation_premium: DEFAULT_ESCROW_AMOUNT.mul(50_u64 * 100).div(100_u64 * 100),
         cancellation_auction_duration: DEFAULT_PERIOD_DURATION,
         reward_limit: DEFAULT_ESCROW_AMOUNT.mul(50_u64 * 100).div(100_u64 * 100),
+        merkle_proof: None,
+        merkle_root: Hash::default(),
+        allow_multiple_fills: false,
     }
 }
 
@@ -490,12 +503,16 @@ pub fn get_escrow_addresses<T: EscrowVariant<S>, S: TokenVariant>(
     test_state: &TestStateBase<T, S>,
     creator: Pubkey,
 ) -> (Pubkey, Pubkey) {
-    let (program_id, _) = T::get_program_spec();
+    let program_id = T::get_program_spec().0;
+    let hashlock = get_escrow_hashlock(
+        test_state.hashlock.to_bytes(),
+        test_state.test_arguments.merkle_proof.clone(),
+    );
     let (escrow_pda, _) = Pubkey::find_program_address(
         &[
             b"escrow",
             test_state.order_hash.as_ref(),
-            test_state.hashlock.as_ref(),
+            hashlock.as_ref(),
             creator.as_ref(),
             test_state.recipient_wallet.keypair.pubkey().as_ref(),
             test_state.token.as_ref(),
@@ -537,7 +554,7 @@ pub fn create_escrow_data<T: EscrowVariant<S>, S: TokenVariant>(
 }
 
 pub async fn create_escrow<T: EscrowVariant<S>, S: TokenVariant>(
-    test_state: &mut TestStateBase<T, S>,
+    test_state: &TestStateBase<T, S>,
 ) -> (Pubkey, Pubkey) {
     let (escrow, escrow_ata, tx) = create_escrow_data(test_state);
     test_state
@@ -582,7 +599,7 @@ pub async fn create_wallet<S: TokenVariant>(
 }
 
 pub async fn sync_native_ata(ctx: &mut ProgramTestContext, ata: &Pubkey) {
-    let ix = sync_native(&spl_token::ID, ata).unwrap();
+    let ix = sync_native(&spl_program_id, ata).unwrap();
 
     let tx = Transaction::new_signed_with_payer(
         &[ix],

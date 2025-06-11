@@ -147,7 +147,9 @@ impl<S: TokenVariant> EscrowVariant<S> for SrcProgram {
     ) -> Transaction {
         let instruction_data =
             InstructionData::data(&cross_chain_escrow_src::instruction::CreateEscrow {
+                amount: test_state.test_arguments.escrow_amount,
                 dutch_auction_data: test_state.test_arguments.dutch_auction_data.clone(),
+                merkle_proof: test_state.test_arguments.merkle_proof.clone(),
             });
 
         let (order, order_ata) = get_order_addresses(test_state);
@@ -247,7 +249,7 @@ pub fn get_order_addresses<S: TokenVariant>(
             test_state.token.as_ref(),
             test_state
                 .test_arguments
-                .escrow_amount
+                .order_amount
                 .to_be_bytes()
                 .as_ref(),
             test_state
@@ -287,7 +289,8 @@ pub fn get_create_order_tx<T: EscrowVariant<S>, S: TokenVariant>(
     order_ata: &Pubkey,
 ) -> Transaction {
     let instruction_data = InstructionData::data(&cross_chain_escrow_src::instruction::Create {
-        amount: test_state.test_arguments.escrow_amount,
+        amount: test_state.test_arguments.order_amount,
+        parts_amount: test_state.test_arguments.order_parts_amount,
         order_hash: test_state.order_hash.to_bytes(),
         hashlock: test_state.hashlock.to_bytes(),
         safety_deposit: test_state.test_arguments.safety_deposit,
@@ -307,6 +310,7 @@ pub fn get_create_order_tx<T: EscrowVariant<S>, S: TokenVariant>(
         .to_bytes(),
         max_cancellation_premium: test_state.test_arguments.max_cancellation_premium,
         cancellation_auction_duration: test_state.test_arguments.cancellation_auction_duration,
+        allow_multiple_fills: test_state.test_arguments.allow_multiple_fills,
     });
 
     let (creator_ata, _) = find_user_ata(test_state);
