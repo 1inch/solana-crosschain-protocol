@@ -43,6 +43,7 @@ pub mod cross_chain_escrow_src {
         max_cancellation_premium: u64,
         cancellation_auction_duration: u32,
         allow_multiple_fills: bool,
+        _dst_chain_params: DstChainParams,
     ) -> Result<()> {
         let now = utils::get_current_timestamp()?;
 
@@ -1181,4 +1182,12 @@ pub fn get_escrow_hashlock(order_hash: [u8; 32], merkle_proof: Option<MerkleProo
     } else {
         order_hash
     }
+}
+
+#[account]
+pub struct DstChainParams {
+    pub chain_id: [u8; 32],
+    pub maker_address: [u8; 32],
+    pub token: [u8; 32],
+    pub safety_deposit: u128,
 }

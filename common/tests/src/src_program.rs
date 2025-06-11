@@ -311,6 +311,7 @@ pub fn get_create_order_tx<T: EscrowVariant<S>, S: TokenVariant>(
         max_cancellation_premium: test_state.test_arguments.max_cancellation_premium,
         cancellation_auction_duration: test_state.test_arguments.cancellation_auction_duration,
         allow_multiple_fills: test_state.test_arguments.allow_multiple_fills,
+        _dst_chain_params: test_state.test_arguments.dst_chain_params.clone(),
     });
 
     let (creator_ata, _) = find_user_ata(test_state);

@@ -15,6 +15,7 @@ use anchor_spl::token_2022::spl_token_2022::{
 
 use async_trait::async_trait;
 use common::constants::RESCUE_DELAY;
+use cross_chain_escrow_src::DstChainParams;
 use cross_chain_escrow_src::{get_escrow_hashlock, merkle_tree::MerkleProof};
 use primitive_types::U256;
 use solana_program::{
@@ -87,6 +88,7 @@ pub struct TestArgs {
     pub merkle_proof: Option<MerkleProof>,
     pub merkle_root: Hash,
     pub allow_multiple_fills: bool,
+    pub dst_chain_params: DstChainParams,
 }
 
 pub fn get_default_testargs(nowsecs: u32) -> TestArgs {
@@ -119,6 +121,12 @@ pub fn get_default_testargs(nowsecs: u32) -> TestArgs {
         merkle_proof: None,
         merkle_root: Hash::default(),
         allow_multiple_fills: false,
+        dst_chain_params: DstChainParams {
+            chain_id: [0u8; 32],
+            maker_address: [0u8; 32],
+            token: [0u8; 32],
+            safety_deposit: DEFAULT_SAFETY_DEPOSIT as u128,
+        },
     }
 }
 
