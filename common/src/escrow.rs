@@ -41,6 +41,8 @@ pub trait EscrowBase {
     fn escrow_type(&self) -> EscrowType;
 }
 
+// It is used to transfer tokens to escrow_ata by the dst escrow program
+// or to order_ata for by src escrow program.
 pub fn create<'info>(
     escrow_size: usize,
     escrow_type: EscrowType,
@@ -157,31 +159,19 @@ where
     if escrow.escrow_type() == EscrowType::Dst && escrow.asset_is_native() {
         close_and_withdraw_native_ata(escrow, escrow_ata, recipient, token_program, seeds)?;
     } else {
-        // Transfer tokens from escrow to recipient
-        uni_transfer(
-            &UniTransferParams::TokenTransfer {
-                from: escrow_ata.to_account_info(),
-                authority: escrow.to_account_info(),
-                to: recipient_ata
-                    .ok_or(EscrowError::MissingRecipientAta)?
-                    .to_account_info(),
-                mint: mint.clone(),
-                amount: escrow_ata.amount,
-                program: token_program.clone(),
-            },
-            Some(&[&seeds]),
+        withdraw_and_close_token_ata(
+            &escrow_ata.to_account_info(),
+            &escrow.to_account_info(),
+            &recipient_ata
+                .ok_or(EscrowError::MissingRecipientAta)?
+                .to_account_info(),
+            mint,
+            escrow_ata.amount,
+            token_program,
+            escrow_ata,
+            rent_recipient,
+            &seeds,
         )?;
-
-        // Close the escrow_ata account
-        close_account(CpiContext::new_with_signer(
-            token_program.to_account_info(),
-            CloseAccount {
-                account: escrow_ata.to_account_info(),
-                destination: rent_recipient.to_account_info(),
-                authority: escrow.to_account_info(),
-            },
-            &[&seeds],
-        ))?;
     }
 
     // Close the escrow account
@@ -217,89 +207,26 @@ where
         &[escrow_bump],
     ];
 
-    if !escrow.asset_is_native() {
-        // Return tokens to creator
-        uni_transfer(
-            &UniTransferParams::TokenTransfer {
-                from: escrow_ata.to_account_info(),
-                authority: escrow.to_account_info(),
-                to: creator_ata
-                    .ok_or(EscrowError::MissingCreatorAta)?
-                    .to_account_info(),
-                mint: mint.clone(),
-                amount: escrow_ata.amount,
-                program: token_program.clone(),
-            },
-            Some(&[&seeds]),
-        )?;
-
-        // Close the escrow_ata account
-        close_account(CpiContext::new_with_signer(
-            token_program.to_account_info(),
-            CloseAccount {
-                account: escrow_ata.to_account_info(),
-                destination: rent_recipient.to_account_info(),
-                authority: escrow.to_account_info(),
-            },
-            &[&seeds],
-        ))?;
-    } else {
-        // Handle native token or WSOL withdrawal and ata closure
+    if escrow.asset_is_native() {
         close_and_withdraw_native_ata(escrow, escrow_ata, creator, token_program, seeds)?;
+    } else {
+        withdraw_and_close_token_ata(
+            &escrow_ata.to_account_info(),
+            &escrow.to_account_info(),
+            &creator_ata
+                .ok_or(EscrowError::MissingCreatorAta)?
+                .to_account_info(),
+            mint,
+            escrow_ata.amount,
+            token_program,
+            escrow_ata,
+            rent_recipient,
+            &seeds,
+        )?;
     }
+
     // Close the escrow account
     close_escrow_account(escrow, safety_deposit_recipient, rent_recipient)?;
-
-    Ok(())
-}
-
-fn close_escrow_account<'info, T>(
-    escrow: &Account<'info, T>,
-    safety_deposit_recipient: &AccountInfo<'info>,
-    rent_recipient: &AccountInfo<'info>,
-) -> Result<()>
-where
-    T: EscrowBase + AccountSerialize + AccountDeserialize + Clone,
-{
-    // Transfer safety_deposit from escrow to safety_deposit_recipient
-    if rent_recipient.key() != safety_deposit_recipient.key() {
-        let safety_deposit = escrow.safety_deposit();
-        escrow.sub_lamports(safety_deposit)?;
-        safety_deposit_recipient.add_lamports(safety_deposit)?;
-    }
-
-    // Close escrow account and transfer remaining lamports to rent_recipient
-    escrow.close(rent_recipient.to_account_info())?;
-
-    Ok(())
-}
-
-fn close_and_withdraw_native_ata<'info, T>(
-    escrow: &Account<'info, T>,
-    escrow_ata: &InterfaceAccount<'info, TokenAccount>,
-    recipient: &AccountInfo<'info>,
-    token_program: &Interface<'info, TokenInterface>,
-    seeds: [&[u8]; 10],
-) -> Result<()>
-where
-    T: EscrowBase + AccountSerialize + AccountDeserialize + Clone,
-{
-    // Using escrow pda as an intermediate account to transfer native tokens
-    // in case of recipient_ata provided, escrow pda will only receive the escrow ata rent-exempt lamports
-    // which rent_recipient will receive after closing the escrow
-    close_account(CpiContext::new_with_signer(
-        token_program.to_account_info(),
-        CloseAccount {
-            account: escrow_ata.to_account_info(),
-            destination: escrow.to_account_info(),
-            authority: escrow.to_account_info(),
-        },
-        &[&seeds],
-    ))?;
-
-    // Transfer the native tokens from escrow pda to recipient
-    escrow.sub_lamports(escrow.amount())?;
-    recipient.add_lamports(escrow.amount())?;
 
     Ok(())
 }
@@ -419,4 +346,93 @@ pub fn uni_transfer(
 pub enum EscrowType {
     Src,
     Dst,
+}
+
+fn close_escrow_account<'info, T>(
+    escrow: &Account<'info, T>,
+    safety_deposit_recipient: &AccountInfo<'info>,
+    rent_recipient: &AccountInfo<'info>,
+) -> Result<()>
+where
+    T: EscrowBase + AccountSerialize + AccountDeserialize + Clone,
+{
+    // Transfer safety_deposit from escrow to safety_deposit_recipient
+    if rent_recipient.key() != safety_deposit_recipient.key() {
+        let safety_deposit = escrow.safety_deposit();
+        escrow.sub_lamports(safety_deposit)?;
+        safety_deposit_recipient.add_lamports(safety_deposit)?;
+    }
+
+    // Close escrow account and transfer remaining lamports to rent_recipient
+    escrow.close(rent_recipient.to_account_info())?;
+
+    Ok(())
+}
+
+// Handle native token transfer or WSOL unwrapping and ata closure
+fn close_and_withdraw_native_ata<'info, T>(
+    escrow: &Account<'info, T>,
+    escrow_ata: &InterfaceAccount<'info, TokenAccount>,
+    recipient: &AccountInfo<'info>,
+    token_program: &Interface<'info, TokenInterface>,
+    seeds: [&[u8]; 10],
+) -> Result<()>
+where
+    T: EscrowBase + AccountSerialize + AccountDeserialize + Clone,
+{
+    // Using escrow pda as an intermediate account to transfer native tokens
+    // the leftover lamports from ata's rent will be transferred to the rent recipient
+    // after closing the escrow account
+    close_account(CpiContext::new_with_signer(
+        token_program.to_account_info(),
+        CloseAccount {
+            account: escrow_ata.to_account_info(),
+            destination: escrow.to_account_info(),
+            authority: escrow.to_account_info(),
+        },
+        &[&seeds],
+    ))?;
+
+    // Transfer the native tokens from escrow pda to recipient
+    escrow.sub_lamports(escrow.amount())?;
+    recipient.add_lamports(escrow.amount())?;
+
+    Ok(())
+}
+
+fn withdraw_and_close_token_ata<'info>(
+    from: &AccountInfo<'info>,
+    authority: &AccountInfo<'info>,
+    to: &AccountInfo<'info>,
+    mint: &InterfaceAccount<'info, Mint>,
+    amount: u64,
+    token_program: &Interface<'info, TokenInterface>,
+    escrow_ata: &InterfaceAccount<'info, TokenAccount>,
+    rent_recipient: &AccountInfo<'info>,
+    seeds: &[&[u8]],
+) -> Result<()> {
+    // Transfer tokens
+    uni_transfer(
+        &UniTransferParams::TokenTransfer {
+            from: from.clone(),
+            authority: authority.clone(),
+            to: to.clone(),
+            mint: mint.clone(),
+            amount,
+            program: token_program.clone(),
+        },
+        Some(&[seeds]),
+    )?;
+
+    // Close the escrow_ata account
+    close_account(CpiContext::new_with_signer(
+        token_program.to_account_info(),
+        CloseAccount {
+            account: escrow_ata.to_account_info(),
+            destination: rent_recipient.to_account_info(),
+            authority: authority.clone(),
+        },
+        &[seeds],
+    ))?;
+    Ok(())
 }
