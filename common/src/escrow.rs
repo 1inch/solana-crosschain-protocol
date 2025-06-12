@@ -43,6 +43,7 @@ pub trait EscrowBase {
 
 // It is used to transfer tokens to escrow_ata by the dst escrow program
 // or to order_ata for by src escrow program.
+#[allow(clippy::too_many_arguments)]
 pub fn create<'info>(
     escrow_size: usize,
     escrow_type: EscrowType,
@@ -231,7 +232,6 @@ where
     Ok(())
 }
 
-#[allow(clippy::too_many_arguments)]
 pub fn rescue_funds<'info>(
     escrow: &AccountInfo<'info>,
     rescue_start: u32,
