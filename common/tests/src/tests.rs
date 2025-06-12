@@ -830,7 +830,10 @@ pub async fn test_escrow_creation_fails_if_public_withdrawal_duration_overflows<
         .expect_error((0, ProgramError::ArithmeticOverflow));
 }
 
-pub async fn test_rescue_all_tokens_and_close_ata<T: EscrowVariant<S>, S: TokenVariant>(
+pub async fn test_rescue_all_tokens_and_close_ata<
+    T: EscrowVariant<S> + 'static,
+    S: TokenVariant,
+>(
     test_state: &mut TestStateBase<T, S>,
 ) {
     let (escrow, _) = create_escrow(test_state).await;
@@ -839,12 +842,6 @@ pub async fn test_rescue_all_tokens_and_close_ata<T: EscrowVariant<S>, S: TokenV
     let escrow_ata =
         S::initialize_spl_associated_account(&mut test_state.context, &token_to_rescue, &escrow)
             .await;
-    let recipient_ata = S::initialize_spl_associated_account(
-        &mut test_state.context,
-        &token_to_rescue,
-        &test_state.recipient_wallet.keypair.pubkey(),
-    )
-    .await;
 
     S::mint_spl_tokens(
         &mut test_state.context,
@@ -855,6 +852,16 @@ pub async fn test_rescue_all_tokens_and_close_ata<T: EscrowVariant<S>, S: TokenV
         test_state.test_arguments.rescue_amount,
     )
     .await;
+
+    let wallet = if TypeId::of::<T>() == TypeId::of::<SrcProgram>() {
+        test_state.recipient_wallet.keypair.pubkey()
+    } else {
+        test_state.creator_wallet.keypair.pubkey()
+    };
+
+    let recipient_ata =
+        S::initialize_spl_associated_account(&mut test_state.context, &token_to_rescue, &wallet)
+            .await;
 
     let transaction = T::get_rescue_funds_tx(
         test_state,
@@ -874,10 +881,7 @@ pub async fn test_rescue_all_tokens_and_close_ata<T: EscrowVariant<S>, S: TokenV
         .expect_balance_change(
             transaction,
             &[
-                native_change(
-                    test_state.recipient_wallet.keypair.pubkey(),
-                    token_account_rent,
-                ),
+                native_change(wallet, token_account_rent),
                 token_change(recipient_ata, test_state.test_arguments.rescue_amount),
             ],
         )
@@ -892,7 +896,10 @@ pub async fn test_rescue_all_tokens_and_close_ata<T: EscrowVariant<S>, S: TokenV
         .is_none());
 }
 
-pub async fn test_rescue_part_of_tokens_and_not_close_ata<T: EscrowVariant<S>, S: TokenVariant>(
+pub async fn test_rescue_part_of_tokens_and_not_close_ata<
+    T: EscrowVariant<S> + 'static,
+    S: TokenVariant,
+>(
     test_state: &mut TestStateBase<T, S>,
 ) {
     let (escrow, _) = create_escrow(test_state).await;
@@ -901,12 +908,6 @@ pub async fn test_rescue_part_of_tokens_and_not_close_ata<T: EscrowVariant<S>, S
     let escrow_ata =
         S::initialize_spl_associated_account(&mut test_state.context, &token_to_rescue, &escrow)
             .await;
-    let recipient_ata = S::initialize_spl_associated_account(
-        &mut test_state.context,
-        &token_to_rescue,
-        &test_state.recipient_wallet.keypair.pubkey(),
-    )
-    .await;
 
     S::mint_spl_tokens(
         &mut test_state.context,
@@ -917,6 +918,16 @@ pub async fn test_rescue_part_of_tokens_and_not_close_ata<T: EscrowVariant<S>, S
         test_state.test_arguments.rescue_amount,
     )
     .await;
+
+    let wallet = if TypeId::of::<T>() == TypeId::of::<SrcProgram>() {
+        test_state.recipient_wallet.keypair.pubkey()
+    } else {
+        test_state.creator_wallet.keypair.pubkey()
+    };
+
+    let recipient_ata =
+        S::initialize_spl_associated_account(&mut test_state.context, &token_to_rescue, &wallet)
+            .await;
 
     // Rescue only half of tokens from escrow ata.
     test_state.test_arguments.rescue_amount /= 2;
@@ -953,7 +964,7 @@ pub async fn test_rescue_part_of_tokens_and_not_close_ata<T: EscrowVariant<S>, S
 }
 
 pub async fn test_cannot_rescue_funds_before_rescue_delay_pass<
-    T: EscrowVariant<S>,
+    T: EscrowVariant<S> + 'static,
     S: TokenVariant,
 >(
     test_state: &mut TestStateBase<T, S>,
@@ -964,12 +975,6 @@ pub async fn test_cannot_rescue_funds_before_rescue_delay_pass<
     let escrow_ata =
         S::initialize_spl_associated_account(&mut test_state.context, &token_to_rescue, &escrow)
             .await;
-    let recipient_ata = S::initialize_spl_associated_account(
-        &mut test_state.context,
-        &token_to_rescue,
-        &test_state.recipient_wallet.keypair.pubkey(),
-    )
-    .await;
 
     S::mint_spl_tokens(
         &mut test_state.context,
@@ -980,6 +985,16 @@ pub async fn test_cannot_rescue_funds_before_rescue_delay_pass<
         test_state.test_arguments.rescue_amount,
     )
     .await;
+
+    let wallet = if TypeId::of::<T>() == TypeId::of::<SrcProgram>() {
+        test_state.recipient_wallet.keypair.pubkey()
+    } else {
+        test_state.creator_wallet.keypair.pubkey()
+    };
+
+    let recipient_ata =
+        S::initialize_spl_associated_account(&mut test_state.context, &token_to_rescue, &wallet)
+            .await;
 
     let transaction = T::get_rescue_funds_tx(
         test_state,
@@ -1049,7 +1064,7 @@ pub async fn test_cannot_rescue_funds_by_non_recipient<T: EscrowVariant<S>, S: T
 }
 
 pub async fn test_cannot_rescue_funds_with_wrong_recipient_ata<
-    T: EscrowVariant<S>,
+    T: EscrowVariant<S> + 'static,
     S: TokenVariant,
 >(
     test_state: &mut TestStateBase<T, S>,
@@ -1071,12 +1086,15 @@ pub async fn test_cannot_rescue_funds_with_wrong_recipient_ata<
     )
     .await;
 
-    let wrong_recipient_ata = S::initialize_spl_associated_account(
-        &mut test_state.context,
-        &token_to_rescue,
-        &test_state.creator_wallet.keypair.pubkey(),
-    )
-    .await;
+    let wallet = if TypeId::of::<T>() == TypeId::of::<SrcProgram>() {
+        test_state.creator_wallet.keypair.pubkey()
+    } else {
+        test_state.recipient_wallet.keypair.pubkey()
+    };
+
+    let wrong_recipient_ata =
+        S::initialize_spl_associated_account(&mut test_state.context, &token_to_rescue, &wallet)
+            .await;
 
     let transaction = T::get_rescue_funds_tx(
         test_state,
@@ -1102,7 +1120,7 @@ pub async fn test_cannot_rescue_funds_with_wrong_recipient_ata<
 }
 
 pub async fn test_cannot_rescue_funds_with_wrong_escrow_ata<
-    T: EscrowVariant<S>,
+    T: EscrowVariant<S> + 'static,
     S: TokenVariant,
 >(
     test_state: &mut TestStateBase<T, S>,
@@ -1110,12 +1128,16 @@ pub async fn test_cannot_rescue_funds_with_wrong_escrow_ata<
     let (escrow, escrow_ata) = create_escrow(test_state).await;
 
     let token_to_rescue = S::deploy_spl_token(&mut test_state.context).await.pubkey();
-    let recipient_ata = S::initialize_spl_associated_account(
-        &mut test_state.context,
-        &token_to_rescue,
-        &test_state.recipient_wallet.keypair.pubkey(),
-    )
-    .await;
+
+    let wallet = if TypeId::of::<T>() == TypeId::of::<SrcProgram>() {
+        test_state.recipient_wallet.keypair.pubkey()
+    } else {
+        test_state.creator_wallet.keypair.pubkey()
+    };
+
+    let recipient_ata =
+        S::initialize_spl_associated_account(&mut test_state.context, &token_to_rescue, &wallet)
+            .await;
 
     let transaction = T::get_rescue_funds_tx(
         test_state,

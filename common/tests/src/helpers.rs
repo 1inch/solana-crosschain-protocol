@@ -15,7 +15,9 @@ use anchor_spl::token_2022::spl_token_2022::{
 
 use async_trait::async_trait;
 use common::constants::RESCUE_DELAY;
+use cross_chain_escrow_src::DstChainParams;
 use cross_chain_escrow_src::{get_escrow_hashlock, merkle_tree::MerkleProof};
+use primitive_types::U256;
 use solana_program::{
     instruction::Instruction,
     keccak::{hash, Hash},
@@ -39,6 +41,8 @@ use std::marker::PhantomData;
 use std::ops::{Div, Mul};
 use std::time::{SystemTime, UNIX_EPOCH};
 use test_context::AsyncTestContext;
+
+use crate::whitelist::get_program_whitelist_spec;
 
 pub const DEFAULT_FEE_PER_SIGNATURE_LAMPORTS: u64 = 5000;
 
@@ -78,7 +82,7 @@ pub struct TestArgs {
     pub rescue_amount: u64,
     pub expiration_duration: u32,
     pub asset_is_native: bool,
-    pub dst_amount: u64,
+    pub dst_amount: [u64; 4],
     pub dutch_auction_data: cross_chain_escrow_src::AuctionData,
     pub max_cancellation_premium: u64,
     pub cancellation_auction_duration: u32,
@@ -86,6 +90,7 @@ pub struct TestArgs {
     pub merkle_proof: Option<MerkleProof>,
     pub merkle_root: Hash,
     pub allow_multiple_fills: bool,
+    pub dst_chain_params: DstChainParams,
 }
 
 pub fn get_default_testargs(nowsecs: u32) -> TestArgs {
@@ -105,7 +110,7 @@ pub fn get_default_testargs(nowsecs: u32) -> TestArgs {
         rescue_amount: DEFAULT_RESCUE_AMOUNT,
         expiration_duration: DEFAULT_PERIOD_DURATION,
         asset_is_native: false, // This is set to false by default, will be changed for native tests.
-        dst_amount: DEFAULT_DST_ESCROW_AMOUNT,
+        dst_amount: U256::from(DEFAULT_DST_ESCROW_AMOUNT).0,
         dutch_auction_data: cross_chain_escrow_src::AuctionData {
             start_time: nowsecs,
             duration: DEFAULT_PERIOD_DURATION,
@@ -118,6 +123,12 @@ pub fn get_default_testargs(nowsecs: u32) -> TestArgs {
         merkle_proof: None,
         merkle_root: Hash::default(),
         allow_multiple_fills: false,
+        dst_chain_params: DstChainParams {
+            chain_id: [0u8; 32],
+            maker_address: [0u8; 32],
+            token: [0u8; 32],
+            safety_deposit: DEFAULT_SAFETY_DEPOSIT as u128,
+        },
     }
 }
 
@@ -132,6 +143,7 @@ pub struct TestStateBase<T: ?Sized, S: ?Sized> {
     pub hashlock: Hash,
     pub token: Pubkey,
     pub payer_kp: Keypair,
+    pub authority_whitelist_kp: Keypair,
     pub creator_wallet: Wallet,
     pub recipient_wallet: Wallet,
     pub test_arguments: TestArgs,
@@ -433,8 +445,10 @@ where
     async fn setup() -> TestStateBase<T, S> {
         let mut program_test: ProgramTest = ProgramTest::default();
         add_program_to_test(&mut program_test, "escrow_contract", T::get_program_spec);
+        add_program_to_test(&mut program_test, "whitelist", || {
+            get_program_whitelist_spec()
+        });
         let mut context: ProgramTestContext = program_test.start_with_context().await;
-
         let client: BanksClient = context.banks_client.clone();
         let timestamp: u32 = SystemTime::now()
             .duration_since(UNIX_EPOCH)
@@ -442,11 +456,18 @@ where
             .as_secs()
             .try_into()
             .unwrap();
-
         set_time(&mut context, timestamp);
         let token = S::deploy_spl_token(&mut context).await.pubkey();
         let secret = hash(b"default_secret").to_bytes();
         let payer_kp = context.payer.insecure_clone();
+        let authority_whitelist_kp = Keypair::new();
+        transfer_lamports(
+            &mut context,
+            WALLET_DEFAULT_LAMPORTS,
+            &payer_kp,
+            &authority_whitelist_kp.pubkey(),
+        )
+        .await;
         let creator_wallet = create_wallet::<S>(
             &mut context,
             &token,
@@ -473,6 +494,7 @@ where
             hashlock: hash(secret.as_ref()),
             token,
             payer_kp: payer_kp.insecure_clone(),
+            authority_whitelist_kp,
             creator_wallet,
             recipient_wallet,
             init_timestamp: timestamp,

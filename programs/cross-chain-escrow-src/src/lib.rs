@@ -10,7 +10,7 @@ pub use common::constants;
 use common::error::EscrowError;
 use common::escrow::{uni_transfer, EscrowBase, EscrowType, UniTransferParams};
 use common::utils;
-use muldiv::MulDiv;
+use primitive_types::U256;
 
 use crate::merkle_tree::MerkleProof;
 
@@ -24,6 +24,7 @@ pub mod cross_chain_escrow_src {
 
     use super::*;
 
+    #[allow(clippy::too_many_arguments)]
     pub fn create(
         ctx: Context<Create>,
         order_hash: [u8; 32],
@@ -38,19 +39,14 @@ pub mod cross_chain_escrow_src {
         rescue_start: u32,
         expiration_duration: u32,
         asset_is_native: bool,
-        dst_amount: u64,
+        dst_amount: [u64; 4],
         dutch_auction_data_hash: [u8; 32],
         max_cancellation_premium: u64,
         cancellation_auction_duration: u32,
         allow_multiple_fills: bool,
+        _dst_chain_params: DstChainParams,
     ) -> Result<()> {
-        let now = utils::get_current_timestamp()?;
-
         require!(expiration_duration != 0, EscrowError::InvalidTime);
-
-        let expiration_time = now
-            .checked_add(expiration_duration)
-            .ok_or(ProgramError::ArithmeticOverflow)?;
 
         require!(
             ctx.accounts.order_ata.to_account_info().lamports() >= max_cancellation_premium,
@@ -62,6 +58,8 @@ pub mod cross_chain_escrow_src {
                 || (!allow_multiple_fills && parts_amount == 1),
             EscrowError::InvalidPartsAmount
         );
+
+        let now = utils::get_current_timestamp()?;
 
         common::escrow::create(
             EscrowSrc::INIT_SPACE + constants::DISCRIMINATOR_BYTES, // Needed to check the safety deposit amount validity
@@ -79,8 +77,11 @@ pub mod cross_chain_escrow_src {
             now,
         )?;
 
-        let order = &mut ctx.accounts.order;
-        order.set_inner(Order {
+        let expiration_time = now
+            .checked_add(expiration_duration)
+            .ok_or(ProgramError::ArithmeticOverflow)?;
+
+        ctx.accounts.order.set_inner(Order {
             order_hash,
             hashlock,
             creator: ctx.accounts.creator.key(),
@@ -113,45 +114,47 @@ pub mod cross_chain_escrow_src {
         merkle_proof: Option<MerkleProof>,
     ) -> Result<()> {
         let order = &mut ctx.accounts.order;
-        let escrow = &mut ctx.accounts.escrow;
-        let now = utils::get_current_timestamp()?;
+
         require!(
             (order.allow_multiple_fills && amount <= order.remaining_amount)
                 || (!order.allow_multiple_fills && amount == order.amount),
             EscrowError::InvalidAmount
         );
 
+        let now = utils::get_current_timestamp()?;
+
         require!(now < order.expiration_time, EscrowError::OrderHasExpired);
 
         let calculated_hash = hashv(&[&dutch_auction_data.try_to_vec()?]).to_bytes();
+
         require!(
             calculated_hash == order.dutch_auction_data_hash,
             EscrowError::DutchAuctionDataHashMismatch
         );
 
-        let hashlock = match (order.allow_multiple_fills, &merkle_proof) {
-            (true, Some(proof)) => {
-                require!(
-                    proof.verify(order.hashlock),
-                    EscrowError::InvalidMerkleProof
-                );
-                require!(
-                    is_valid_partial_fill(
-                        amount,
-                        order.remaining_amount,
-                        order.amount,
-                        order.parts_amount,
-                        proof.index as u64,
-                    ),
-                    EscrowError::InvalidPartialFill
-                );
-                proof.hashed_secret
-            }
-            (false, None) => {
-                // single fill, no merkle proof expected — OK
-                order.hashlock
-            }
-            _ => return Err(EscrowError::InconsistentMerkleProofTrait.into()),
+        require!(
+            order.allow_multiple_fills == merkle_proof.is_some(),
+            EscrowError::InconsistentMerkleProofTrait
+        );
+
+        let hashlock = if let Some(proof) = merkle_proof {
+            require!(
+                proof.verify(order.hashlock),
+                EscrowError::InvalidMerkleProof
+            );
+            require!(
+                is_valid_partial_fill(
+                    amount,
+                    order.remaining_amount,
+                    order.amount,
+                    order.parts_amount,
+                    proof.index,
+                ),
+                EscrowError::InvalidPartialFill
+            );
+            proof.hashed_secret
+        } else {
+            order.hashlock
         };
 
         let withdrawal_start = now
@@ -179,12 +182,11 @@ pub mod cross_chain_escrow_src {
             &[ctx.bumps.order],
         ];
 
-        let amount_to_transfer =
-            if order.remaining_amount == amount && ctx.accounts.order_ata.amount > amount {
-                ctx.accounts.order_ata.amount
-            } else {
-                amount
-            };
+        let mut amount_to_transfer = amount;
+        if order.remaining_amount == amount {
+            // Transfer amount may be increased due to external transfers
+            amount_to_transfer = ctx.accounts.order_ata.amount;
+        }
 
         uni_transfer(
             &UniTransferParams::TokenTransfer {
@@ -198,7 +200,7 @@ pub mod cross_chain_escrow_src {
             Some(&[&order_seeds]),
         )?;
 
-        escrow.set_inner(EscrowSrc {
+        ctx.accounts.escrow.set_inner(EscrowSrc {
             order_hash: order.order_hash,
             hashlock,
             maker: order.creator,
@@ -238,79 +240,109 @@ pub mod cross_chain_escrow_src {
 
     pub fn withdraw(ctx: Context<Withdraw>, secret: [u8; 32]) -> Result<()> {
         let now = utils::get_current_timestamp()?;
+
         require!(
             now >= ctx.accounts.escrow.withdrawal_start()
                 && now < ctx.accounts.escrow.cancellation_start(),
             EscrowError::InvalidTime
         );
 
-        // In a standard withdrawal, the rent recipient receives the entire rent amount, including the safety deposit,
-        // because they initially covered the entire rent during order creation.
+        // In a standard withdrawal, the taker receives the entire rent amount, including the safety deposit,
+        // because they initially covered the entire rent during escrow creation.
 
         common::escrow::withdraw(
             &ctx.accounts.escrow,
             ctx.bumps.escrow,
             &ctx.accounts.escrow_ata,
-            &ctx.accounts.taker,
-            ctx.accounts.taker_ata.as_deref(),
+            &ctx.accounts.taker,           // recipient
+            Some(&ctx.accounts.taker_ata), // recipient ATA
             &ctx.accounts.mint,
             &ctx.accounts.token_program,
-            &ctx.accounts.taker,
-            &ctx.accounts.taker,
+            &ctx.accounts.taker, // rent recipient
+            &ctx.accounts.taker, // safety deposit recipient
             secret,
         )
     }
 
     pub fn public_withdraw(ctx: Context<PublicWithdraw>, secret: [u8; 32]) -> Result<()> {
         let now = utils::get_current_timestamp()?;
+
         require!(
             now >= ctx.accounts.escrow.public_withdrawal_start()
                 && now < ctx.accounts.escrow.cancellation_start(),
             EscrowError::InvalidTime
         );
 
-        // In a public withdrawal, the rent recipient receives the rent minus the safety deposit
+        // In a public withdrawal, the taker receives the rent minus the safety deposit
         // while the safety deposit is awarded to the payer who executed the public withdrawal
 
         common::escrow::withdraw(
             &ctx.accounts.escrow,
             ctx.bumps.escrow,
             &ctx.accounts.escrow_ata,
-            &ctx.accounts.taker,
-            ctx.accounts.taker_ata.as_deref(),
+            &ctx.accounts.taker,           // recipient
+            Some(&ctx.accounts.taker_ata), // recipient ATA
             &ctx.accounts.mint,
             &ctx.accounts.token_program,
-            &ctx.accounts.taker,
-            &ctx.accounts.payer,
+            &ctx.accounts.taker, // rent recipient
+            &ctx.accounts.payer, // safety deposit recipient
             secret,
         )
     }
 
     pub fn cancel_escrow(ctx: Context<CancelEscrow>) -> Result<()> {
         let now = utils::get_current_timestamp()?;
+
         require!(
             now >= ctx.accounts.escrow.cancellation_start(),
             EscrowError::InvalidTime
         );
 
         // In a standard cancel, the taker receives the entire rent amount, including the safety deposit,
-        // because they initially covered the entire rent during escrow creation.
+        // because they initially covered the entire rent during escrow creation, while the maker
+        // receives their tokens back to their initial ATA or wallet if the token is native.
 
         common::escrow::cancel(
             &ctx.accounts.escrow,
             ctx.bumps.escrow,
             &ctx.accounts.escrow_ata,
-            ctx.accounts.maker_ata.as_deref(),
+            ctx.accounts.maker_ata.as_deref(), // order creator ATA
             &ctx.accounts.mint,
             &ctx.accounts.token_program,
-            &ctx.accounts.taker,
-            &ctx.accounts.maker,
-            &ctx.accounts.taker,
+            &ctx.accounts.taker, // rent recipient
+            &ctx.accounts.maker, // order creator
+            &ctx.accounts.taker, // safety deposit recipient
+        )
+    }
+
+    pub fn public_cancel_escrow(ctx: Context<PublicCancelEscrow>) -> Result<()> {
+        let now = utils::get_current_timestamp()?;
+
+        require!(
+            now >= ctx.accounts.escrow.public_cancellation_start,
+            EscrowError::InvalidTime
+        );
+
+        // In a public cancel, the taker receives the entire rent amount minus the safety deposit,
+        // which is awarded to the payer who executed the public cancellation, while the maker
+        // receives their tokens back to their initial ATA or wallet if the token is native.
+
+        common::escrow::cancel(
+            &ctx.accounts.escrow,
+            ctx.bumps.escrow,
+            &ctx.accounts.escrow_ata,
+            ctx.accounts.maker_ata.as_deref(), // order creator ATA
+            &ctx.accounts.mint,
+            &ctx.accounts.token_program,
+            &ctx.accounts.taker, // rent recipient
+            &ctx.accounts.maker, // order creator
+            &ctx.accounts.payer, // safety deposit recipient
         )
     }
 
     pub fn cancel_order(ctx: Context<CancelOrder>) -> Result<()> {
         let order = &ctx.accounts.order;
+
         require!(
             ctx.accounts.mint.key() == native_mint::id() || !order.asset_is_native,
             EscrowError::InconsistentNativeTrait
@@ -332,6 +364,10 @@ pub mod cross_chain_escrow_src {
             &order.rescue_start.to_be_bytes(),
             &[ctx.bumps.order],
         ];
+
+        // In an order cancel, the maker receives the entire rent amount, including the safety deposit,
+        // because they initially covered the entire rent during order creation, while also
+        // receiving their tokens back to their initial ATA or wallet if the token is native
 
         if !order.asset_is_native {
             uni_transfer(
@@ -362,7 +398,6 @@ pub mod cross_chain_escrow_src {
             &[&seeds],
         ))?;
 
-        //Close the order account
         order.close(ctx.accounts.creator.to_account_info())
     }
 
@@ -397,7 +432,7 @@ pub mod cross_chain_escrow_src {
             &[ctx.bumps.order],
         ];
 
-        // Return remaining src tokens back to maker
+        // Order creator receives the amount of tokens back to their initial ATA
         if !order.asset_is_native {
             uni_transfer(
                 &UniTransferParams::TokenTransfer {
@@ -424,6 +459,8 @@ pub mod cross_chain_escrow_src {
             order.max_cancellation_premium,
         );
 
+        // The amount that the order maker will receive, which is the entire native
+        // balance of the order ATA (or rent + wSOL) minus the cancellation premium
         let maker_amount = ctx.accounts.order_ata.to_account_info().lamports()
             - std::cmp::min(cancellation_premium, reward_limit);
 
@@ -438,7 +475,8 @@ pub mod cross_chain_escrow_src {
             &[&seeds],
         ))?;
 
-        // Transfer all lamports from the closed account, minus the cancellation premium, to the maker
+        // Transfer all lamports from the order ATA that resolver received,
+        // minus the cancellation premium, to the maker
         uni_transfer(
             &UniTransferParams::NativeTransfer {
                 from: ctx.accounts.resolver.to_account_info(),
@@ -449,28 +487,7 @@ pub mod cross_chain_escrow_src {
             None,
         )?;
 
-        //Close the order account
         order.close(ctx.accounts.creator.to_account_info())
-    }
-
-    pub fn public_cancel_escrow(ctx: Context<PublicCancelEscrow>) -> Result<()> {
-        let now = utils::get_current_timestamp()?;
-        require!(
-            now >= ctx.accounts.escrow.public_cancellation_start,
-            EscrowError::InvalidTime
-        );
-
-        common::escrow::cancel(
-            &ctx.accounts.escrow,
-            ctx.bumps.escrow,
-            &ctx.accounts.escrow_ata,
-            ctx.accounts.maker_ata.as_deref(),
-            &ctx.accounts.mint,
-            &ctx.accounts.token_program,
-            &ctx.accounts.taker,
-            &ctx.accounts.maker,
-            &ctx.accounts.payer,
-        )
     }
 
     pub fn rescue_funds_for_escrow(
@@ -606,6 +623,12 @@ pub struct CreateEscrow<'info> {
     #[account(mut)]
     taker: Signer<'info>,
     #[account(
+        seeds = [whitelist::RESOLVER_ACCESS_SEED, taker.key().as_ref()],
+        bump = resolver_access.bump,
+        seeds::program = whitelist::ID,
+    )]
+    resolver_access: Account<'info, whitelist::ResolverAccess>,
+    #[account(
         mut, // Necessary because lamports will be transferred to this account when the order accounts are closed.
         constraint = maker.key() == order.creator @ EscrowError::InvalidAccount
     )]
@@ -715,7 +738,7 @@ pub struct Withdraw<'info> {
         associated_token::authority = taker,
         associated_token::token_program = token_program
     )]
-    taker_ata: Option<Box<InterfaceAccount<'info, TokenAccount>>>,
+    taker_ata: Box<InterfaceAccount<'info, TokenAccount>>,
     token_program: Interface<'info, TokenInterface>,
     system_program: Program<'info, System>,
 }
@@ -730,6 +753,12 @@ pub struct PublicWithdraw<'info> {
     taker: AccountInfo<'info>,
     #[account(mut)]
     payer: Signer<'info>,
+    #[account(
+        seeds = [whitelist::RESOLVER_ACCESS_SEED, payer.key().as_ref()],
+        bump = resolver_access.bump,
+        seeds::program = whitelist::ID,
+    )]
+    resolver_access: Account<'info, whitelist::ResolverAccess>,
     mint: Box<InterfaceAccount<'info, Mint>>,
     #[account(
         mut,
@@ -760,7 +789,7 @@ pub struct PublicWithdraw<'info> {
         associated_token::authority = taker,
         associated_token::token_program = token_program
     )]
-    taker_ata: Option<Box<InterfaceAccount<'info, TokenAccount>>>,
+    taker_ata: Box<InterfaceAccount<'info, TokenAccount>>,
     token_program: Interface<'info, TokenInterface>,
     system_program: Program<'info, System>,
 }
@@ -815,9 +844,67 @@ pub struct CancelEscrow<'info> {
 }
 
 #[derive(Accounts)]
+pub struct PublicCancelEscrow<'info> {
+    /// CHECK: this account is used only to receive lamports and to check its pubkey to match the one stored in the escrow account
+    #[account(
+        mut, // Needed because this account receives lamports from rent
+        constraint = taker.key() == escrow.taker @ EscrowError::InvalidAccount
+    )]
+    taker: AccountInfo<'info>,
+    #[account(
+        mut, // Needed because this account receives lamports if the token is native
+        constraint = maker.key() == escrow.maker @ EscrowError::InvalidAccount
+    )]
+    /// CHECK: this account is used only to receive lamports and to check its pubkey to match the one stored in the escrow account
+    maker: AccountInfo<'info>,
+    mint: Box<InterfaceAccount<'info, Mint>>,
+    #[account(mut)]
+    payer: Signer<'info>,
+    #[account(
+        seeds = [whitelist::RESOLVER_ACCESS_SEED, payer.key().as_ref()],
+        bump = resolver_access.bump,
+        seeds::program = whitelist::ID,
+    )]
+    resolver_access: Account<'info, whitelist::ResolverAccess>,
+    #[account(
+        mut,
+        seeds = [
+            "escrow".as_bytes(),
+            escrow.order_hash.as_ref(),
+            escrow.hashlock.as_ref(),
+            escrow.maker.as_ref(),
+            taker.key().as_ref(),
+            escrow.token.key().as_ref(),
+            escrow.amount.to_be_bytes().as_ref(),
+            escrow.safety_deposit.to_be_bytes().as_ref(),
+            escrow.rescue_start.to_be_bytes().as_ref(),
+        ],
+        bump,
+    )]
+    escrow: Box<Account<'info, EscrowSrc>>,
+    #[account(
+        mut,
+        associated_token::mint = mint,
+        associated_token::authority = escrow,
+        associated_token::token_program = token_program
+    )]
+    escrow_ata: Box<InterfaceAccount<'info, TokenAccount>>,
+    #[account(
+        mut,
+        associated_token::mint = mint,
+        associated_token::authority = escrow.maker,
+        associated_token::token_program = token_program
+    )]
+    // Optional if the token is native
+    maker_ata: Option<Box<InterfaceAccount<'info, TokenAccount>>>,
+    token_program: Interface<'info, TokenInterface>,
+    system_program: Program<'info, System>,
+}
+
+#[derive(Accounts)]
 pub struct CancelOrder<'info> {
     /// Account that created the order
-    #[account(mut, signer)]
+    #[account(mut)]
     creator: Signer<'info>,
     mint: Box<InterfaceAccount<'info, Mint>>,
     #[account(
@@ -826,8 +913,8 @@ pub struct CancelOrder<'info> {
             "order".as_bytes(),
             order.order_hash.as_ref(),
             order.hashlock.as_ref(),
-            order.creator.as_ref(),
-            order.token.key().as_ref(),
+            creator.key().as_ref(),
+            mint.key().as_ref(),
             order.amount.to_be_bytes().as_ref(),
             order.safety_deposit.to_be_bytes().as_ref(),
             order.rescue_start.to_be_bytes().as_ref(),
@@ -859,6 +946,12 @@ pub struct CancelOrderbyResolver<'info> {
     /// Account that cancels the escrow
     #[account(mut, signer)]
     resolver: Signer<'info>,
+    #[account(
+        seeds = [whitelist::RESOLVER_ACCESS_SEED, resolver.key().as_ref()],
+        bump = resolver_access.bump,
+        seeds::program = whitelist::ID,
+    )]
+    resolver_access: Account<'info, whitelist::ResolverAccess>,
     /// CHECK: Currently only used for the token-authority check and to receive lamports if the token is native
     #[account(
         mut, // Needed because this account receives lamports if the token is native
@@ -896,58 +989,6 @@ pub struct CancelOrderbyResolver<'info> {
     )]
     // Optional if the token is native
     creator_ata: Option<Box<InterfaceAccount<'info, TokenAccount>>>,
-    token_program: Interface<'info, TokenInterface>,
-    system_program: Program<'info, System>,
-}
-
-#[derive(Accounts)]
-pub struct PublicCancelEscrow<'info> {
-    /// CHECK: this account is used only to receive lamports and to check its pubkey to match the one stored in the escrow account
-    #[account(
-        mut, // Needed because this account receives lamports from rent
-        constraint = taker.key() == escrow.taker @ EscrowError::InvalidAccount
-    )]
-    taker: AccountInfo<'info>,
-    #[account(
-        mut, // Needed because this account receives lamports if the token is native
-        constraint = maker.key() == escrow.maker @ EscrowError::InvalidAccount
-    )]
-    /// CHECK: this account is used only to receive lamports and to check its pubkey to match the one stored in the escrow account
-    maker: AccountInfo<'info>,
-    mint: Box<InterfaceAccount<'info, Mint>>,
-    #[account(mut)]
-    payer: Signer<'info>,
-    #[account(
-        mut,
-        seeds = [
-            "escrow".as_bytes(),
-            escrow.order_hash.as_ref(),
-            escrow.hashlock.as_ref(),
-            escrow.maker.as_ref(),
-            taker.key().as_ref(),
-            escrow.token.key().as_ref(),
-            escrow.amount.to_be_bytes().as_ref(),
-            escrow.safety_deposit.to_be_bytes().as_ref(),
-            escrow.rescue_start.to_be_bytes().as_ref(),
-        ],
-        bump,
-    )]
-    escrow: Box<Account<'info, EscrowSrc>>,
-    #[account(
-        mut,
-        associated_token::mint = mint,
-        associated_token::authority = escrow,
-        associated_token::token_program = token_program
-    )]
-    escrow_ata: Box<InterfaceAccount<'info, TokenAccount>>,
-    #[account(
-        mut,
-        associated_token::mint = mint,
-        associated_token::authority = escrow.maker,
-        associated_token::token_program = token_program
-    )]
-    // Optional if the token is native
-    maker_ata: Option<Box<InterfaceAccount<'info, TokenAccount>>>,
     token_program: Interface<'info, TokenInterface>,
     system_program: Program<'info, System>,
 }
@@ -1001,6 +1042,12 @@ pub struct RescueFundsForOrder<'info> {
         mut, // Needed because this account receives lamports from closed token account.
     )]
     resolver: Signer<'info>,
+    #[account(
+        seeds = [whitelist::RESOLVER_ACCESS_SEED, resolver.key().as_ref()],
+        bump = resolver_access.bump,
+        seeds::program = whitelist::ID,
+    )]
+    resolver_access: Account<'info, whitelist::ResolverAccess>,
     mint: Box<InterfaceAccount<'info, Mint>>,
     /// CHECK: We don't accept order as 'Account<'info, Order>' because it may be already closed at the time of rescue funds.
     #[account(
@@ -1053,7 +1100,7 @@ pub struct Order {
     rescue_start: u32,
     expiration_time: u32,
     asset_is_native: bool,
-    dst_amount: u64,
+    dst_amount: [u64; 4],
     dutch_auction_data_hash: [u8; 32],
     max_cancellation_premium: u64,
     cancellation_auction_duration: u32,
@@ -1076,7 +1123,7 @@ pub struct EscrowSrc {
     public_cancellation_start: u32,
     rescue_start: u32,
     asset_is_native: bool,
-    dst_amount: u64,
+    dst_amount: [u64; 4],
 }
 
 impl EscrowBase for EscrowSrc {
@@ -1133,12 +1180,18 @@ impl EscrowBase for EscrowSrc {
     }
 }
 
-fn get_dst_amount(dst_amount: u64, data: &AuctionData) -> Result<u64> {
+fn get_dst_amount(dst_amount: [u64; 4], data: &AuctionData) -> Result<[u64; 4]> {
     let rate_bump = calculate_rate_bump(Clock::get()?.unix_timestamp as u64, data);
-    let result = dst_amount
-        .mul_div_ceil(constants::BASE_1E5 + rate_bump, constants::BASE_1E5)
-        .ok_or(ProgramError::ArithmeticOverflow)?;
-    Ok(result)
+    let multiplier = constants::BASE_1E5 + rate_bump;
+
+    let result = U256(dst_amount)
+        .checked_mul(U256::from(multiplier))
+        .expect("Overflow when multiplying destination amount with rate bump")
+        .checked_add(U256::from(constants::BASE_1E5 - 1)) // To ensure rounding up
+        .expect("Overflow when adding BASE_1E5 - 1")
+        .checked_div(U256::from(constants::BASE_1E5))
+        .expect("Overflow when dividing by BASE_1E5");
+    Ok(result.0)
 }
 
 fn is_valid_partial_fill(
@@ -1175,4 +1228,12 @@ pub fn get_escrow_hashlock(order_hash: [u8; 32], merkle_proof: Option<MerkleProo
     } else {
         order_hash
     }
+}
+
+#[account]
+pub struct DstChainParams {
+    pub chain_id: [u8; 32],
+    pub maker_address: [u8; 32],
+    pub token: [u8; 32],
+    pub safety_deposit: u128,
 }
