@@ -41,6 +41,8 @@ pub trait EscrowBase {
     fn escrow_type(&self) -> EscrowType;
 }
 
+// It is used to transfer tokens to escrow_ata by the dst escrow program
+// or to order_ata for by src escrow program.
 pub fn create<'info>(
     escrow_size: usize,
     escrow_type: EscrowType,
@@ -206,7 +208,6 @@ where
     ];
 
     if escrow.asset_is_native() {
-        // Handle native token or WSOL withdrawal and ata closure
         close_and_withdraw_native_ata(escrow, escrow_ata, creator, token_program, seeds)?;
     } else {
         withdraw_and_close_token_ata(
@@ -368,6 +369,7 @@ where
     Ok(())
 }
 
+// Handle native token transfer or WSOL unwrapping and ata closure
 fn close_and_withdraw_native_ata<'info, T>(
     escrow: &Account<'info, T>,
     escrow_ata: &InterfaceAccount<'info, TokenAccount>,
@@ -379,8 +381,8 @@ where
     T: EscrowBase + AccountSerialize + AccountDeserialize + Clone,
 {
     // Using escrow pda as an intermediate account to transfer native tokens
-    // in case of recipient_ata provided, escrow pda will only receive the escrow ata rent-exempt lamports
-    // which rent_recipient will receive after closing the escrow
+    // the leftover lamports from ata's rent will be transferred to the rent recipient
+    // after closing the escrow account
     close_account(CpiContext::new_with_signer(
         token_program.to_account_info(),
         CloseAccount {
