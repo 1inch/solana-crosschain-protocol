@@ -1052,6 +1052,7 @@ dependencies = [
  "common",
  "cross-chain-escrow-dst",
  "cross-chain-escrow-src",
+ "mock",
  "primitive-types",
  "solana-program",
  "solana-program-pack",
@@ -2717,6 +2718,14 @@ dependencies = [
  "libc",
  "wasi 0.11.0+wasi-snapshot-preview1",
  "windows-sys 0.52.0",
+]
+
+[[package]]
+name = "mock"
+version = "0.1.0"
+dependencies = [
+ "anchor-lang",
+ "anchor-spl",
 ]
 
 [[package]]

@@ -16,7 +16,7 @@ pub async fn test_escrow_creation_tx_cost<T: EscrowVariant<S>, S: TokenVariant>(
     // NOTE: To actually see the output from this test, use the `--show-output` flag as shown below
     // `cargo test -- --show-output` or
     // `cargo test test_escrow_creation_cost -- --show-output`
-    let (_, _, tx) = create_escrow_data(test_state);
+    let tx = crate::mock::get_mock_create_tx(test_state);
 
     println!(
         "CU cost for create: {}",

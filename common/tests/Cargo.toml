@@ -16,5 +16,6 @@ common = { path = "../" }
 cross-chain-escrow-dst = { path = "../../programs/cross-chain-escrow-dst", features = ["cpi"] }
 cross-chain-escrow-src = { path = "../../programs/cross-chain-escrow-src", features = ["cpi"] }
 whitelist = { path = "../../programs/whitelist", features = ["no-entrypoint"] }
+mock = { path = "../../programs/mock", features = ["no-entrypoint"] }
 async-trait = "0.1.88"
 primitive-types = "0.13.1"

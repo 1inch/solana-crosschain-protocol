@@ -1,3 +1,4 @@
+use crate::mock;
 use anchor_spl::associated_token::{
     spl_associated_token_account, spl_associated_token_account::instruction as spl_ata_instruction,
 };
@@ -448,6 +449,7 @@ where
         add_program_to_test(&mut program_test, "whitelist", || {
             get_program_whitelist_spec()
         });
+        add_program_to_test(&mut program_test, "mock", || mock::get_program_mock_spec());
         let mut context: ProgramTestContext = program_test.start_with_context().await;
         let client: BanksClient = context.banks_client.clone();
         let timestamp: u32 = SystemTime::now()
@@ -848,6 +850,6 @@ macro_rules! run_for_tokens {
             use super::*;
             type TestState = TestStateBase<$escrow_variant, $token_variant>;
             $tests
-          })*
+        })*
     };
 }
