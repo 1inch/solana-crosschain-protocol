@@ -1110,20 +1110,20 @@ pub struct Order {
 #[account]
 #[derive(InitSpace)]
 pub struct EscrowSrc {
-    order_hash: [u8; 32],
-    hashlock: [u8; 32],
-    maker: Pubkey,
-    taker: Pubkey,
-    token: Pubkey,
-    amount: u64,
-    safety_deposit: u64,
-    withdrawal_start: u32,
-    public_withdrawal_start: u32,
-    cancellation_start: u32,
-    public_cancellation_start: u32,
-    rescue_start: u32,
-    asset_is_native: bool,
-    dst_amount: [u64; 4],
+    pub order_hash: [u8; 32],
+    pub hashlock: [u8; 32],
+    pub maker: Pubkey,
+    pub taker: Pubkey,
+    pub token: Pubkey,
+    pub amount: u64,
+    pub safety_deposit: u64,
+    pub withdrawal_start: u32,
+    pub public_withdrawal_start: u32,
+    pub cancellation_start: u32,
+    pub public_cancellation_start: u32,
+    pub rescue_start: u32,
+    pub asset_is_native: bool,
+    pub dst_amount: [u64; 4],
 }
 
 impl EscrowBase for EscrowSrc {

@@ -2,9 +2,12 @@ use std::any::TypeId;
 
 use crate::{dst_program::DstProgram, helpers::*, src_program::SrcProgram};
 use anchor_lang::error::ErrorCode;
+use anchor_lang::prelude::AccountMeta;
 use anchor_spl::token::spl_token::{error::TokenError, native_mint::ID as NATIVE_MINT};
 use common::{constants::RESCUE_DELAY, error::EscrowError};
 use solana_program::{keccak::hash, program_error::ProgramError};
+use solana_sdk::instruction::Instruction;
+use solana_sdk::system_program::ID as system_program_id;
 use solana_sdk::{
     pubkey::Pubkey, signature::Signer, signer::keypair::Keypair, system_instruction::SystemError,
     transaction::Transaction,
@@ -16,7 +19,26 @@ pub async fn test_escrow_creation_tx_cost<T: EscrowVariant<S>, S: TokenVariant>(
     // NOTE: To actually see the output from this test, use the `--show-output` flag as shown below
     // `cargo test -- --show-output` or
     // `cargo test test_escrow_creation_cost -- --show-output`
-    let tx = crate::mock::get_mock_create_tx(test_state);
+    let (escrow_pda, bump) =
+        Pubkey::find_program_address(&["order".as_bytes()], &test_state.mock_program);
+    let instruction: Instruction = Instruction {
+        program_id: test_state.mock_program,
+        accounts: vec![
+            AccountMeta::new(test_state.token, false),
+            AccountMeta::new(test_state.creator_wallet.keypair.pubkey(), false),
+            AccountMeta::new(test_state.recipient_wallet.keypair.pubkey(), true),
+            AccountMeta::new(escrow_pda, false),
+            AccountMeta::new_readonly(system_program_id, false),
+        ],
+        data: vec![bump],
+    };
+
+    let tx = Transaction::new_signed_with_payer(
+        &[instruction],
+        Some(&test_state.recipient_wallet.keypair.pubkey()),
+        &[&test_state.recipient_wallet.keypair],
+        test_state.context.last_blockhash,
+    );
 
     println!(
         "CU cost for create: {}",

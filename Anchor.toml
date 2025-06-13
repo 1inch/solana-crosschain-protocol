@@ -11,7 +11,6 @@ skip-lint = false
 cross_chain_escrow_dst = "B9SnVJbXNd6RFNxHqPkTvdr46YPT17xunemTQfDsCNzR"
 cross_chain_escrow_src = "6NwMYeUmigiMDjhYeYpbxC6Kc63NzZy1dfGd7fGcdkVS"
 dutch_auction_taking_amount = "6Y87E6QNyrsVZbQSRapcYcXUi9fpFrMiC16C5nLmCCHV"
-mock = "FcNMjoERX8zdpkfEzaFw3xxiAoU8iv85reQ8Xj3uEcxf"
 mocks = "5Jvn87vo6XzejGMBhTss4kYDJC7D7JxkKuN3zG1fZnk6"
 non_custodial_escrow = "AKEVm47qyu5E2LgBDrXifJjS2WJ7i4D1f9REzYvJEsLg"
 whitelist_validator = "3zPcYCrngDJQjzTd7vN1povXWtxwKR1BbofWoaHYxPhv"

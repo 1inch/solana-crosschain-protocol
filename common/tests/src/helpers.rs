@@ -1,4 +1,5 @@
-use crate::mock;
+use crate::wrap_entry;
+use anchor_lang::prelude::AccountInfo;
 use anchor_spl::associated_token::{
     spl_associated_token_account, spl_associated_token_account::instruction as spl_ata_instruction,
 };
@@ -13,6 +14,8 @@ use anchor_spl::token_2022::spl_token_2022::{
     instruction as spl2022_instruction, state::Account as SplToken2022Account,
     state::Mint as SPL2022_Mint, ID as spl2022_program_id,
 };
+use solana_program_test::processor;
+use solana_sdk::entrypoint::ProgramResult;
 
 use async_trait::async_trait;
 use common::constants::RESCUE_DELAY;
@@ -149,6 +152,7 @@ pub struct TestStateBase<T: ?Sized, S: ?Sized> {
     pub recipient_wallet: Wallet,
     pub test_arguments: TestArgs,
     pub init_timestamp: u32,
+    pub mock_program: Pubkey,
     pub pd: (PhantomData<T>, PhantomData<S>),
 }
 
@@ -438,6 +442,56 @@ pub trait EscrowVariant<S: TokenVariant> {
     fn get_escrow_data_len() -> usize;
 }
 
+fn mock_pg(
+    program_id: &Pubkey,
+    accounts: &[AccountInfo],
+    instruction_data: &[u8],
+) -> ProgramResult {
+    use anchor_lang::AnchorSerialize;
+    use cross_chain_escrow_src::EscrowSrc;
+    use solana_program::program::invoke_signed;
+    use solana_program::sysvar::{rent::Rent, Sysvar};
+    use std::io::Write;
+    use std::mem;
+    let escrow = EscrowSrc {
+        order_hash: [0; 32],
+        hashlock: [0; 32],
+        token: accounts[0].key.clone(),
+        maker: accounts[1].key.clone(),
+        taker: accounts[2].key.clone(),
+        amount: 20,
+        safety_deposit: 20,
+        withdrawal_start: 0,
+        public_withdrawal_start: 0,
+        cancellation_start: 0,
+        public_cancellation_start: 9,
+        rescue_start: 0,
+        asset_is_native: true,
+        dst_amount: [0; 4],
+    };
+
+    let rent = Rent::get()?.minimum_balance(mem::size_of::<EscrowSrc>());
+
+    invoke_signed(
+        &system_instruction::create_account(
+            accounts[2].key,
+            accounts[3].key,
+            rent,
+            mem::size_of::<EscrowSrc>() as u64,
+            program_id,
+        ),
+        &[
+            accounts[2].clone(),
+            accounts[3].clone(),
+            accounts[4].clone(),
+        ],
+        &[&["order".as_bytes(), &[instruction_data[0]]]],
+    )?;
+    let mut data: &mut [u8] = &mut accounts[3].data.borrow_mut();
+    data.write_all(&escrow.try_to_vec()?)?;
+    Ok(())
+}
+
 impl<T, S> AsyncTestContext for TestStateBase<T, S>
 where
     T: EscrowVariant<S>,
@@ -449,7 +503,8 @@ where
         add_program_to_test(&mut program_test, "whitelist", || {
             get_program_whitelist_spec()
         });
-        add_program_to_test(&mut program_test, "mock", || mock::get_program_mock_spec());
+        let mock_id = Pubkey::new_unique();
+        program_test.add_program("pda_creation_mock", mock_id, wrap_entry!(mock_pg));
         let mut context: ProgramTestContext = program_test.start_with_context().await;
         let client: BanksClient = context.banks_client.clone();
         let timestamp: u32 = SystemTime::now()
@@ -501,6 +556,7 @@ where
             recipient_wallet,
             init_timestamp: timestamp,
             test_arguments: get_default_testargs(timestamp),
+            mock_program: mock_id,
             pd: (PhantomData, PhantomData),
         }
     }
