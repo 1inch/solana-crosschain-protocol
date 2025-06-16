@@ -116,7 +116,7 @@ run_for_tokens!(
                         + DEFAULT_PERIOD_DURATION * PeriodType::Withdrawal as u32,
                 );
 
-                let (_, recipient_ata) = find_user_ata(test_state);
+                let (_, taker_ata) = find_user_ata(test_state);
 
                 let excess_amount = 1000;
                 // Send excess tokens to the escrow account
@@ -125,7 +125,7 @@ run_for_tokens!(
                     .expect_balance_change(
                         transaction,
                         &[token_change(
-                            recipient_ata,
+                            taker_ata,
                             test_state.test_arguments.escrow_amount + excess_amount,
                         )],
                     )
@@ -163,13 +163,9 @@ run_for_tokens!(
 
             #[test_context(TestState)]
             #[tokio::test]
-            async fn test_withdraw_does_not_work_with_wrong_recipient_ata(
-                test_state: &mut TestState,
-            ) {
-                common_escrow_tests::test_withdraw_does_not_work_with_wrong_recipient_ata(
-                    test_state,
-                )
-                .await
+            async fn test_withdraw_does_not_work_with_wrong_taker_ata(test_state: &mut TestState) {
+                common_escrow_tests::test_withdraw_does_not_work_with_wrong_taker_ata(test_state)
+                    .await
             }
 
             #[test_context(TestState)]
@@ -328,11 +324,9 @@ run_for_tokens!(
 
             #[test_context(TestState)]
             #[tokio::test]
-            async fn test_public_withdraw_fails_with_wrong_recipient_ata(
-                test_state: &mut TestState,
-            ) {
+            async fn test_public_withdraw_fails_with_wrong_taker_ata(test_state: &mut TestState) {
                 prepare_resolvers(test_state, &[test_state.taker_wallet.keypair.pubkey()]).await;
-                common_escrow_tests::test_public_withdraw_fails_with_wrong_recipient_ata(test_state)
+                common_escrow_tests::test_public_withdraw_fails_with_wrong_taker_ata(test_state)
                     .await
             }
 
@@ -410,7 +404,7 @@ run_for_tokens!(
                         + DEFAULT_PERIOD_DURATION * PeriodType::Cancellation as u32,
                 );
 
-                let (creator_ata, _) = find_user_ata(test_state);
+                let (maker_ata, _) = find_user_ata(test_state);
 
                 let excess_amount = 1000;
                 // Send excess tokens to the escrow account
@@ -420,7 +414,7 @@ run_for_tokens!(
                     .expect_balance_change(
                         transaction,
                         &[token_change(
-                            creator_ata,
+                            maker_ata,
                             test_state.test_arguments.escrow_amount + excess_amount,
                         )],
                     )
@@ -441,8 +435,8 @@ run_for_tokens!(
 
             #[test_context(TestState)]
             #[tokio::test]
-            async fn test_cannot_cancel_with_wrong_creator_ata(test_state: &mut TestState) {
-                common_escrow_tests::test_cannot_cancel_with_wrong_creator_ata(test_state).await
+            async fn test_cannot_cancel_with_wrong_maker_ata(test_state: &mut TestState) {
+                common_escrow_tests::test_cannot_cancel_with_wrong_maker_ata(test_state).await
             }
 
             #[test_context(TestState)]
@@ -492,10 +486,9 @@ run_for_tokens!(
 
             #[test_context(TestState)]
             #[tokio::test]
-            async fn test_cannot_rescue_funds_with_wrong_recipient_ata(test_state: &mut TestState) {
+            async fn test_cannot_rescue_funds_with_wrong_taker_ata(test_state: &mut TestState) {
                 prepare_resolvers(test_state, &[test_state.taker_wallet.keypair.pubkey()]).await;
-                common_escrow_tests::test_cannot_rescue_funds_with_wrong_recipient_ata(test_state)
-                    .await
+                common_escrow_tests::test_cannot_rescue_funds_with_wrong_taker_ata(test_state).await
             }
 
             #[test_context(TestState)]
@@ -758,7 +751,7 @@ mod test_escrow_wrapped_native {
 
     #[test_context(TestState)]
     #[tokio::test]
-    async fn test_withdraw_fails_with_no_recipient_ata(test_state: &mut TestState) {
+    async fn test_withdraw_fails_with_no_taker_ata(test_state: &mut TestState) {
         test_state.token = NATIVE_MINT;
 
         let (escrow, escrow_ata) = create_escrow(test_state).await;
@@ -816,7 +809,7 @@ mod test_escrow_wrapped_native {
 
     #[test_context(TestState)]
     #[tokio::test]
-    async fn test_public_withdraw_fails_with_no_recipient_ata(test_state: &mut TestState) {
+    async fn test_public_withdraw_fails_with_no_taker_ata(test_state: &mut TestState) {
         test_state.token = NATIVE_MINT;
         let withdrawer = Keypair::new();
         prepare_resolvers(test_state, &[withdrawer.pubkey()]).await;
@@ -920,7 +913,7 @@ mod local_helpers {
     //         &escrow,
     //     )
     //     .await;
-    //     let creator_ata = S::initialize_spl_associated_account(
+    //     let maker_ata = S::initialize_spl_associated_account(
     //         &mut test_state.context,
     //         &token_to_rescue,
     //         &test_state.maker_wallet.keypair.pubkey(),
@@ -942,7 +935,7 @@ mod local_helpers {
     //         &escrow,
     //         &token_to_rescue,
     //         &escrow_ata,
-    //         &creator_ata,
+    //         &maker_ata,
     //     );
 
     //     set_time(

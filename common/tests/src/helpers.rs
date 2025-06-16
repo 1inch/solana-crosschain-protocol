@@ -431,7 +431,7 @@ pub trait EscrowVariant<S: TokenVariant> {
         escrow: &Pubkey,
         token_to_rescue: &Pubkey,
         escrow_ata: &Pubkey,
-        recipient_ata: &Pubkey,
+        taker_ata: &Pubkey,
     ) -> Transaction;
 
     fn get_escrow_data_len() -> usize;
@@ -785,8 +785,8 @@ pub async fn get_min_rent_for_size(client: &mut BanksClient, s: usize) -> u64 {
     rent.minimum_balance(s)
 }
 
-// This function is used to find the correct ATA for the creator and recipient wallets,
-// it returns a tuple of (creator_ata, recipient_ata)
+// This function is used to find the correct ATA for the maker and taker wallets,
+// it returns a tuple of (maker_ata, taker_ata)
 pub fn find_user_ata<T, S>(test_state: &TestStateBase<T, S>) -> (Pubkey, Pubkey)
 where
     T: EscrowVariant<S>,
@@ -795,7 +795,7 @@ where
     if test_state.test_arguments.asset_is_native {
         (
             T::get_program_spec().0, // Returing program id as creator ata if optional
-            test_state.taker_wallet.native_token_account, // Recipient ata is never optional
+            test_state.taker_wallet.native_token_account, // taker ata is never optional
         )
     } else if test_state.token == NATIVE_MINT {
         (

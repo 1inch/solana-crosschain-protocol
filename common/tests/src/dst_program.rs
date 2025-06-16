@@ -40,7 +40,7 @@ impl<S: TokenVariant> EscrowVariant<S> for DstProgram {
                 secret: test_state.secret,
             });
 
-        let (_, recipient_ata) = find_user_ata(test_state);
+        let (_, taker_ata) = find_user_ata(test_state);
         let (whitelist_access, _) = get_whitelist_access_address(&withdrawer.pubkey());
 
         let instruction: Instruction = Instruction {
@@ -53,7 +53,7 @@ impl<S: TokenVariant> EscrowVariant<S> for DstProgram {
                 AccountMeta::new_readonly(test_state.token, false),
                 AccountMeta::new(*escrow, false),
                 AccountMeta::new(*escrow_ata, false),
-                AccountMeta::new(recipient_ata, false),
+                AccountMeta::new(taker_ata, false),
                 AccountMeta::new_readonly(S::get_token_program_id(), false),
                 AccountMeta::new_readonly(system_program_id, false),
             ],
@@ -78,7 +78,7 @@ impl<S: TokenVariant> EscrowVariant<S> for DstProgram {
                 secret: test_state.secret,
             });
 
-        let (_, recipient_ata) = find_user_ata(test_state);
+        let (_, taker_ata) = find_user_ata(test_state);
 
         let instruction: Instruction = Instruction {
             program_id: cross_chain_escrow_dst::id(),
@@ -88,7 +88,7 @@ impl<S: TokenVariant> EscrowVariant<S> for DstProgram {
                 AccountMeta::new_readonly(test_state.token, false),
                 AccountMeta::new(*escrow, false),
                 AccountMeta::new(*escrow_ata, false),
-                AccountMeta::new(recipient_ata, false),
+                AccountMeta::new(taker_ata, false),
                 AccountMeta::new_readonly(S::get_token_program_id(), false),
                 AccountMeta::new_readonly(system_program_id, false),
             ],
@@ -111,7 +111,7 @@ impl<S: TokenVariant> EscrowVariant<S> for DstProgram {
         let instruction_data =
             InstructionData::data(&cross_chain_escrow_dst::instruction::Cancel {});
 
-        let (creator_ata, _) = find_user_ata(test_state);
+        let (maker_ata, _) = find_user_ata(test_state);
 
         let instruction: Instruction = Instruction {
             program_id: cross_chain_escrow_dst::id(),
@@ -120,7 +120,7 @@ impl<S: TokenVariant> EscrowVariant<S> for DstProgram {
                 AccountMeta::new_readonly(test_state.token, false),
                 AccountMeta::new(*escrow, false),
                 AccountMeta::new(*escrow_ata, false),
-                AccountMeta::new(creator_ata, false),
+                AccountMeta::new(maker_ata, false),
                 AccountMeta::new_readonly(S::get_token_program_id(), false),
                 AccountMeta::new_readonly(system_program_id, false),
             ],
@@ -155,14 +155,14 @@ impl<S: TokenVariant> EscrowVariant<S> for DstProgram {
                 asset_is_native: test_state.test_arguments.asset_is_native,
             });
 
-        let (creator_ata, _) = find_user_ata(test_state);
+        let (maker_ata, _) = find_user_ata(test_state);
 
         let instruction: Instruction = Instruction {
             program_id: cross_chain_escrow_dst::id(),
             accounts: vec![
                 AccountMeta::new(test_state.maker_wallet.keypair.pubkey(), true),
                 AccountMeta::new_readonly(test_state.token, false),
-                AccountMeta::new(creator_ata, false),
+                AccountMeta::new(maker_ata, false),
                 AccountMeta::new(*escrow, false),
                 AccountMeta::new(*escrow_ata, false),
                 AccountMeta::new_readonly(spl_associated_token_id, false),
@@ -185,7 +185,7 @@ impl<S: TokenVariant> EscrowVariant<S> for DstProgram {
         escrow: &Pubkey,
         token_to_rescue: &Pubkey,
         escrow_ata: &Pubkey,
-        recipient_ata: &Pubkey,
+        taker_ata: &Pubkey,
     ) -> Transaction {
         let instruction_data =
             InstructionData::data(&cross_chain_escrow_dst::instruction::RescueFunds {
@@ -206,7 +206,7 @@ impl<S: TokenVariant> EscrowVariant<S> for DstProgram {
                 AccountMeta::new_readonly(*token_to_rescue, false),
                 AccountMeta::new(*escrow, false),
                 AccountMeta::new(*escrow_ata, false),
-                AccountMeta::new(*recipient_ata, false),
+                AccountMeta::new(*taker_ata, false),
                 AccountMeta::new_readonly(S::get_token_program_id(), false),
                 AccountMeta::new_readonly(system_program_id, false),
             ],
