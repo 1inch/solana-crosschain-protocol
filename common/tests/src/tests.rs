@@ -187,14 +187,11 @@ pub async fn test_escrow_creation_fails_with_existing_order_hash<
         .expect_success();
     let new_hash = test_state.context.get_new_latest_blockhash().await.unwrap();
     if transaction.signatures.len() == 1 {
-        transaction.sign(&[&test_state.creator_wallet.keypair], new_hash);
+        transaction.sign(&[&test_state.maker_wallet.keypair], new_hash);
     }
     if transaction.signatures.len() == 2 {
         transaction.sign(
-            &[
-                &test_state.creator_wallet.keypair,
-                &test_state.context.payer,
-            ],
+            &[&test_state.maker_wallet.keypair, &test_state.context.payer],
             new_hash,
         );
     }
@@ -255,7 +252,7 @@ pub async fn test_withdraw<T: EscrowVariant<S> + 'static, S: TokenVariant>(
         [
             native_change(rent_recipient, token_account_rent + escrow_rent),
             native_change(
-                test_state.recipient_wallet.keypair.pubkey(),
+                test_state.taker_wallet.keypair.pubkey(),
                 test_state.test_arguments.escrow_amount,
             ),
         ]
@@ -337,7 +334,7 @@ pub async fn test_withdraw_does_not_work_with_non_recipient<
 ) {
     let (escrow, escrow_ata) = create_escrow(test_state).await;
 
-    test_state.recipient_wallet = test_state.creator_wallet.clone();
+    test_state.taker_wallet = test_state.maker_wallet.clone();
     let transaction = T::get_withdraw_tx(test_state, &escrow, &escrow_ata);
 
     test_state
@@ -355,7 +352,7 @@ pub async fn test_withdraw_does_not_work_with_wrong_recipient_ata<
 ) {
     let (escrow, escrow_ata) = create_escrow(test_state).await;
 
-    test_state.recipient_wallet.token_account = test_state.creator_wallet.token_account;
+    test_state.taker_wallet.token_account = test_state.maker_wallet.token_account;
     let transaction = T::get_withdraw_tx(test_state, &escrow, &escrow_ata);
 
     test_state
@@ -473,12 +470,12 @@ pub async fn test_public_withdraw_tokens<T: EscrowVariant<S> + 'static, S: Token
             vec![
                 native_change(rent_recipient, token_account_rent + rent_lamports),
                 native_change(
-                    test_state.recipient_wallet.keypair.pubkey(),
+                    test_state.taker_wallet.keypair.pubkey(),
                     test_state.test_arguments.escrow_amount,
                 ),
             ]
         }
-        (true, true, pubkey) if pubkey == test_state.recipient_wallet.keypair.pubkey() => {
+        (true, true, pubkey) if pubkey == test_state.taker_wallet.keypair.pubkey() => {
             vec![
                 native_change(
                     rent_recipient,
@@ -499,7 +496,7 @@ pub async fn test_public_withdraw_tokens<T: EscrowVariant<S> + 'static, S: Token
                 ),
                 native_change(pubkey, test_state.test_arguments.safety_deposit),
                 native_change(
-                    test_state.recipient_wallet.keypair.pubkey(),
+                    test_state.taker_wallet.keypair.pubkey(),
                     test_state.test_arguments.escrow_amount,
                 ),
             ]
@@ -573,11 +570,11 @@ pub async fn test_public_withdraw_fails_with_wrong_recipient_ata<
 >(
     test_state: &mut TestStateBase<T, S>,
 ) {
-    let withdrawer = test_state.recipient_wallet.keypair.insecure_clone();
+    let withdrawer = test_state.taker_wallet.keypair.insecure_clone();
 
     let (escrow, escrow_ata) = create_escrow(test_state).await;
 
-    test_state.recipient_wallet.token_account = test_state.creator_wallet.token_account;
+    test_state.taker_wallet.token_account = test_state.maker_wallet.token_account;
     let transaction = T::get_public_withdraw_tx(test_state, &escrow, &escrow_ata, &withdrawer);
 
     set_time(
@@ -602,7 +599,7 @@ pub async fn test_public_withdraw_fails_with_wrong_escrow_ata<
     test_state: &mut TestStateBase<T, S>,
     new_escrow_amount: u64,
 ) {
-    let withdrawer = test_state.recipient_wallet.keypair.insecure_clone();
+    let withdrawer = test_state.taker_wallet.keypair.insecure_clone();
 
     let (escrow, _) = create_escrow(test_state).await;
 
@@ -689,9 +686,9 @@ pub async fn test_cancel<T: EscrowVariant<S> + 'static, S: TokenVariant>(
     let (creator_ata, _) = find_user_ata(test_state);
 
     let rent_recipient = if TypeId::of::<T>() == TypeId::of::<SrcProgram>() {
-        test_state.recipient_wallet.keypair.pubkey()
+        test_state.taker_wallet.keypair.pubkey()
     } else {
-        test_state.creator_wallet.keypair.pubkey()
+        test_state.maker_wallet.keypair.pubkey()
     };
 
     test_state
@@ -716,9 +713,9 @@ pub async fn test_cannot_cancel_by_non_creator<T: EscrowVariant<S> + 'static, S:
 ) {
     let (escrow, escrow_ata) = create_escrow(test_state).await;
     if TypeId::of::<T>() == TypeId::of::<SrcProgram>() {
-        test_state.recipient_wallet = test_state.creator_wallet.clone(); // Use different wallet as recipient
+        test_state.taker_wallet = test_state.maker_wallet.clone(); // Use different wallet as recipient
     } else {
-        test_state.creator_wallet = test_state.recipient_wallet.clone();
+        test_state.maker_wallet = test_state.taker_wallet.clone();
     }
 
     let transaction = T::get_cancel_tx(test_state, &escrow, &escrow_ata);
@@ -735,7 +732,7 @@ pub async fn test_cannot_cancel_with_wrong_creator_ata<T: EscrowVariant<S>, S: T
 ) {
     let (escrow, escrow_ata) = create_escrow(test_state).await;
 
-    test_state.creator_wallet.token_account = test_state.recipient_wallet.token_account;
+    test_state.maker_wallet.token_account = test_state.taker_wallet.token_account;
     let transaction = T::get_cancel_tx(test_state, &escrow, &escrow_ata);
 
     test_state
@@ -854,9 +851,9 @@ pub async fn test_rescue_all_tokens_and_close_ata<
     .await;
 
     let wallet = if TypeId::of::<T>() == TypeId::of::<SrcProgram>() {
-        test_state.recipient_wallet.keypair.pubkey()
+        test_state.taker_wallet.keypair.pubkey()
     } else {
-        test_state.creator_wallet.keypair.pubkey()
+        test_state.maker_wallet.keypair.pubkey()
     };
 
     let recipient_ata =
@@ -920,9 +917,9 @@ pub async fn test_rescue_part_of_tokens_and_not_close_ata<
     .await;
 
     let wallet = if TypeId::of::<T>() == TypeId::of::<SrcProgram>() {
-        test_state.recipient_wallet.keypair.pubkey()
+        test_state.taker_wallet.keypair.pubkey()
     } else {
-        test_state.creator_wallet.keypair.pubkey()
+        test_state.maker_wallet.keypair.pubkey()
     };
 
     let recipient_ata =
@@ -987,9 +984,9 @@ pub async fn test_cannot_rescue_funds_before_rescue_delay_pass<
     .await;
 
     let wallet = if TypeId::of::<T>() == TypeId::of::<SrcProgram>() {
-        test_state.recipient_wallet.keypair.pubkey()
+        test_state.taker_wallet.keypair.pubkey()
     } else {
-        test_state.creator_wallet.keypair.pubkey()
+        test_state.maker_wallet.keypair.pubkey()
     };
 
     let recipient_ata =
@@ -1025,11 +1022,11 @@ pub async fn test_cannot_rescue_funds_by_non_recipient<T: EscrowVariant<S>, S: T
     let escrow_ata =
         S::initialize_spl_associated_account(&mut test_state.context, &token_to_rescue, &escrow)
             .await;
-    test_state.recipient_wallet = test_state.creator_wallet.clone(); // Use different wallet as recipient
+    test_state.taker_wallet = test_state.maker_wallet.clone(); // Use different wallet as recipient
     let recipient_ata = S::initialize_spl_associated_account(
         &mut test_state.context,
         &token_to_rescue,
-        &test_state.recipient_wallet.keypair.pubkey(),
+        &test_state.taker_wallet.keypair.pubkey(),
     )
     .await;
 
@@ -1087,9 +1084,9 @@ pub async fn test_cannot_rescue_funds_with_wrong_recipient_ata<
     .await;
 
     let wallet = if TypeId::of::<T>() == TypeId::of::<SrcProgram>() {
-        test_state.creator_wallet.keypair.pubkey()
+        test_state.maker_wallet.keypair.pubkey()
     } else {
-        test_state.recipient_wallet.keypair.pubkey()
+        test_state.taker_wallet.keypair.pubkey()
     };
 
     let wrong_recipient_ata =
@@ -1130,9 +1127,9 @@ pub async fn test_cannot_rescue_funds_with_wrong_escrow_ata<
     let token_to_rescue = S::deploy_spl_token(&mut test_state.context).await.pubkey();
 
     let wallet = if TypeId::of::<T>() == TypeId::of::<SrcProgram>() {
-        test_state.recipient_wallet.keypair.pubkey()
+        test_state.taker_wallet.keypair.pubkey()
     } else {
-        test_state.creator_wallet.keypair.pubkey()
+        test_state.maker_wallet.keypair.pubkey()
     };
 
     let recipient_ata =
@@ -1234,18 +1231,18 @@ pub async fn test_cancel_native<T: EscrowVariant<S> + 'static, S: TokenVariant>(
     let balance_changes: Vec<BalanceChange> = if TypeId::of::<T>() == TypeId::of::<SrcProgram>() {
         [
             native_change(
-                test_state.creator_wallet.keypair.pubkey(),
+                test_state.maker_wallet.keypair.pubkey(),
                 test_state.test_arguments.escrow_amount,
             ),
             native_change(
-                test_state.recipient_wallet.keypair.pubkey(),
+                test_state.taker_wallet.keypair.pubkey(),
                 escrow_rent + token_account_rent,
             ),
         ]
         .to_vec()
     } else {
         [native_change(
-            test_state.creator_wallet.keypair.pubkey(),
+            test_state.maker_wallet.keypair.pubkey(),
             test_state.test_arguments.escrow_amount + escrow_rent + token_account_rent,
         )]
         .to_vec()
