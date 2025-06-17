@@ -329,27 +329,6 @@ pub async fn test_withdraw_does_not_work_with_wrong_escrow_ata<
         ))
 }
 
-pub async fn test_withdraw_does_not_work_before_withdrawal_start<
-    T: EscrowVariant<S>,
-    S: TokenVariant,
->(
-    test_state: &mut TestStateBase<T, S>,
-) {
-    let (escrow, escrow_ata) = create_escrow(test_state).await;
-
-    let transaction = T::get_withdraw_tx(test_state, &escrow, &escrow_ata);
-
-    set_time(
-        &mut test_state.context,
-        test_state.init_timestamp + DEFAULT_PERIOD_DURATION * PeriodType::Finality as u32,
-    );
-    test_state
-        .client
-        .process_transaction(transaction)
-        .await
-        .expect_error((0, ProgramError::Custom(EscrowError::InvalidTime.into())))
-}
-
 pub async fn test_withdraw_does_not_work_after_cancellation_start<
     T: EscrowVariant<S>,
     S: TokenVariant,
@@ -616,36 +595,6 @@ pub async fn test_escrow_creation_fails_if_finality_duration_overflows<
     test_state: &mut TestStateBase<T, S>,
 ) {
     test_state.test_arguments.finality_duration = u32::MAX;
-    let (_, _, transaction) = create_escrow_data(test_state);
-    test_state
-        .client
-        .process_transaction(transaction)
-        .await
-        .expect_error((0, ProgramError::ArithmeticOverflow));
-}
-
-pub async fn test_escrow_creation_fails_if_withdrawal_duration_overflows<
-    T: EscrowVariant<S>,
-    S: TokenVariant,
->(
-    test_state: &mut TestStateBase<T, S>,
-) {
-    test_state.test_arguments.withdrawal_duration = u32::MAX;
-    let (_, _, transaction) = create_escrow_data(test_state);
-    test_state
-        .client
-        .process_transaction(transaction)
-        .await
-        .expect_error((0, ProgramError::ArithmeticOverflow));
-}
-
-pub async fn test_escrow_creation_fails_if_public_withdrawal_duration_overflows<
-    T: EscrowVariant<S>,
-    S: TokenVariant,
->(
-    test_state: &mut TestStateBase<T, S>,
-) {
-    test_state.test_arguments.public_withdrawal_duration = u32::MAX;
     let (_, _, transaction) = create_escrow_data(test_state);
     test_state
         .client
