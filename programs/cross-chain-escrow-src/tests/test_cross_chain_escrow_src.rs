@@ -2731,6 +2731,7 @@ mod local_helpers {
 type TestState = TestStateBase<SrcProgram, TokenSPL>;
 
 mod test_native_src {
+    use anchor_lang::Space;
     use solana_program_pack::Pack;
 
     use super::*;
@@ -2751,11 +2752,36 @@ mod test_native_src {
         test_state.test_arguments.asset_is_native = true;
         create_order(test_state).await;
         prepare_resolvers(test_state, &[test_state.taker_wallet.keypair.pubkey()]).await;
-        common_escrow_tests::test_escrow_creation_native(
-            test_state,
-            test_state.taker_wallet.keypair.pubkey(),
-        )
-        .await
+        let (escrow, escrow_ata) = create_escrow(test_state).await;
+
+        // Check the lamport X of escrow account is as expected.
+        let escrow_data_len = cross_chain_escrow_src::constants::DISCRIMINATOR_BYTES
+            + cross_chain_escrow_src::EscrowSrc::INIT_SPACE;
+        let rent_lamports = get_min_rent_for_size(&mut test_state.client, escrow_data_len).await;
+        assert_eq!(
+            rent_lamports,
+            test_state.client.get_balance(escrow).await.unwrap()
+        );
+
+        let token_account_rent =
+            get_min_rent_for_size(&mut test_state.client, TokenSPL::get_token_account_size()).await;
+
+        // Check token balance for the escrow account is as expected.
+        assert_eq!(
+            DEFAULT_ESCROW_AMOUNT + token_account_rent,
+            test_state.client.get_balance(escrow_ata).await.unwrap()
+        );
+
+        // Check native balance for the creator is as expected.
+        assert_eq!(
+            WALLET_DEFAULT_LAMPORTS - token_account_rent - rent_lamports,
+            // The pure lamport balance of the creator wallet after the transaction.
+            test_state
+                .client
+                .get_balance(test_state.taker_wallet.keypair.pubkey())
+                .await
+                .unwrap()
+        );
     }
 
     #[test_context(TestState)]
@@ -2779,27 +2805,123 @@ mod test_native_src {
         test_state.token = NATIVE_MINT;
         test_state.test_arguments.asset_is_native = true;
         create_order(test_state).await;
-        let rent_recipient = test_state.taker_wallet.keypair.pubkey();
         prepare_resolvers(test_state, &[test_state.taker_wallet.keypair.pubkey()]).await;
-        common_escrow_tests::test_withdraw(test_state, rent_recipient).await
+        let (escrow, escrow_ata) = create_escrow(test_state).await;
+        let transaction = SrcProgram::get_withdraw_tx(test_state, &escrow, &escrow_ata);
+
+        let token_account_rent = get_min_rent_for_size(
+            &mut test_state.client,
+            get_token_account_len(PhantomData::<TestState>),
+        )
+        .await;
+
+        let escrow_rent = get_min_rent_for_size(
+            &mut test_state.client,
+            <SrcProgram as EscrowVariant<TokenSPL>>::get_escrow_data_len(),
+        )
+        .await;
+
+        set_time(
+            &mut test_state.context,
+            test_state.init_timestamp + DEFAULT_PERIOD_DURATION * PeriodType::Withdrawal as u32,
+        );
+
+        test_state
+            .expect_balance_change(
+                transaction,
+                &[
+                    native_change(
+                        test_state.taker_wallet.keypair.pubkey(),
+                        token_account_rent + escrow_rent,
+                    ),
+                    token_change(
+                        test_state.taker_wallet.native_token_account,
+                        test_state.test_arguments.escrow_amount,
+                    ),
+                ],
+            )
+            .await;
+
+        // Assert escrow was closed
+        assert!(test_state
+            .client
+            .get_account(escrow)
+            .await
+            .unwrap()
+            .is_none());
+
+        // Assert escrow_ata was closed
+        assert!(test_state
+            .client
+            .get_account(escrow_ata)
+            .await
+            .unwrap()
+            .is_none());
+    }
+
+    #[test_context(TestState)]
+    #[tokio::test]
+    async fn test_public_withdraw_by_taker(test_state: &mut TestState) {
+        test_state.token = NATIVE_MINT;
+        test_state.test_arguments.asset_is_native = true;
+        create_order(test_state).await;
+        let withdrawer = test_state.taker_wallet.keypair.insecure_clone();
+        prepare_resolvers(test_state, &[withdrawer.pubkey()]).await;
+        let (escrow, escrow_ata) = create_escrow(test_state).await;
+
+        let transaction =
+            SrcProgram::get_public_withdraw_tx(test_state, &escrow, &escrow_ata, &withdrawer);
+
+        set_time(
+            &mut test_state.context,
+            test_state.init_timestamp
+                + DEFAULT_PERIOD_DURATION * PeriodType::PublicWithdrawal as u32,
+        );
+
+        let escrow_data_len = cross_chain_escrow_src::constants::DISCRIMINATOR_BYTES
+            + cross_chain_escrow_src::EscrowSrc::INIT_SPACE;
+
+        let rent_lamports = get_min_rent_for_size(&mut test_state.client, escrow_data_len).await;
+
+        let token_account_rent =
+            get_min_rent_for_size(&mut test_state.client, TokenSPL::get_token_account_size()).await;
+
+        test_state
+            .expect_balance_change(
+                transaction,
+                &[
+                    native_change(
+                        test_state.taker_wallet.keypair.pubkey(),
+                        rent_lamports + token_account_rent,
+                    ),
+                    token_change(
+                        test_state.taker_wallet.native_token_account,
+                        test_state.test_arguments.escrow_amount,
+                    ),
+                ],
+            )
+            .await;
+
+        // Assert accounts were closed
+        assert!(test_state
+            .client
+            .get_account(escrow)
+            .await
+            .unwrap()
+            .is_none());
+
+        // Assert escrow_ata was closed
+        assert!(test_state
+            .client
+            .get_account(escrow_ata)
+            .await
+            .unwrap()
+            .is_none());
     }
 
     #[test_context(TestState)]
     #[tokio::test]
     async fn test_public_withdraw_by_resolver(test_state: &mut TestState) {
-        test_state.token = NATIVE_MINT;
-        test_state.test_arguments.asset_is_native = true;
-        create_order(test_state).await;
-        let withdrawer = test_state.taker_wallet.keypair.insecure_clone();
-        let rent_recipient = test_state.taker_wallet.keypair.pubkey();
-        prepare_resolvers(test_state, &[test_state.taker_wallet.keypair.pubkey()]).await;
-        common_escrow_tests::test_public_withdraw_tokens(test_state, withdrawer, rent_recipient)
-            .await
-    }
-
-    #[test_context(TestState)]
-    #[tokio::test]
-    async fn test_public_withdraw_by_any_account(test_state: &mut TestState) {
         test_state.token = NATIVE_MINT;
         test_state.test_arguments.asset_is_native = true;
         create_order(test_state).await;
@@ -2814,17 +2936,69 @@ mod test_native_src {
             &withdrawer.pubkey(),
         )
         .await;
-        let rent_recipient = test_state.taker_wallet.keypair.pubkey();
         prepare_resolvers(
             test_state,
             &[
-                test_state.taker_wallet.keypair.pubkey(),
                 withdrawer.pubkey(),
+                test_state.taker_wallet.keypair.pubkey(),
             ],
         )
         .await;
-        common_escrow_tests::test_public_withdraw_tokens(test_state, withdrawer, rent_recipient)
+        let (escrow, escrow_ata) = create_escrow(test_state).await;
+
+        let transaction =
+            SrcProgram::get_public_withdraw_tx(test_state, &escrow, &escrow_ata, &withdrawer);
+
+        set_time(
+            &mut test_state.context,
+            test_state.init_timestamp
+                + DEFAULT_PERIOD_DURATION * PeriodType::PublicWithdrawal as u32,
+        );
+
+        let escrow_data_len = cross_chain_escrow_src::constants::DISCRIMINATOR_BYTES
+            + cross_chain_escrow_src::EscrowSrc::INIT_SPACE;
+
+        let rent_lamports = get_min_rent_for_size(&mut test_state.client, escrow_data_len).await;
+
+        let token_account_rent =
+            get_min_rent_for_size(&mut test_state.client, TokenSPL::get_token_account_size()).await;
+
+        test_state
+            .expect_balance_change(
+                transaction,
+                &[
+                    native_change(
+                        test_state.taker_wallet.keypair.pubkey(),
+                        rent_lamports + token_account_rent
+                            - test_state.test_arguments.safety_deposit,
+                    ),
+                    native_change(
+                        withdrawer.pubkey(),
+                        test_state.test_arguments.safety_deposit,
+                    ),
+                    token_change(
+                        test_state.taker_wallet.native_token_account,
+                        test_state.test_arguments.escrow_amount,
+                    ),
+                ],
+            )
+            .await;
+
+        // Assert accounts were closed
+        assert!(test_state
+            .client
+            .get_account(escrow)
             .await
+            .unwrap()
+            .is_none());
+
+        // Assert escrow_ata was closed
+        assert!(test_state
+            .client
+            .get_account(escrow_ata)
+            .await
+            .unwrap()
+            .is_none());
     }
 
     #[test_context(TestState)]
@@ -3060,6 +3234,7 @@ mod test_native_src {
 }
 
 mod test_wrapped_native {
+    use anchor_lang::Space;
     use solana_program_pack::Pack;
 
     use super::*;
@@ -3086,10 +3261,118 @@ mod test_wrapped_native {
     #[tokio::test]
     async fn test_withdraw(test_state: &mut TestState) {
         test_state.token = NATIVE_MINT;
-        create_order(test_state).await;
-        let rent_recipient = test_state.taker_wallet.keypair.pubkey();
         prepare_resolvers(test_state, &[test_state.taker_wallet.keypair.pubkey()]).await;
-        common_escrow_tests::test_withdraw(test_state, rent_recipient).await
+        create_order(test_state).await;
+        let (escrow, escrow_ata) = create_escrow(test_state).await;
+        let transaction = SrcProgram::get_withdraw_tx(test_state, &escrow, &escrow_ata);
+
+        let token_account_rent = get_min_rent_for_size(
+            &mut test_state.client,
+            get_token_account_len(PhantomData::<TestState>),
+        )
+        .await;
+
+        let escrow_rent = get_min_rent_for_size(
+            &mut test_state.client,
+            <SrcProgram as EscrowVariant<TokenSPL>>::get_escrow_data_len(),
+        )
+        .await;
+
+        set_time(
+            &mut test_state.context,
+            test_state.init_timestamp + DEFAULT_PERIOD_DURATION * PeriodType::Withdrawal as u32,
+        );
+
+        test_state
+            .expect_balance_change(
+                transaction,
+                &[
+                    native_change(
+                        test_state.taker_wallet.keypair.pubkey(),
+                        token_account_rent + escrow_rent,
+                    ),
+                    token_change(
+                        test_state.taker_wallet.native_token_account,
+                        test_state.test_arguments.escrow_amount,
+                    ),
+                ],
+            )
+            .await;
+
+        // Assert escrow was closed
+        assert!(test_state
+            .client
+            .get_account(escrow)
+            .await
+            .unwrap()
+            .is_none());
+
+        // Assert escrow_ata was closed
+        assert!(test_state
+            .client
+            .get_account(escrow_ata)
+            .await
+            .unwrap()
+            .is_none());
+    }
+
+    #[test_context(TestState)]
+    #[tokio::test]
+    async fn test_public_withdraw_by_taker(test_state: &mut TestState) {
+        test_state.token = NATIVE_MINT;
+        create_order(test_state).await;
+        let withdrawer = test_state.taker_wallet.keypair.insecure_clone();
+        prepare_resolvers(test_state, &[withdrawer.pubkey()]).await;
+        let (escrow, escrow_ata) = create_escrow(test_state).await;
+
+        let transaction =
+            SrcProgram::get_public_withdraw_tx(test_state, &escrow, &escrow_ata, &withdrawer);
+
+        set_time(
+            &mut test_state.context,
+            test_state.init_timestamp
+                + DEFAULT_PERIOD_DURATION * PeriodType::PublicWithdrawal as u32,
+        );
+
+        let escrow_data_len = cross_chain_escrow_src::constants::DISCRIMINATOR_BYTES
+            + cross_chain_escrow_src::EscrowSrc::INIT_SPACE;
+
+        let rent_lamports = get_min_rent_for_size(&mut test_state.client, escrow_data_len).await;
+
+        let token_account_rent =
+            get_min_rent_for_size(&mut test_state.client, TokenSPL::get_token_account_size()).await;
+
+        test_state
+            .expect_balance_change(
+                transaction,
+                &[
+                    native_change(
+                        test_state.taker_wallet.keypair.pubkey(),
+                        rent_lamports + token_account_rent,
+                    ),
+                    token_change(
+                        test_state.taker_wallet.native_token_account,
+                        test_state.test_arguments.escrow_amount,
+                    ),
+                ],
+            )
+            .await;
+
+        // Assert accounts were closed
+        assert!(test_state
+            .client
+            .get_account(escrow)
+            .await
+            .unwrap()
+            .is_none());
+
+        // Assert escrow_ata was closed
+        assert!(test_state
+            .client
+            .get_account(escrow_ata)
+            .await
+            .unwrap()
+            .is_none());
     }
 
     #[test_context(TestState)]
@@ -3097,40 +3380,77 @@ mod test_wrapped_native {
     async fn test_public_withdraw_by_resolver(test_state: &mut TestState) {
         test_state.token = NATIVE_MINT;
         create_order(test_state).await;
-        let withdrawer = test_state.taker_wallet.keypair.insecure_clone();
-        let rent_recipient = test_state.taker_wallet.keypair.pubkey();
-        prepare_resolvers(test_state, &[test_state.taker_wallet.keypair.pubkey()]).await;
-        common_escrow_tests::test_public_withdraw_tokens(test_state, withdrawer, rent_recipient)
-            .await
-    }
-
-    #[test_context(TestState)]
-    #[tokio::test]
-    async fn test_public_withdraw_by_any_account(test_state: &mut TestState) {
-        test_state.token = NATIVE_MINT;
-        create_order(test_state).await;
         let withdrawer = Keypair::new();
-        let payer_kp = &test_state.payer_kp;
-        let context = &mut test_state.context;
-
         transfer_lamports(
-            context,
+            &mut test_state.context,
             WALLET_DEFAULT_LAMPORTS,
-            payer_kp,
+            &test_state.payer_kp,
             &withdrawer.pubkey(),
         )
         .await;
-        let rent_recipient = test_state.taker_wallet.keypair.pubkey();
         prepare_resolvers(
             test_state,
             &[
-                test_state.taker_wallet.keypair.pubkey(),
                 withdrawer.pubkey(),
+                test_state.taker_wallet.keypair.pubkey(),
             ],
         )
         .await;
-        common_escrow_tests::test_public_withdraw_tokens(test_state, withdrawer, rent_recipient)
+        let (escrow, escrow_ata) = create_escrow(test_state).await;
+
+        let transaction =
+            SrcProgram::get_public_withdraw_tx(test_state, &escrow, &escrow_ata, &withdrawer);
+
+        set_time(
+            &mut test_state.context,
+            test_state.init_timestamp
+                + DEFAULT_PERIOD_DURATION * PeriodType::PublicWithdrawal as u32,
+        );
+
+        let escrow_data_len = cross_chain_escrow_src::constants::DISCRIMINATOR_BYTES
+            + cross_chain_escrow_src::EscrowSrc::INIT_SPACE;
+
+        let rent_lamports = get_min_rent_for_size(&mut test_state.client, escrow_data_len).await;
+
+        let token_account_rent =
+            get_min_rent_for_size(&mut test_state.client, TokenSPL::get_token_account_size()).await;
+
+        test_state
+            .expect_balance_change(
+                transaction,
+                &[
+                    native_change(
+                        test_state.taker_wallet.keypair.pubkey(),
+                        rent_lamports + token_account_rent
+                            - test_state.test_arguments.safety_deposit,
+                    ),
+                    native_change(
+                        withdrawer.pubkey(),
+                        test_state.test_arguments.safety_deposit,
+                    ),
+                    token_change(
+                        test_state.taker_wallet.native_token_account,
+                        test_state.test_arguments.escrow_amount,
+                    ),
+                ],
+            )
+            .await;
+
+        // Assert accounts were closed
+        assert!(test_state
+            .client
+            .get_account(escrow)
             .await
+            .unwrap()
+            .is_none());
+
+        // Assert escrow_ata was closed
+        assert!(test_state
+            .client
+            .get_account(escrow_ata)
+            .await
+            .unwrap()
+            .is_none());
     }
 
     #[test_context(TestState)]
