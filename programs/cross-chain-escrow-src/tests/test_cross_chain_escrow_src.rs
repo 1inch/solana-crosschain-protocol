@@ -658,20 +658,8 @@ run_for_tokens!(
             ) {
                 create_order(test_state).await;
                 prepare_resolvers(test_state, &[test_state.taker_wallet.keypair.pubkey()]).await;
-                let (escrow, escrow_ata) = create_escrow(test_state).await;
-
-                let transaction = SrcProgram::get_withdraw_tx(test_state, &escrow, &escrow_ata);
-
-                set_time(
-                    &mut test_state.context,
-                    test_state.init_timestamp
-                        + DEFAULT_PERIOD_DURATION * PeriodType::Finality as u32,
-                );
-                test_state
-                    .client
-                    .process_transaction(transaction)
+                common_escrow_tests::test_withdraw_does_not_work_before_withdrawal_start(test_state)
                     .await
-                    .expect_error((0, ProgramError::Custom(EscrowError::InvalidTime.into())))
             }
 
             #[test_context(TestState)]

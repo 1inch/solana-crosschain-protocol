@@ -231,6 +231,15 @@ run_for_tokens!(
 
             #[test_context(TestState)]
             #[tokio::test]
+            async fn test_withdraw_does_not_work_before_withdrawal_start(
+                test_state: &mut TestState,
+            ) {
+                common_escrow_tests::test_withdraw_does_not_work_before_withdrawal_start(test_state)
+                    .await
+            }
+
+            #[test_context(TestState)]
+            #[tokio::test]
             async fn test_withdraw_does_not_work_after_cancellation_start(
                 test_state: &mut TestState,
             ) {
