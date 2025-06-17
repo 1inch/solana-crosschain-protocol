@@ -22,8 +22,7 @@ mod merkle_tree_test_helpers;
 use merkle_tree_test_helpers::{get_proof, get_root};
 use primitive_types::U256;
 
-use crate::local_helpers::get_token_account_len;
-use crate::local_helpers::mint_excess_tokens;
+use crate::local_helpers::{get_token_account_len, mint_excess_tokens};
 
 run_for_tokens!(
     (TokenSPL, token_spl_tests),
@@ -2668,8 +2667,6 @@ mod local_helpers {
         test_state.test_arguments.order_remaining_amount -= escrow_amount;
         (escrow, escrow_ata)
     }
-
-    use std::marker::PhantomData;
 
     pub fn get_token_account_len<T, S: TokenVariant>(_: PhantomData<TestStateBase<T, S>>) -> usize {
         S::get_token_account_size()

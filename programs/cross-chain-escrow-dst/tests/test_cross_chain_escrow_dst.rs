@@ -1256,7 +1256,6 @@ mod test_escrow_creation_cost {
 }
 
 mod local_helpers {
-    use std::marker::PhantomData;
 
     use super::*;
     use solana_program::pubkey::Pubkey;
