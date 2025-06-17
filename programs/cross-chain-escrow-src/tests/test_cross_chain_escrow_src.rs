@@ -409,12 +409,10 @@ run_for_tokens!(
                 test_state.test_arguments.withdrawal_duration = u32::MAX;
                 create_order(test_state).await;
                 prepare_resolvers(test_state, &[test_state.taker_wallet.keypair.pubkey()]).await;
-                let (_, _, transaction) = create_escrow_data(test_state);
-                test_state
-                    .client
-                    .process_transaction(transaction)
-                    .await
-                    .expect_error((0, ProgramError::ArithmeticOverflow));
+                common_escrow_tests::test_escrow_creation_fails_if_withdrawal_duration_overflows(
+                    test_state,
+                )
+                .await;
             }
 
             #[test_context(TestState)]
@@ -425,12 +423,9 @@ run_for_tokens!(
                 test_state.test_arguments.public_withdrawal_duration = u32::MAX;
                 create_order(test_state).await;
                 prepare_resolvers(test_state, &[test_state.taker_wallet.keypair.pubkey()]).await;
-                let (_, _, transaction) = create_escrow_data(test_state);
-                test_state
-                    .client
-                    .process_transaction(transaction)
-                    .await
-                    .expect_error((0, ProgramError::ArithmeticOverflow));
+                common_escrow_tests::test_escrow_creation_fails_if_public_withdrawal_duration_overflows(
+                    test_state,
+                ).await;
             }
 
             #[test_context(TestState)]

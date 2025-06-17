@@ -624,6 +624,36 @@ pub async fn test_escrow_creation_fails_if_finality_duration_overflows<
         .expect_error((0, ProgramError::ArithmeticOverflow));
 }
 
+pub async fn test_escrow_creation_fails_if_withdrawal_duration_overflows<
+    T: EscrowVariant<S>,
+    S: TokenVariant,
+>(
+    test_state: &mut TestStateBase<T, S>,
+) {
+    test_state.test_arguments.withdrawal_duration = u32::MAX;
+    let (_, _, transaction) = create_escrow_data(test_state);
+    test_state
+        .client
+        .process_transaction(transaction)
+        .await
+        .expect_error((0, ProgramError::ArithmeticOverflow));
+}
+
+pub async fn test_escrow_creation_fails_if_public_withdrawal_duration_overflows<
+    T: EscrowVariant<S>,
+    S: TokenVariant,
+>(
+    test_state: &mut TestStateBase<T, S>,
+) {
+    test_state.test_arguments.public_withdrawal_duration = u32::MAX;
+    let (_, _, transaction) = create_escrow_data(test_state);
+    test_state
+        .client
+        .process_transaction(transaction)
+        .await
+        .expect_error((0, ProgramError::ArithmeticOverflow));
+}
+
 pub async fn test_rescue_all_tokens_and_close_ata<
     T: EscrowVariant<S> + 'static,
     S: TokenVariant,

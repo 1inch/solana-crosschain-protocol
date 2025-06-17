@@ -79,6 +79,28 @@ run_for_tokens!(
 
             #[test_context(TestState)]
             #[tokio::test]
+            async fn test_escrow_creation_fails_if_withdrawal_duration_overflows(
+                test_state: &mut TestState,
+            ) {
+                common_escrow_tests::test_escrow_creation_fails_if_withdrawal_duration_overflows(
+                    test_state,
+                )
+                .await;
+            }
+
+            #[test_context(TestState)]
+            #[tokio::test]
+            async fn test_escrow_creation_fails_if_public_withdrawal_duration_overflows(
+                test_state: &mut TestState,
+            ) {
+                prepare_resolvers(test_state, &[test_state.taker_wallet.keypair.pubkey()]).await;
+                common_escrow_tests::test_escrow_creation_fails_if_public_withdrawal_duration_overflows(
+                    test_state,
+                ).await;
+            }
+
+            #[test_context(TestState)]
+            #[tokio::test]
             async fn test_escrow_creation_fails_when_cancellation_start_gt_src_cancellation_timestamp(
                 test_state: &mut TestState,
             ) {
