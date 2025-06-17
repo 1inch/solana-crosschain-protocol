@@ -135,11 +135,8 @@ run_for_tokens!(
                 )
                 .await;
 
-                let escrow_rent = get_min_rent_for_size(
-                    &mut test_state.client,
-                    <DstProgram as EscrowVariant<TokenSPL>>::get_escrow_data_len(),
-                )
-                .await;
+                let escrow_rent =
+                    get_min_rent_for_size(&mut test_state.client, DEFAULT_DST_ESCROW_SIZE).await;
 
                 set_time(
                     &mut test_state.context,
@@ -316,8 +313,7 @@ run_for_tokens!(
                         + DEFAULT_PERIOD_DURATION * PeriodType::PublicWithdrawal as u32,
                 );
 
-                let escrow_data_len =
-                    <DstProgram as EscrowVariant<Token2022>>::get_escrow_data_len();
+                let escrow_data_len = DEFAULT_DST_ESCROW_SIZE;
 
                 let rent_lamports =
                     get_min_rent_for_size(&mut test_state.client, escrow_data_len).await;
@@ -400,8 +396,7 @@ run_for_tokens!(
                     test_state.test_arguments.escrow_amount
                 );
 
-                let escrow_data_len =
-                    <DstProgram as EscrowVariant<Token2022>>::get_escrow_data_len();
+                let escrow_data_len = DEFAULT_DST_ESCROW_SIZE;
 
                 let rent_lamports =
                     get_min_rent_for_size(&mut test_state.client, escrow_data_len).await;
@@ -708,11 +703,8 @@ mod test_escrow_native {
         )
         .await;
 
-        let escrow_rent = get_min_rent_for_size(
-            &mut test_state.client,
-            <DstProgram as EscrowVariant<TokenSPL>>::get_escrow_data_len(),
-        )
-        .await;
+        let escrow_rent =
+            get_min_rent_for_size(&mut test_state.client, DEFAULT_DST_ESCROW_SIZE).await;
 
         set_time(
             &mut test_state.context,
@@ -902,11 +894,8 @@ mod test_escrow_native {
 
         let token_account_rent =
             get_min_rent_for_size(&mut test_state.client, TokenSPL::get_token_account_size()).await;
-        let escrow_rent = get_min_rent_for_size(
-            &mut test_state.client,
-            <DstProgram as EscrowVariant<Token2022>>::get_escrow_data_len(),
-        )
-        .await;
+        let escrow_rent =
+            get_min_rent_for_size(&mut test_state.client, DEFAULT_DST_ESCROW_SIZE).await;
 
         test_state
             .expect_balance_change(
@@ -970,11 +959,8 @@ mod test_escrow_wrapped_native {
         )
         .await;
 
-        let escrow_rent = get_min_rent_for_size(
-            &mut test_state.client,
-            <DstProgram as EscrowVariant<TokenSPL>>::get_escrow_data_len(),
-        )
-        .await;
+        let escrow_rent =
+            get_min_rent_for_size(&mut test_state.client, DEFAULT_DST_ESCROW_SIZE).await;
 
         set_time(
             &mut test_state.context,
@@ -1056,7 +1042,7 @@ mod test_escrow_wrapped_native {
                 + DEFAULT_PERIOD_DURATION * PeriodType::PublicWithdrawal as u32,
         );
 
-        let escrow_data_len = <DstProgram as EscrowVariant<Token2022>>::get_escrow_data_len();
+        let escrow_data_len = DEFAULT_DST_ESCROW_SIZE;
 
         let rent_lamports = get_min_rent_for_size(&mut test_state.client, escrow_data_len).await;
 
@@ -1128,7 +1114,7 @@ mod test_escrow_wrapped_native {
                 + DEFAULT_PERIOD_DURATION * PeriodType::PublicWithdrawal as u32,
         );
 
-        let escrow_data_len = <DstProgram as EscrowVariant<Token2022>>::get_escrow_data_len();
+        let escrow_data_len = DEFAULT_DST_ESCROW_SIZE;
 
         let rent_lamports = get_min_rent_for_size(&mut test_state.client, escrow_data_len).await;
 

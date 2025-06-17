@@ -7,7 +7,6 @@ use crate::wrap_entry;
 use anchor_lang::InstructionData;
 use solana_program_test::processor;
 
-use anchor_lang::Space;
 use anchor_spl::associated_token::ID as spl_associated_token_id;
 
 use solana_program::{
@@ -222,7 +221,6 @@ impl<S: TokenVariant> EscrowVariant<S> for DstProgram {
     }
 
     fn get_escrow_data_len() -> usize {
-        cross_chain_escrow_dst::constants::DISCRIMINATOR_BYTES
-            + cross_chain_escrow_dst::EscrowDst::INIT_SPACE
+        DEFAULT_DST_ESCROW_SIZE
     }
 }
