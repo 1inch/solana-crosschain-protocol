@@ -368,7 +368,7 @@ run_for_tokens!(
 
             #[test_context(TestState)]
             #[tokio::test]
-            async fn test_public_withdraw_tokens_by_resolver(test_state: &mut TestState) {
+            async fn test_public_withdraw_tokens_by_any_resolver(test_state: &mut TestState) {
                 let withdrawer = Keypair::new();
                 prepare_resolvers(test_state, &[withdrawer.pubkey()]).await;
                 transfer_lamports(
@@ -813,7 +813,7 @@ mod test_escrow_native {
 
     #[test_context(TestState)]
     #[tokio::test]
-    async fn test_public_withdraw_by_resolver(test_state: &mut TestState) {
+    async fn test_public_withdraw_by_any_resolver(test_state: &mut TestState) {
         test_state.token = NATIVE_MINT;
         test_state.test_arguments.asset_is_native = true;
         let withdrawer = Keypair::new();
@@ -1106,7 +1106,7 @@ mod test_escrow_wrapped_native {
 
     #[test_context(TestState)]
     #[tokio::test]
-    async fn test_public_withdraw_by_resolver(test_state: &mut TestState) {
+    async fn test_public_withdraw_by_any_resolver(test_state: &mut TestState) {
         test_state.token = NATIVE_MINT;
         let withdrawer = Keypair::new();
         transfer_lamports(

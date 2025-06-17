@@ -504,7 +504,7 @@ run_for_tokens!(
             use super::*;
             #[test_context(TestState)]
             #[tokio::test]
-            async fn test_withdraw_only(test_state: &mut TestState) {
+            async fn test_withdraw(test_state: &mut TestState) {
                 create_order(test_state).await;
                 prepare_resolvers(test_state, &[test_state.taker_wallet.keypair.pubkey()]).await;
                 let rent_recipient = test_state.taker_wallet.keypair.pubkey();
@@ -746,7 +746,7 @@ run_for_tokens!(
 
             #[test_context(TestState)]
             #[tokio::test]
-            async fn test_public_withdraw_tokens_resolver(test_state: &mut TestState) {
+            async fn test_public_withdraw_tokens_any_resolver(test_state: &mut TestState) {
                 create_order(test_state).await;
                 let withdrawer = Keypair::new();
                 prepare_resolvers(
@@ -2920,7 +2920,7 @@ mod test_native_src {
 
     #[test_context(TestState)]
     #[tokio::test]
-    async fn test_public_withdraw_by_resolver(test_state: &mut TestState) {
+    async fn test_public_withdraw_by_any_resolver(test_state: &mut TestState) {
         test_state.token = NATIVE_MINT;
         test_state.test_arguments.asset_is_native = true;
         create_order(test_state).await;
@@ -3412,7 +3412,7 @@ mod test_wrapped_native {
 
     #[test_context(TestState)]
     #[tokio::test]
-    async fn test_public_withdraw_by_resolver(test_state: &mut TestState) {
+    async fn test_public_withdraw_by_any_resolver(test_state: &mut TestState) {
         test_state.token = NATIVE_MINT;
         create_order(test_state).await;
         let withdrawer = Keypair::new();
