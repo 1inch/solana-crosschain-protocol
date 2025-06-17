@@ -3118,7 +3118,43 @@ mod test_native_src {
         test_state.test_arguments.asset_is_native = true;
         create_order(test_state).await;
         prepare_resolvers(test_state, &[test_state.taker_wallet.keypair.pubkey()]).await;
-        common_escrow_tests::test_cancel_native(test_state).await
+        let (escrow, escrow_ata) = create_escrow(test_state).await;
+        let transaction = SrcProgram::get_cancel_tx(test_state, &escrow, &escrow_ata);
+
+        set_time(
+            &mut test_state.context,
+            test_state.init_timestamp + DEFAULT_PERIOD_DURATION * PeriodType::Cancellation as u32,
+        );
+
+        let token_account_rent =
+            get_min_rent_for_size(&mut test_state.client, TokenSPL::get_token_account_size()).await;
+        let escrow_rent = get_min_rent_for_size(
+            &mut test_state.client,
+            <SrcProgram as EscrowVariant<Token2022>>::get_escrow_data_len(),
+        )
+        .await;
+
+        test_state
+            .expect_balance_change(
+                transaction,
+                &[
+                    native_change(
+                        test_state.maker_wallet.keypair.pubkey(),
+                        test_state.test_arguments.escrow_amount,
+                    ),
+                    native_change(
+                        test_state.taker_wallet.keypair.pubkey(),
+                        escrow_rent + token_account_rent,
+                    ),
+                ],
+            )
+            .await;
+
+        let acc_lookup_result = test_state.client.get_account(escrow_ata).await.unwrap();
+        assert!(acc_lookup_result.is_none());
+
+        let acc_lookup_result = test_state.client.get_account(escrow).await.unwrap();
+        assert!(acc_lookup_result.is_none());
     }
 
     #[test_context(TestState)]
