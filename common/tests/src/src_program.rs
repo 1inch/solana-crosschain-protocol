@@ -9,7 +9,6 @@ use solana_program_runtime::invoke_context::BuiltinFunctionWithContext;
 use solana_program_test::processor;
 use solana_sdk::{signature::Signer, signer::keypair::Keypair, transaction::Transaction};
 
-use anchor_lang::Space;
 use anchor_spl::associated_token::{spl_associated_token_account, ID as spl_associated_token_id};
 
 use solana_program::{
@@ -222,11 +221,6 @@ impl<S: TokenVariant> EscrowVariant<S> for SrcProgram {
     fn get_escrow_data_len() -> usize {
         DEFAULT_SRC_ESCROW_SIZE
     }
-}
-
-pub fn get_order_data_len() -> usize {
-    cross_chain_escrow_src::constants::DISCRIMINATOR_BYTES
-        + cross_chain_escrow_src::Order::INIT_SPACE
 }
 
 pub fn get_order_addresses<S: TokenVariant>(

@@ -73,6 +73,9 @@ pub const DEFAULT_SRC_ESCROW_SIZE: usize = cross_chain_escrow_src::EscrowSrc::IN
 pub const DEFAULT_DST_ESCROW_SIZE: usize = cross_chain_escrow_dst::EscrowDst::INIT_SPACE
     + cross_chain_escrow_dst::constants::DISCRIMINATOR_BYTES;
 
+pub const DEFAULT_ORDER_SIZE: usize = cross_chain_escrow_src::constants::DISCRIMINATOR_BYTES
+    + cross_chain_escrow_src::Order::INIT_SPACE;
+
 pub struct TestArgs {
     pub order_amount: u64,
     pub order_parts_amount: u64,

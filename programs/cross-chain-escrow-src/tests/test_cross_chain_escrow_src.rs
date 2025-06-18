@@ -6,7 +6,7 @@ use common_tests::helpers::*;
 use common_tests::run_for_tokens;
 use common_tests::src_program::{
     create_order, create_order_data, get_cancel_order_by_resolver_tx, get_cancel_order_tx,
-    get_create_order_tx, get_order_addresses, get_order_data_len, SrcProgram,
+    get_create_order_tx, get_order_addresses, SrcProgram,
 };
 use common_tests::tests as common_escrow_tests;
 use common_tests::whitelist::prepare_resolvers;
@@ -1797,7 +1797,7 @@ mod local_helpers {
         );
 
         // Check the lamport balance of order account is as expected.
-        let order_data_len = get_order_data_len();
+        let order_data_len = DEFAULT_ORDER_SIZE;
         let rent_lamports = get_min_rent_for_size(&mut test_state.client, order_data_len).await;
 
         let order_ata_lamports =
@@ -2259,7 +2259,7 @@ mod local_helpers {
 
         let token_account_rent =
             get_min_rent_for_size(&mut test_state.client, S::get_token_account_size()).await;
-        let order_rent = get_min_rent_for_size(&mut test_state.client, get_order_data_len()).await;
+        let order_rent = get_min_rent_for_size(&mut test_state.client, DEFAULT_ORDER_SIZE).await;
 
         let (maker_ata, _) = find_user_ata(test_state);
 
@@ -2303,7 +2303,7 @@ mod local_helpers {
         let token_account_rent =
             get_min_rent_for_size(&mut test_state.client, S::get_token_account_size()).await;
 
-        let order_rent = get_min_rent_for_size(&mut test_state.client, get_order_data_len()).await;
+        let order_rent = get_min_rent_for_size(&mut test_state.client, DEFAULT_ORDER_SIZE).await;
 
         let (maker_ata, _) = find_user_ata(test_state);
 
@@ -2395,7 +2395,7 @@ mod local_helpers {
                     test_state.test_arguments.expiration_duration + test_state.init_timestamp;
 
                 let order_rent =
-                    get_min_rent_for_size(&mut test_state.client, get_order_data_len()).await;
+                    get_min_rent_for_size(&mut test_state.client, DEFAULT_ORDER_SIZE).await;
 
                 let clock: Clock = test_state
                     .client
@@ -2468,7 +2468,7 @@ mod local_helpers {
         let token_account_rent =
             get_min_rent_for_size(&mut test_state.client, S::get_token_account_size()).await;
 
-        let order_rent = get_min_rent_for_size(&mut test_state.client, get_order_data_len()).await;
+        let order_rent = get_min_rent_for_size(&mut test_state.client, DEFAULT_ORDER_SIZE).await;
 
         let (maker_ata, _) = find_user_ata(test_state);
 
@@ -2519,7 +2519,7 @@ mod local_helpers {
         let token_account_rent =
             get_min_rent_for_size(&mut test_state.client, S::get_token_account_size()).await;
 
-        let order_rent = get_min_rent_for_size(&mut test_state.client, get_order_data_len()).await;
+        let order_rent = get_min_rent_for_size(&mut test_state.client, DEFAULT_ORDER_SIZE).await;
 
         let (maker_ata, _) = find_user_ata(test_state);
 
