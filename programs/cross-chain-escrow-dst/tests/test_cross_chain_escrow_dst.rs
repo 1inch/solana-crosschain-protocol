@@ -12,7 +12,9 @@ use std::marker::PhantomData;
 
 use test_context::test_context;
 
-use crate::local_helpers::get_token_account_len;
+pub mod helpers_dst;
+
+use helpers_dst::*;
 
 run_for_tokens!(
     (TokenSPL, token_spl_tests),
@@ -189,7 +191,7 @@ run_for_tokens!(
 
                 let excess_amount = 1000;
                 // Send excess tokens to the escrow account
-                local_helpers::mint_excess_tokens(test_state, &escrow_ata, excess_amount).await;
+                mint_excess_tokens(test_state, &escrow_ata, excess_amount).await;
                 test_state
                     .expect_balance_change(
                         transaction,
@@ -542,7 +544,7 @@ run_for_tokens!(
 
                 let excess_amount = 1000;
                 // Send excess tokens to the escrow account
-                local_helpers::mint_excess_tokens(test_state, &escrow_ata, excess_amount).await;
+                mint_excess_tokens(test_state, &escrow_ata, excess_amount).await;
 
                 test_state
                     .expect_balance_change(
@@ -1241,81 +1243,53 @@ mod test_escrow_creation_cost {
     }
 }
 
-mod local_helpers {
+// pub async fn test_cannot_rescue_funds_by_non_whitelisted_resolver<S: TokenVariant>(
+//     test_state: &mut TestStateBase<DstProgram, S>,
+// ) {
+//     let (escrow, _) = create_escrow(test_state).await;
 
-    use super::*;
-    use solana_program::pubkey::Pubkey;
+//     let token_to_rescue = S::deploy_spl_token(&mut test_state.context).await.pubkey();
+//     let escrow_ata = S::initialize_spl_associated_account(
+//         &mut test_state.context,
+//         &token_to_rescue,
+//         &escrow,
+//     )
+//     .await;
+//     let maker_ata = S::initialize_spl_associated_account(
+//         &mut test_state.context,
+//         &token_to_rescue,
+//         &test_state.maker_wallet.keypair.pubkey(),
+//     )
+//     .await;
 
-    pub async fn mint_excess_tokens<S: TokenVariant>(
-        test_state: &mut TestStateBase<DstProgram, S>,
-        escrow_ata: &Pubkey,
-        excess_amount: u64,
-    ) {
-        S::mint_spl_tokens(
-            &mut test_state.context,
-            &test_state.token,
-            escrow_ata,
-            &test_state.payer_kp.pubkey(),
-            &test_state.payer_kp,
-            excess_amount,
-        )
-        .await;
-    }
+//     S::mint_spl_tokens(
+//         &mut test_state.context,
+//         &token_to_rescue,
+//         &escrow_ata,
+//         &test_state.payer_kp.pubkey(),
+//         &test_state.payer_kp,
+//         test_state.test_arguments.rescue_amount,
+//     )
+//     .await;
 
-    pub fn get_token_account_len<S: TokenVariant>(
-        _: PhantomData<TestStateBase<DstProgram, S>>,
-    ) -> usize {
-        S::get_token_account_size()
-    }
+//     let transaction = DstProgram::get_rescue_funds_tx(
+//         test_state,
+//         &escrow,
+//         &token_to_rescue,
+//         &escrow_ata,
+//         &maker_ata,
+//     );
 
-    // pub async fn test_cannot_rescue_funds_by_non_whitelisted_resolver<S: TokenVariant>(
-    //     test_state: &mut TestStateBase<DstProgram, S>,
-    // ) {
-    //     let (escrow, _) = create_escrow(test_state).await;
-
-    //     let token_to_rescue = S::deploy_spl_token(&mut test_state.context).await.pubkey();
-    //     let escrow_ata = S::initialize_spl_associated_account(
-    //         &mut test_state.context,
-    //         &token_to_rescue,
-    //         &escrow,
-    //     )
-    //     .await;
-    //     let maker_ata = S::initialize_spl_associated_account(
-    //         &mut test_state.context,
-    //         &token_to_rescue,
-    //         &test_state.maker_wallet.keypair.pubkey(),
-    //     )
-    //     .await;
-
-    //     S::mint_spl_tokens(
-    //         &mut test_state.context,
-    //         &token_to_rescue,
-    //         &escrow_ata,
-    //         &test_state.payer_kp.pubkey(),
-    //         &test_state.payer_kp,
-    //         test_state.test_arguments.rescue_amount,
-    //     )
-    //     .await;
-
-    //     let transaction = DstProgram::get_rescue_funds_tx(
-    //         test_state,
-    //         &escrow,
-    //         &token_to_rescue,
-    //         &escrow_ata,
-    //         &maker_ata,
-    //     );
-
-    //     set_time(
-    //         &mut test_state.context,
-    //         test_state.init_timestamp + RESCUE_DELAY + 100,
-    //     );
-    //     test_state
-    //         .client
-    //         .process_transaction(transaction)
-    //         .await
-    //         .expect_error((
-    //             0,
-    //             ProgramError::Custom(ErrorCode::AccountNotInitialized.into()),
-    //         ));
-    // }
-}
+//     set_time(
+//         &mut test_state.context,
+//         test_state.init_timestamp + RESCUE_DELAY + 100,
+//     );
+//     test_state
+//         .client
+//         .process_transaction(transaction)
+//         .await
+//         .expect_error((
+//             0,
+//             ProgramError::Custom(ErrorCode::AccountNotInitialized.into()),
+//         ));
+// }
