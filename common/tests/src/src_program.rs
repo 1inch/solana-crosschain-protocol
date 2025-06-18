@@ -40,16 +40,16 @@ impl<S: TokenVariant> EscrowVariant<S> for SrcProgram {
                 secret: test_state.secret,
             });
 
-        let (_, recipient_ata) = find_user_ata(test_state);
+        let (_, taker_ata) = find_user_ata(test_state);
 
         let instruction: Instruction = Instruction {
             program_id: cross_chain_escrow_src::id(),
             accounts: vec![
-                AccountMeta::new(test_state.recipient_wallet.keypair.pubkey(), true),
+                AccountMeta::new(test_state.taker_wallet.keypair.pubkey(), true),
                 AccountMeta::new_readonly(test_state.token, false),
                 AccountMeta::new(*escrow, false),
                 AccountMeta::new(*escrow_ata, false),
-                AccountMeta::new(recipient_ata, false),
+                AccountMeta::new(taker_ata, false),
                 AccountMeta::new_readonly(S::get_token_program_id(), false),
                 AccountMeta::new_readonly(system_program_id, false),
             ],
@@ -59,10 +59,7 @@ impl<S: TokenVariant> EscrowVariant<S> for SrcProgram {
         Transaction::new_signed_with_payer(
             &[instruction],
             Some(&test_state.payer_kp.pubkey()),
-            &[
-                &test_state.context.payer,
-                &test_state.recipient_wallet.keypair,
-            ],
+            &[&test_state.context.payer, &test_state.taker_wallet.keypair],
             test_state.context.last_blockhash,
         )
     }
@@ -78,19 +75,19 @@ impl<S: TokenVariant> EscrowVariant<S> for SrcProgram {
                 secret: test_state.secret,
             });
 
-        let (_, recipient_ata) = find_user_ata(test_state);
+        let (_, taker_ata) = find_user_ata(test_state);
         let (whitelist_access, _) = get_whitelist_access_address(&withdrawer.pubkey());
 
         let instruction: Instruction = Instruction {
             program_id: cross_chain_escrow_src::id(),
             accounts: vec![
-                AccountMeta::new(test_state.recipient_wallet.keypair.pubkey(), false),
+                AccountMeta::new(test_state.taker_wallet.keypair.pubkey(), false),
                 AccountMeta::new(withdrawer.pubkey(), true),
                 AccountMeta::new_readonly(whitelist_access, false),
                 AccountMeta::new_readonly(test_state.token, false),
                 AccountMeta::new(*escrow, false),
                 AccountMeta::new(*escrow_ata, false),
-                AccountMeta::new(recipient_ata, false),
+                AccountMeta::new(taker_ata, false),
                 AccountMeta::new_readonly(S::get_token_program_id(), false),
                 AccountMeta::new_readonly(system_program_id, false),
             ],
@@ -115,17 +112,17 @@ impl<S: TokenVariant> EscrowVariant<S> for SrcProgram {
         let instruction_data =
             InstructionData::data(&cross_chain_escrow_src::instruction::CancelEscrow {});
 
-        let (creator_ata, _) = find_user_ata(test_state);
+        let (maker_ata, _) = find_user_ata(test_state);
 
         let instruction: Instruction = Instruction {
             program_id: cross_chain_escrow_src::id(),
             accounts: vec![
-                AccountMeta::new(test_state.recipient_wallet.keypair.pubkey(), true),
-                AccountMeta::new(test_state.creator_wallet.keypair.pubkey(), false),
+                AccountMeta::new(test_state.taker_wallet.keypair.pubkey(), true),
+                AccountMeta::new(test_state.maker_wallet.keypair.pubkey(), false),
                 AccountMeta::new_readonly(test_state.token, false),
                 AccountMeta::new(*escrow, false),
                 AccountMeta::new(*escrow_ata, false),
-                AccountMeta::new(creator_ata, false),
+                AccountMeta::new(maker_ata, false),
                 AccountMeta::new_readonly(S::get_token_program_id(), false),
                 AccountMeta::new_readonly(system_program_id, false),
             ],
@@ -135,10 +132,7 @@ impl<S: TokenVariant> EscrowVariant<S> for SrcProgram {
         Transaction::new_signed_with_payer(
             &[instruction],
             Some(&test_state.payer_kp.pubkey()),
-            &[
-                &test_state.context.payer,
-                &test_state.recipient_wallet.keypair,
-            ],
+            &[&test_state.context.payer, &test_state.taker_wallet.keypair],
             test_state.context.last_blockhash,
         )
     }
@@ -157,14 +151,14 @@ impl<S: TokenVariant> EscrowVariant<S> for SrcProgram {
 
         let (order, order_ata) = get_order_addresses(test_state);
         let (whitelist_access, _) =
-            get_whitelist_access_address(&test_state.recipient_wallet.keypair.pubkey());
+            get_whitelist_access_address(&test_state.taker_wallet.keypair.pubkey());
 
         let instruction: Instruction = Instruction {
             program_id: cross_chain_escrow_src::id(),
             accounts: vec![
-                AccountMeta::new(test_state.recipient_wallet.keypair.pubkey(), true),
+                AccountMeta::new(test_state.taker_wallet.keypair.pubkey(), true),
                 AccountMeta::new_readonly(whitelist_access, false),
-                AccountMeta::new(test_state.creator_wallet.keypair.pubkey(), false),
+                AccountMeta::new(test_state.maker_wallet.keypair.pubkey(), false),
                 AccountMeta::new_readonly(test_state.token, false),
                 AccountMeta::new(order, false),
                 AccountMeta::new(order_ata, false),
@@ -179,10 +173,7 @@ impl<S: TokenVariant> EscrowVariant<S> for SrcProgram {
         Transaction::new_signed_with_payer(
             &[instruction],
             Some(&test_state.payer_kp.pubkey()),
-            &[
-                &test_state.context.payer,
-                &test_state.recipient_wallet.keypair,
-            ],
+            &[&test_state.context.payer, &test_state.taker_wallet.keypair],
             test_state.context.last_blockhash,
         )
     }
@@ -192,13 +183,13 @@ impl<S: TokenVariant> EscrowVariant<S> for SrcProgram {
         escrow: &Pubkey,
         token_to_rescue: &Pubkey,
         escrow_ata: &Pubkey,
-        recipient_ata: &Pubkey,
+        taker_ata: &Pubkey,
     ) -> Transaction {
         let instruction_data =
             InstructionData::data(&cross_chain_escrow_src::instruction::RescueFundsForEscrow {
                 hashlock: test_state.hashlock.to_bytes(),
                 order_hash: test_state.order_hash.to_bytes(),
-                maker: test_state.creator_wallet.keypair.pubkey(),
+                maker: test_state.maker_wallet.keypair.pubkey(),
                 token: test_state.token,
                 amount: test_state.test_arguments.escrow_amount,
                 safety_deposit: test_state.test_arguments.safety_deposit,
@@ -209,11 +200,11 @@ impl<S: TokenVariant> EscrowVariant<S> for SrcProgram {
         let instruction: Instruction = Instruction {
             program_id: cross_chain_escrow_src::id(),
             accounts: vec![
-                AccountMeta::new(test_state.recipient_wallet.keypair.pubkey(), true),
+                AccountMeta::new(test_state.taker_wallet.keypair.pubkey(), true),
                 AccountMeta::new_readonly(*token_to_rescue, false),
                 AccountMeta::new(*escrow, false),
                 AccountMeta::new(*escrow_ata, false),
-                AccountMeta::new(*recipient_ata, false),
+                AccountMeta::new(*taker_ata, false),
                 AccountMeta::new_readonly(S::get_token_program_id(), false),
                 AccountMeta::new_readonly(system_program_id, false),
             ],
@@ -223,10 +214,7 @@ impl<S: TokenVariant> EscrowVariant<S> for SrcProgram {
         Transaction::new_signed_with_payer(
             &[instruction],
             Some(&test_state.payer_kp.pubkey()),
-            &[
-                &test_state.context.payer,
-                &test_state.recipient_wallet.keypair,
-            ],
+            &[&test_state.context.payer, &test_state.taker_wallet.keypair],
             test_state.context.last_blockhash,
         )
     }
@@ -251,7 +239,7 @@ pub fn get_order_addresses<S: TokenVariant>(
             b"order",
             test_state.order_hash.as_ref(),
             test_state.hashlock.as_ref(),
-            test_state.creator_wallet.keypair.pubkey().as_ref(),
+            test_state.maker_wallet.keypair.pubkey().as_ref(),
             test_state.token.as_ref(),
             test_state
                 .test_arguments
@@ -320,14 +308,14 @@ pub fn get_create_order_tx<T: EscrowVariant<S>, S: TokenVariant>(
         _dst_chain_params: test_state.test_arguments.dst_chain_params.clone(),
     });
 
-    let (creator_ata, _) = find_user_ata(test_state);
+    let (maker_ata, _) = find_user_ata(test_state);
 
     let instruction: Instruction = Instruction {
         program_id: cross_chain_escrow_src::id(),
         accounts: vec![
-            AccountMeta::new(test_state.creator_wallet.keypair.pubkey(), true),
+            AccountMeta::new(test_state.maker_wallet.keypair.pubkey(), true),
             AccountMeta::new_readonly(test_state.token, false),
-            AccountMeta::new(creator_ata, false),
+            AccountMeta::new(maker_ata, false),
             AccountMeta::new(*order, false),
             AccountMeta::new(*order_ata, false),
             AccountMeta::new_readonly(spl_associated_token_id, false),
@@ -340,10 +328,7 @@ pub fn get_create_order_tx<T: EscrowVariant<S>, S: TokenVariant>(
     Transaction::new_signed_with_payer(
         &[instruction],
         Some(&test_state.payer_kp.pubkey()),
-        &[
-            &test_state.context.payer,
-            &test_state.creator_wallet.keypair,
-        ],
+        &[&test_state.context.payer, &test_state.maker_wallet.keypair],
         test_state.context.last_blockhash,
     )
 }
@@ -352,26 +337,26 @@ pub fn get_cancel_order_tx<T: EscrowVariant<S>, S: TokenVariant>(
     test_state: &TestStateBase<T, S>,
     order: &Pubkey,
     order_ata: &Pubkey,
-    opt_creator_ata: Option<&Pubkey>,
+    opt_maker_ata: Option<&Pubkey>,
 ) -> Transaction {
     let instruction_data =
         InstructionData::data(&cross_chain_escrow_src::instruction::CancelOrder {});
 
-    let creator_ata = if let Some(ata) = opt_creator_ata {
+    let maker_ata = if let Some(ata) = opt_maker_ata {
         *ata
     } else {
-        let (creator_ata, _) = find_user_ata(test_state);
-        creator_ata
+        let (maker_ata, _) = find_user_ata(test_state);
+        maker_ata
     };
 
     let instruction: Instruction = Instruction {
         program_id: cross_chain_escrow_src::id(),
         accounts: vec![
-            AccountMeta::new(test_state.creator_wallet.keypair.pubkey(), true),
+            AccountMeta::new(test_state.maker_wallet.keypair.pubkey(), true),
             AccountMeta::new_readonly(test_state.token, false),
             AccountMeta::new(*order, false),
             AccountMeta::new(*order_ata, false),
-            AccountMeta::new(creator_ata, false),
+            AccountMeta::new(maker_ata, false),
             AccountMeta::new_readonly(S::get_token_program_id(), false),
             AccountMeta::new_readonly(system_program_id, false),
         ],
@@ -381,7 +366,7 @@ pub fn get_cancel_order_tx<T: EscrowVariant<S>, S: TokenVariant>(
     Transaction::new_signed_with_payer(
         &[instruction],
         Some(&test_state.payer_kp.pubkey()),
-        &[&test_state.payer_kp, &test_state.creator_wallet.keypair],
+        &[&test_state.payer_kp, &test_state.maker_wallet.keypair],
         test_state.context.last_blockhash,
     )
 }
@@ -390,32 +375,32 @@ pub fn get_cancel_order_by_resolver_tx<T: EscrowVariant<S>, S: TokenVariant>(
     test_state: &TestStateBase<T, S>,
     order: &Pubkey,
     order_ata: &Pubkey,
-    opt_creator_ata: Option<&Pubkey>,
+    opt_maker_ata: Option<&Pubkey>,
 ) -> Transaction {
     let reward_limit = test_state.test_arguments.reward_limit;
     let instruction_data = InstructionData::data(
         &cross_chain_escrow_src::instruction::CancelOrderByResolver { reward_limit },
     );
     let (whitelist_access, _) =
-        get_whitelist_access_address(&test_state.recipient_wallet.keypair.pubkey());
+        get_whitelist_access_address(&test_state.taker_wallet.keypair.pubkey());
 
-    let creator_ata = if let Some(ata) = opt_creator_ata {
+    let maker_ata = if let Some(ata) = opt_maker_ata {
         *ata
     } else {
-        let (creator_ata, _) = find_user_ata(test_state);
-        creator_ata
+        let (maker_ata, _) = find_user_ata(test_state);
+        maker_ata
     };
 
     let instruction: Instruction = Instruction {
         program_id: cross_chain_escrow_src::id(),
         accounts: vec![
-            AccountMeta::new(test_state.recipient_wallet.keypair.pubkey(), true),
+            AccountMeta::new(test_state.taker_wallet.keypair.pubkey(), true),
             AccountMeta::new_readonly(whitelist_access, false),
-            AccountMeta::new(test_state.creator_wallet.keypair.pubkey(), false),
+            AccountMeta::new(test_state.maker_wallet.keypair.pubkey(), false),
             AccountMeta::new_readonly(test_state.token, false),
             AccountMeta::new(*order, false),
             AccountMeta::new(*order_ata, false),
-            AccountMeta::new(creator_ata, false),
+            AccountMeta::new(maker_ata, false),
             AccountMeta::new_readonly(S::get_token_program_id(), false),
             AccountMeta::new_readonly(system_program_id, false),
         ],
@@ -425,7 +410,7 @@ pub fn get_cancel_order_by_resolver_tx<T: EscrowVariant<S>, S: TokenVariant>(
     Transaction::new_signed_with_payer(
         &[instruction],
         Some(&test_state.payer_kp.pubkey()),
-        &[&test_state.payer_kp, &test_state.recipient_wallet.keypair],
+        &[&test_state.payer_kp, &test_state.taker_wallet.keypair],
         test_state.context.last_blockhash,
     )
 }

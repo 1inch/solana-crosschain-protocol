@@ -144,8 +144,8 @@ pub struct TestStateBase<T: ?Sized, S: ?Sized> {
     pub token: Pubkey,
     pub payer_kp: Keypair,
     pub authority_whitelist_kp: Keypair,
-    pub creator_wallet: Wallet,
-    pub recipient_wallet: Wallet,
+    pub maker_wallet: Wallet,
+    pub taker_wallet: Wallet,
     pub test_arguments: TestArgs,
     pub init_timestamp: u32,
     pub pd: (PhantomData<T>, PhantomData<S>),
@@ -431,7 +431,7 @@ pub trait EscrowVariant<S: TokenVariant> {
         escrow: &Pubkey,
         token_to_rescue: &Pubkey,
         escrow_ata: &Pubkey,
-        recipient_ata: &Pubkey,
+        taker_ata: &Pubkey,
     ) -> Transaction;
 
     fn get_escrow_data_len() -> usize;
@@ -468,7 +468,7 @@ where
             &authority_whitelist_kp.pubkey(),
         )
         .await;
-        let creator_wallet = create_wallet::<S>(
+        let maker_wallet = create_wallet::<S>(
             &mut context,
             &token,
             &payer_kp,
@@ -477,7 +477,7 @@ where
             WALLET_DEFAULT_TOKENS,
         )
         .await;
-        let recipient_wallet = create_wallet::<S>(
+        let taker_wallet = create_wallet::<S>(
             &mut context,
             &token,
             &payer_kp,
@@ -495,8 +495,8 @@ where
             token,
             payer_kp: payer_kp.insecure_clone(),
             authority_whitelist_kp,
-            creator_wallet,
-            recipient_wallet,
+            maker_wallet,
+            taker_wallet,
             init_timestamp: timestamp,
             test_arguments: get_default_testargs(timestamp),
             pd: (PhantomData, PhantomData),
@@ -536,7 +536,7 @@ pub fn get_escrow_addresses<T: EscrowVariant<S>, S: TokenVariant>(
             test_state.order_hash.as_ref(),
             hashlock.as_ref(),
             creator.as_ref(),
-            test_state.recipient_wallet.keypair.pubkey().as_ref(),
+            test_state.taker_wallet.keypair.pubkey().as_ref(),
             test_state.token.as_ref(),
             test_state
                 .test_arguments
@@ -569,7 +569,7 @@ pub fn create_escrow_data<T: EscrowVariant<S>, S: TokenVariant>(
     test_state: &TestStateBase<T, S>,
 ) -> (Pubkey, Pubkey, Transaction) {
     let (escrow_pda, escrow_ata) =
-        get_escrow_addresses(test_state, test_state.creator_wallet.keypair.pubkey());
+        get_escrow_addresses(test_state, test_state.maker_wallet.keypair.pubkey());
     let transaction: Transaction = T::get_create_tx(test_state, &escrow_pda, &escrow_ata);
 
     (escrow_pda, escrow_ata, transaction)
@@ -785,8 +785,8 @@ pub async fn get_min_rent_for_size(client: &mut BanksClient, s: usize) -> u64 {
     rent.minimum_balance(s)
 }
 
-// This function is used to find the correct ATA for the creator and recipient wallets,
-// it returns a tuple of (creator_ata, recipient_ata)
+// This function is used to find the correct ATA for the maker and taker wallets,
+// it returns a tuple of (maker_ata, taker_ata)
 pub fn find_user_ata<T, S>(test_state: &TestStateBase<T, S>) -> (Pubkey, Pubkey)
 where
     T: EscrowVariant<S>,
@@ -794,18 +794,18 @@ where
 {
     if test_state.test_arguments.asset_is_native {
         (
-            T::get_program_spec().0, // Returing program id as creator ata if optional
-            test_state.recipient_wallet.native_token_account, // Recipient ata is never optional
+            T::get_program_spec().0, // Returing program id as maker ata if optional
+            test_state.taker_wallet.native_token_account, // taker ata is never optional
         )
     } else if test_state.token == NATIVE_MINT {
         (
-            test_state.creator_wallet.native_token_account,
-            test_state.recipient_wallet.native_token_account,
+            test_state.maker_wallet.native_token_account,
+            test_state.taker_wallet.native_token_account,
         )
     } else {
         (
-            test_state.creator_wallet.token_account,
-            test_state.recipient_wallet.token_account,
+            test_state.maker_wallet.token_account,
+            test_state.taker_wallet.token_account,
         )
     }
 }
