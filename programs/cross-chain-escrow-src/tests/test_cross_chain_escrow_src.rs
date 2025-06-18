@@ -827,10 +827,10 @@ run_for_tokens!(
 
             #[test_context(TestState)]
             #[tokio::test]
-            async fn test_cannot_cancel_by_non_creator(test_state: &mut TestState) {
+            async fn test_cannot_cancel_by_non_maker(test_state: &mut TestState) {
                 create_order(test_state).await;
                 prepare_resolvers(test_state, &[test_state.taker_wallet.keypair.pubkey()]).await;
-                common_escrow_tests::test_cannot_cancel_by_non_creator(test_state).await
+                common_escrow_tests::test_cannot_cancel_by_non_maker(test_state).await
             }
 
             #[test_context(TestState)]
@@ -1655,13 +1655,13 @@ mod local_helpers {
                 get_token_balance(&mut test_state.context, &maker_ata).await
             );
         } else {
-            // Check native balance for the creator is as expected.
+            // Check native balance for the maker is as expected.
             assert_eq!(
                 WALLET_DEFAULT_LAMPORTS
                     - DEFAULT_ESCROW_AMOUNT
                     - order_ata_lamports
                     - rent_lamports,
-                // The pure lamport balance of the creator wallet after the transaction.
+                // The pure lamport balance of the maker wallet after the transaction.
                 test_state
                     .client
                     .get_balance(test_state.maker_wallet.keypair.pubkey())

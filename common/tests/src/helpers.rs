@@ -794,7 +794,7 @@ where
 {
     if test_state.test_arguments.asset_is_native {
         (
-            T::get_program_spec().0, // Returing program id as creator ata if optional
+            T::get_program_spec().0, // Returing program id as maker ata if optional
             test_state.taker_wallet.native_token_account, // taker ata is never optional
         )
     } else if test_state.token == NATIVE_MINT {
