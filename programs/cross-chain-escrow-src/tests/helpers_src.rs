@@ -7,9 +7,9 @@ use anchor_spl::token::spl_token::native_mint::ID as NATIVE_MINT;
 use anchor_lang::InstructionData;
 use common::error::EscrowError;
 use common_tests::helpers::{
-    create_escrow, create_escrow_data, find_user_ata, get_min_rent_for_size, get_token_account_len,
-    get_token_balance, native_change, set_time, token_change, BalanceChange, EscrowVariant,
-    Expectation, PeriodType, TestStateBase, TokenVariant, DEFAULT_ESCROW_AMOUNT,
+    create_escrow, create_escrow_data, find_user_ata, get_min_rent_for_size, get_token_balance,
+    native_change, set_time, token_change, BalanceChange, EscrowVariant, Expectation,
+    HasTokenVariant, PeriodType, TestStateBase, TokenVariant, DEFAULT_ESCROW_AMOUNT,
     DEFAULT_ORDER_SIZE, DEFAULT_PARTS_AMOUNT_FOR_MULTIPLE, DEFAULT_PERIOD_DURATION,
     DEFAULT_SRC_ESCROW_SIZE, WALLET_DEFAULT_LAMPORTS, WALLET_DEFAULT_TOKENS,
 };
@@ -635,7 +635,7 @@ pub async fn test_cancel_by_resolver_at_different_points<S: TokenVariant>(
 ) {
     let token_account_rent = get_min_rent_for_size(
         &mut init_test_state.client,
-        get_token_account_len(PhantomData::<TestStateBase<SrcProgram, S>>),
+        <TestStateBase<SrcProgram, S> as HasTokenVariant>::Token::get_token_account_size(),
     )
     .await;
 

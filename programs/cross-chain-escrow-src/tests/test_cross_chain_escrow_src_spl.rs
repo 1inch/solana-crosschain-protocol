@@ -11,7 +11,6 @@ use common_tests::whitelist::prepare_resolvers;
 use solana_program_test::tokio;
 use solana_sdk::signature::Signer;
 use solana_sdk::signer::keypair::Keypair;
-use std::marker::PhantomData;
 use test_context::test_context;
 
 use primitive_types::U256;
@@ -153,7 +152,7 @@ run_for_tokens!(
 
                 let token_account_rent = get_min_rent_for_size(
                     &mut test_state.client,
-                    get_token_account_len(std::marker::PhantomData::<TestState>),
+                    <TestState as HasTokenVariant>::Token::get_token_account_size(),
                 )
                 .await;
 
@@ -507,7 +506,7 @@ run_for_tokens!(
 
                 let token_account_rent = get_min_rent_for_size(
                     &mut test_state.client,
-                    get_token_account_len(PhantomData::<TestState>),
+                    <TestState as HasTokenVariant>::Token::get_token_account_size(),
                 )
                 .await;
 
@@ -692,7 +691,7 @@ run_for_tokens!(
 
                 let token_account_rent = get_min_rent_for_size(
                     &mut test_state.client,
-                    get_token_account_len(PhantomData::<TestState>),
+                    <TestState as HasTokenVariant>::Token::get_token_account_size(),
                 )
                 .await;
 
@@ -776,7 +775,7 @@ run_for_tokens!(
 
                 let token_account_rent = get_min_rent_for_size(
                     &mut test_state.client,
-                    get_token_account_len(PhantomData::<TestState>),
+                    <TestState as HasTokenVariant>::Token::get_token_account_size(),
                 )
                 .await;
 
