@@ -10,10 +10,6 @@ use solana_sdk::{signature::Signer, signer::keypair::Keypair};
 use std::marker::PhantomData;
 use test_context::test_context;
 
-pub mod helpers_dst;
-
-use helpers_dst::*;
-
 // Native Mint (wrapped SOL) is always owned by the SPL Token program
 type TestState = TestStateBase<DstProgram, TokenSPL>;
 // Tests for native token (SOL)

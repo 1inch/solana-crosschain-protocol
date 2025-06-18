@@ -7,11 +7,11 @@ use anchor_spl::token::spl_token::native_mint::ID as NATIVE_MINT;
 use anchor_lang::InstructionData;
 use common::error::EscrowError;
 use common_tests::helpers::{
-    create_escrow, create_escrow_data, find_user_ata, get_min_rent_for_size, get_token_balance,
-    native_change, set_time, token_change, BalanceChange, EscrowVariant, Expectation, PeriodType,
-    TestStateBase, TokenVariant, DEFAULT_ESCROW_AMOUNT, DEFAULT_ORDER_SIZE,
-    DEFAULT_PARTS_AMOUNT_FOR_MULTIPLE, DEFAULT_PERIOD_DURATION, DEFAULT_SRC_ESCROW_SIZE,
-    WALLET_DEFAULT_LAMPORTS, WALLET_DEFAULT_TOKENS,
+    create_escrow, create_escrow_data, find_user_ata, get_min_rent_for_size, get_token_account_len,
+    get_token_balance, native_change, set_time, token_change, BalanceChange, EscrowVariant,
+    Expectation, PeriodType, TestStateBase, TokenVariant, DEFAULT_ESCROW_AMOUNT,
+    DEFAULT_ORDER_SIZE, DEFAULT_PARTS_AMOUNT_FOR_MULTIPLE, DEFAULT_PERIOD_DURATION,
+    DEFAULT_SRC_ESCROW_SIZE, WALLET_DEFAULT_LAMPORTS, WALLET_DEFAULT_TOKENS,
 };
 use common_tests::src_program::{
     create_order, create_order_data, get_cancel_order_by_resolver_tx, get_cancel_order_tx,
@@ -935,10 +935,6 @@ pub async fn test_escrow_creation_for_partial_fill<S: TokenVariant>(
 
     test_state.test_arguments.order_remaining_amount -= escrow_amount;
     (escrow, escrow_ata)
-}
-
-pub fn get_token_account_len<T, S: TokenVariant>(_: PhantomData<TestStateBase<T, S>>) -> usize {
-    S::get_token_account_size()
 }
 
 pub async fn reset_test_state<T, S: TokenVariant>(

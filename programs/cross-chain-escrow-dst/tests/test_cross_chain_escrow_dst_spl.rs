@@ -12,10 +12,6 @@ use std::marker::PhantomData;
 
 use test_context::test_context;
 
-pub mod helpers_dst;
-
-use helpers_dst::*;
-
 run_for_tokens!(
     (TokenSPL, token_spl_tests),
     (Token2022, token_2022_tests) | DstProgram,

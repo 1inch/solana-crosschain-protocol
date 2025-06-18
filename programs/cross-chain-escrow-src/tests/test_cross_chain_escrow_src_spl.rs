@@ -153,7 +153,7 @@ run_for_tokens!(
 
                 let token_account_rent = get_min_rent_for_size(
                     &mut test_state.client,
-                    helpers_src::get_token_account_len(std::marker::PhantomData::<TestState>),
+                    get_token_account_len(std::marker::PhantomData::<TestState>),
                 )
                 .await;
 
@@ -507,7 +507,7 @@ run_for_tokens!(
 
                 let token_account_rent = get_min_rent_for_size(
                     &mut test_state.client,
-                    helpers_src::get_token_account_len(PhantomData::<TestState>),
+                    get_token_account_len(PhantomData::<TestState>),
                 )
                 .await;
 
