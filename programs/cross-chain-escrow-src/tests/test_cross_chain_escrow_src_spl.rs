@@ -567,7 +567,7 @@ run_for_tokens!(
 
                 let excess_amount = 1000;
                 // Send excess tokens to the escrow account
-                helpers_src::mint_excess_tokens(test_state, &escrow_ata, excess_amount).await;
+                mint_excess_tokens(test_state, &escrow_ata, excess_amount).await;
                 test_state
                     .expect_balance_change(
                         transaction,
@@ -960,7 +960,7 @@ run_for_tokens!(
 
                 let excess_amount = 1000;
                 // Send excess tokens to the escrow account
-                helpers_src::mint_excess_tokens(test_state, &escrow_ata, excess_amount).await;
+                mint_excess_tokens(test_state, &escrow_ata, excess_amount).await;
 
                 test_state
                     .expect_balance_change(
@@ -1053,7 +1053,7 @@ run_for_tokens!(
 
                 let excess_amount = 1000;
                 // Send excess tokens to the order account
-                helpers_src::mint_excess_tokens(test_state, &order_ata, excess_amount).await;
+                mint_excess_tokens(test_state, &order_ata, excess_amount).await;
 
                 let balance_changes: Vec<BalanceChange> = vec![token_change(
                     maker_ata,
@@ -1104,7 +1104,7 @@ run_for_tokens!(
 
                 let excess_amount = 1000;
                 // Send excess tokens to the order account
-                helpers_src::mint_excess_tokens(test_state, &order_ata, excess_amount).await;
+                mint_excess_tokens(test_state, &order_ata, excess_amount).await;
 
                 let balance_changes: Vec<BalanceChange> = vec![token_change(
                     maker_ata,

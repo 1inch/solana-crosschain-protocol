@@ -866,22 +866,6 @@ pub async fn test_escrow_creation_with_excess_tokens<S: TokenVariant>(
     assert!(order_ata_account.is_none());
 }
 
-pub async fn mint_excess_tokens<S: TokenVariant>(
-    test_state: &mut TestStateBase<SrcProgram, S>,
-    escrow_ata: &Pubkey,
-    excess_amount: u64,
-) {
-    S::mint_spl_tokens(
-        &mut test_state.context,
-        &test_state.token,
-        escrow_ata,
-        &test_state.payer_kp.pubkey(),
-        &test_state.payer_kp,
-        excess_amount,
-    )
-    .await;
-}
-
 pub async fn create_order_for_partial_fill<S: TokenVariant>(
     test_state: &mut TestStateBase<SrcProgram, S>,
 ) -> (Pubkey, Pubkey) {
