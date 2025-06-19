@@ -1219,10 +1219,6 @@ impl EscrowBase for EscrowSrc {
     fn asset_is_native(&self) -> bool {
         self.asset_is_native
     }
-
-    fn escrow_type(&self) -> EscrowType {
-        EscrowType::Src
-    }
 }
 
 fn get_dst_amount(dst_amount: [u64; 4], data: &AuctionData) -> Result<[u64; 4]> {

@@ -33,8 +33,6 @@ pub trait EscrowBase {
     fn rescue_start(&self) -> u32;
 
     fn asset_is_native(&self) -> bool;
-
-    fn escrow_type(&self) -> EscrowType;
 }
 
 pub fn cancel<'info, T>(
@@ -204,7 +202,7 @@ pub enum EscrowType {
     Dst,
 }
 
-fn close_escrow_account<'info, T>(
+pub fn close_escrow_account<'info, T>(
     escrow: &Account<'info, T>,
     safety_deposit_recipient: &AccountInfo<'info>,
     rent_recipient: &AccountInfo<'info>,
@@ -226,7 +224,7 @@ where
 }
 
 // Handle native token transfer or WSOL unwrapping and ata closure
-fn close_and_withdraw_native_ata<'info, T>(
+pub fn close_and_withdraw_native_ata<'info, T>(
     escrow: &Account<'info, T>,
     escrow_ata: &InterfaceAccount<'info, TokenAccount>,
     recipient: &AccountInfo<'info>,
@@ -256,7 +254,7 @@ where
     Ok(())
 }
 
-fn withdraw_and_close_token_ata<'info>(
+pub fn withdraw_and_close_token_ata<'info>(
     from: &AccountInfo<'info>,
     authority: &AccountInfo<'info>,
     to: &AccountInfo<'info>,

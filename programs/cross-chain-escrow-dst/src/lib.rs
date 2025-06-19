@@ -539,8 +539,4 @@ impl EscrowBase for EscrowDst {
     fn asset_is_native(&self) -> bool {
         self.asset_is_native
     }
-
-    fn escrow_type(&self) -> EscrowType {
-        EscrowType::Dst
-    }
 }
