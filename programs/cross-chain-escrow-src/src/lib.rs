@@ -1,7 +1,7 @@
 use anchor_lang::prelude::*;
 use anchor_lang::solana_program::hash::hashv;
 use anchor_spl::associated_token::{AssociatedToken, ID as ASSOCIATED_TOKEN_PROGRAM_ID};
-use anchor_spl::token::spl_token::native_mint;
+use anchor_spl::token::spl_token::native_mint::ID as NATIVE_MINT;
 use anchor_spl::token_interface::{
     close_account, CloseAccount, Mint, TokenAccount, TokenInterface,
 };
@@ -61,21 +61,68 @@ pub mod cross_chain_escrow_src {
 
         let now = utils::get_current_timestamp()?;
 
-        common::escrow::create(
-            EscrowSrc::INIT_SPACE + constants::DISCRIMINATOR_BYTES, // Needed to check the safety deposit amount validity
-            EscrowType::Src, // Hardcoded to Src type to sync native ata if applicable
-            &ctx.accounts.creator,
-            asset_is_native,
-            &ctx.accounts.order_ata,
-            ctx.accounts.creator_ata.as_deref(),
-            &ctx.accounts.mint,
-            &ctx.accounts.token_program,
-            &ctx.accounts.system_program,
-            amount,
-            safety_deposit,
-            rescue_start,
-            now,
-        )?;
+        require!(
+            rescue_start >= now + constants::RESCUE_DELAY,
+            EscrowError::InvalidRescueStart
+        );
+
+        // TODO: Verify that safety_deposit is enough to cover public_withdraw and public_cancel methods
+        require!(
+            amount != 0 && safety_deposit != 0,
+            EscrowError::ZeroAmountOrDeposit
+        );
+
+        // Verify that safety_deposit is less than escrow rent_exempt_reserve
+        let rent_exempt_reserve =
+            Rent::get()?.minimum_balance(EscrowSrc::INIT_SPACE + constants::DISCRIMINATOR_BYTES);
+        require!(
+            safety_deposit <= rent_exempt_reserve,
+            EscrowError::SafetyDepositTooLarge
+        );
+
+        require!(
+            ctx.accounts.mint.key() == NATIVE_MINT || !asset_is_native,
+            EscrowError::InconsistentNativeTrait
+        );
+
+        // Check if token is native (WSOL) and is expected to be wrapped
+        if asset_is_native {
+            // Transfer native tokens from creator to escrow_ata and wrap
+            uni_transfer(
+                &UniTransferParams::NativeTransfer {
+                    from: ctx.accounts.creator.to_account_info(),
+                    to: ctx.accounts.order_ata.to_account_info(),
+                    amount,
+                    program: ctx.accounts.system_program.clone(),
+                },
+                None,
+            )?;
+
+            anchor_spl::token::sync_native(CpiContext::new(
+                ctx.accounts.token_program.to_account_info(),
+                anchor_spl::token::SyncNative {
+                    account: ctx.accounts.order_ata.to_account_info(),
+                },
+            ))?;
+        } else {
+            // Do SPL token transfer
+            uni_transfer(
+                &UniTransferParams::TokenTransfer {
+                    from: ctx
+                        .accounts
+                        .creator_ata
+                        .as_deref()
+                        .ok_or(EscrowError::MissingCreatorAta)?
+                        .to_account_info(),
+                    authority: ctx.accounts.creator.to_account_info(),
+                    to: ctx.accounts.order_ata.to_account_info(),
+                    mint: *ctx.accounts.mint.clone(),
+                    amount,
+                    program: ctx.accounts.token_program.clone(),
+                },
+                None,
+            )?;
+        }
 
         let expiration_time = now
             .checked_add(expiration_duration)
@@ -344,7 +391,7 @@ pub mod cross_chain_escrow_src {
         let order = &ctx.accounts.order;
 
         require!(
-            ctx.accounts.mint.key() == native_mint::id() || !order.asset_is_native,
+            ctx.accounts.mint.key() == NATIVE_MINT || !order.asset_is_native,
             EscrowError::InconsistentNativeTrait
         );
 
