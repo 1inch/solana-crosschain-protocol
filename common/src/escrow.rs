@@ -1,15 +1,11 @@
 use anchor_lang::prelude::*;
-use anchor_lang::solana_program::keccak::hash;
 use anchor_lang::system_program;
-
-use anchor_spl::token::spl_token::native_mint::ID as NATIVE_MINT;
 
 use anchor_spl::token_interface::{
     close_account, transfer_checked, CloseAccount, Mint, TokenAccount, TokenInterface,
     TransferChecked,
 };
 
-use crate::constants::RESCUE_DELAY;
 use crate::error::EscrowError;
 use crate::utils;
 
@@ -39,65 +35,6 @@ pub trait EscrowBase {
     fn asset_is_native(&self) -> bool;
 
     fn escrow_type(&self) -> EscrowType;
-}
-
-
-pub fn withdraw<'info, T>(
-    escrow: &Account<'info, T>,
-    escrow_bump: u8,
-    escrow_ata: &InterfaceAccount<'info, TokenAccount>,
-    recipient: &AccountInfo<'info>,
-    recipient_ata: Option<&InterfaceAccount<'info, TokenAccount>>,
-    mint: &InterfaceAccount<'info, Mint>,
-    token_program: &Interface<'info, TokenInterface>,
-    rent_recipient: &AccountInfo<'info>,
-    safety_deposit_recipient: &AccountInfo<'info>,
-    secret: [u8; 32],
-) -> Result<()>
-where
-    T: EscrowBase + AccountSerialize + AccountDeserialize + Clone,
-{
-    // Verify that the secret matches the hashlock
-    require!(
-        hash(&secret).to_bytes() == *escrow.hashlock(),
-        EscrowError::InvalidSecret
-    );
-
-    let seeds = [
-        "escrow".as_bytes(),
-        escrow.order_hash(),
-        escrow.hashlock(),
-        escrow.creator().as_ref(),
-        escrow.recipient().as_ref(),
-        escrow.token().as_ref(),
-        &escrow.amount().to_be_bytes(),
-        &escrow.safety_deposit().to_be_bytes(),
-        &escrow.rescue_start().to_be_bytes(),
-        &[escrow_bump],
-    ];
-
-    if escrow.escrow_type() == EscrowType::Dst && escrow.asset_is_native() {
-        close_and_withdraw_native_ata(escrow, escrow_ata, recipient, token_program, seeds)?;
-    } else {
-        withdraw_and_close_token_ata(
-            &escrow_ata.to_account_info(),
-            &escrow.to_account_info(),
-            &recipient_ata
-                .ok_or(EscrowError::MissingRecipientAta)?
-                .to_account_info(),
-            mint,
-            escrow_ata.amount,
-            token_program,
-            escrow_ata,
-            rent_recipient,
-            &seeds,
-        )?;
-    }
-
-    // Close the escrow account
-    close_escrow_account(escrow, safety_deposit_recipient, rent_recipient)?;
-
-    Ok(())
 }
 
 pub fn cancel<'info, T>(

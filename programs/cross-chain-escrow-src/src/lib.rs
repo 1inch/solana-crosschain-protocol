@@ -9,13 +9,13 @@ pub use auction::{calculate_premium, calculate_rate_bump, AuctionData};
 pub use common::constants;
 use common::error::EscrowError;
 use common::escrow::{uni_transfer, EscrowBase, EscrowType, UniTransferParams};
-use common::utils;
 use primitive_types::U256;
 
 use crate::merkle_tree::MerkleProof;
 
 pub mod auction;
 pub mod merkle_tree;
+pub mod utils;
 
 declare_id!("6NwMYeUmigiMDjhYeYpbxC6Kc63NzZy1dfGd7fGcdkVS");
 
@@ -59,7 +59,7 @@ pub mod cross_chain_escrow_src {
             EscrowError::InvalidPartsAmount
         );
 
-        let now = utils::get_current_timestamp()?;
+        let now = common::utils::get_current_timestamp()?;
 
         require!(
             rescue_start >= now + constants::RESCUE_DELAY,
@@ -168,7 +168,7 @@ pub mod cross_chain_escrow_src {
             EscrowError::InvalidAmount
         );
 
-        let now = utils::get_current_timestamp()?;
+        let now = common::utils::get_current_timestamp()?;
 
         require!(now < order.expiration_time, EscrowError::OrderHasExpired);
 
@@ -286,7 +286,7 @@ pub mod cross_chain_escrow_src {
     }
 
     pub fn withdraw(ctx: Context<Withdraw>, secret: [u8; 32]) -> Result<()> {
-        let now = utils::get_current_timestamp()?;
+        let now = common::utils::get_current_timestamp()?;
 
         require!(
             now >= ctx.accounts.escrow.withdrawal_start()
@@ -297,12 +297,11 @@ pub mod cross_chain_escrow_src {
         // In a standard withdrawal, the taker receives the entire rent amount, including the safety deposit,
         // because they initially covered the entire rent during escrow creation.
 
-        common::escrow::withdraw(
+        utils::withdraw(
             &ctx.accounts.escrow,
             ctx.bumps.escrow,
             &ctx.accounts.escrow_ata,
-            &ctx.accounts.taker,           // recipient
-            Some(&ctx.accounts.taker_ata), // recipient ATA
+            &ctx.accounts.taker_ata,
             &ctx.accounts.mint,
             &ctx.accounts.token_program,
             &ctx.accounts.taker, // rent recipient
@@ -312,7 +311,7 @@ pub mod cross_chain_escrow_src {
     }
 
     pub fn public_withdraw(ctx: Context<PublicWithdraw>, secret: [u8; 32]) -> Result<()> {
-        let now = utils::get_current_timestamp()?;
+        let now = common::utils::get_current_timestamp()?;
 
         require!(
             now >= ctx.accounts.escrow.public_withdrawal_start()
@@ -323,12 +322,11 @@ pub mod cross_chain_escrow_src {
         // In a public withdrawal, the taker receives the rent minus the safety deposit
         // while the safety deposit is awarded to the payer who executed the public withdrawal
 
-        common::escrow::withdraw(
+        utils::withdraw(
             &ctx.accounts.escrow,
             ctx.bumps.escrow,
             &ctx.accounts.escrow_ata,
-            &ctx.accounts.taker,           // recipient
-            Some(&ctx.accounts.taker_ata), // recipient ATA
+            &ctx.accounts.taker_ata,
             &ctx.accounts.mint,
             &ctx.accounts.token_program,
             &ctx.accounts.taker, // rent recipient
@@ -338,7 +336,7 @@ pub mod cross_chain_escrow_src {
     }
 
     pub fn cancel_escrow(ctx: Context<CancelEscrow>) -> Result<()> {
-        let now = utils::get_current_timestamp()?;
+        let now = common::utils::get_current_timestamp()?;
 
         require!(
             now >= ctx.accounts.escrow.cancellation_start(),
@@ -363,7 +361,7 @@ pub mod cross_chain_escrow_src {
     }
 
     pub fn public_cancel_escrow(ctx: Context<PublicCancelEscrow>) -> Result<()> {
-        let now = utils::get_current_timestamp()?;
+        let now = common::utils::get_current_timestamp()?;
 
         require!(
             now >= ctx.accounts.escrow.public_cancellation_start,
@@ -453,7 +451,7 @@ pub mod cross_chain_escrow_src {
         reward_limit: u64,
     ) -> Result<()> {
         let order = &ctx.accounts.order;
-        let now = utils::get_current_timestamp()?;
+        let now = common::utils::get_current_timestamp()?;
 
         require!(now >= order.expiration_time, EscrowError::OrderNotExpired);
 
