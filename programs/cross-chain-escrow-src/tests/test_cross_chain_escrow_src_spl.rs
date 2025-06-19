@@ -5,7 +5,7 @@ use common_tests::run_for_tokens;
 use common_tests::src_program::{
     create_order, create_order_data, create_public_escrow_cancel_tx,
     get_cancel_order_by_resolver_tx, get_cancel_order_tx, get_create_order_tx, get_order_addresses,
-    SrcProgram,
+    get_rescue_funds_from_order_tx, SrcProgram,
 };
 use common_tests::tests as common_escrow_tests;
 use common_tests::whitelist::prepare_resolvers;
@@ -270,8 +270,32 @@ run_for_tokens!(
             #[test_context(TestState)]
             #[tokio::test]
             async fn test_escrow_creation_with_excess_tokens(test_state: &mut TestState) {
+                type S = <TestState as HasTokenVariant>::Token;
+
                 prepare_resolvers(test_state, &[test_state.taker_wallet.keypair.pubkey()]).await;
-                helpers_src::test_escrow_creation_with_excess_tokens(test_state).await;
+                let (_, order_ata) = create_order(test_state).await;
+                let excess_amount = 1000;
+                // Send excess tokens to the order ATA.
+                S::mint_spl_tokens(
+                    &mut test_state.context,
+                    &test_state.token,
+                    &order_ata,
+                    &test_state.payer_kp.pubkey(),
+                    &test_state.payer_kp,
+                    excess_amount,
+                )
+                .await;
+                let (_, escrow_ata) = create_escrow(test_state).await;
+
+                // Check that the escrow ATA was created with the correct amount.
+                assert_eq!(
+                    test_state.test_arguments.escrow_amount + excess_amount,
+                    get_token_balance(&mut test_state.context, &escrow_ata).await
+                );
+
+                // Check that the order ATA was closed.
+                let order_ata_account = test_state.client.get_account(order_ata).await.unwrap();
+                assert!(order_ata_account.is_none());
             }
 
             #[test_context(TestState)]
@@ -1263,11 +1287,53 @@ run_for_tokens!(
             async fn test_cannot_rescue_funds_from_order_before_rescue_delay_pass(
                 test_state: &mut TestState,
             ) {
+                type S = <TestState as HasTokenVariant>::Token;
+
                 prepare_resolvers(test_state, &[test_state.taker_wallet.keypair.pubkey()]).await;
-                helpers_src::test_cannot_rescue_funds_from_order_before_rescue_delay_pass(
-                    test_state,
+                let (order, _) = create_order(test_state).await;
+
+                let token_to_rescue = S::deploy_spl_token(&mut test_state.context).await.pubkey();
+                let order_ata = S::initialize_spl_associated_account(
+                    &mut test_state.context,
+                    &token_to_rescue,
+                    &order,
                 )
-                .await
+                .await;
+                let taker_ata = S::initialize_spl_associated_account(
+                    &mut test_state.context,
+                    &token_to_rescue,
+                    &test_state.taker_wallet.keypair.pubkey(),
+                )
+                .await;
+
+                S::mint_spl_tokens(
+                    &mut test_state.context,
+                    &token_to_rescue,
+                    &order_ata,
+                    &test_state.payer_kp.pubkey(),
+                    &test_state.payer_kp,
+                    test_state.test_arguments.rescue_amount,
+                )
+                .await;
+
+                let transaction = get_rescue_funds_from_order_tx(
+                    test_state,
+                    &order,
+                    &order_ata,
+                    &token_to_rescue,
+                    &taker_ata,
+                );
+
+                set_time(
+                    &mut test_state.context,
+                    test_state.init_timestamp + common::constants::RESCUE_DELAY - 100,
+                );
+
+                test_state
+                    .client
+                    .process_transaction(transaction)
+                    .await
+                    .expect_error((0, ProgramError::Custom(EscrowError::InvalidTime.into())));
             }
 
             // #[test_context(TestState)]
@@ -1281,9 +1347,57 @@ run_for_tokens!(
             async fn test_cannot_rescue_funds_from_order_with_wrong_taker_ata(
                 test_state: &mut TestState,
             ) {
+                type S = <TestState as HasTokenVariant>::Token;
+
                 prepare_resolvers(test_state, &[test_state.taker_wallet.keypair.pubkey()]).await;
-                helpers_src::test_cannot_rescue_funds_from_order_with_wrong_taker_ata(test_state)
+                let (order, _) = create_order(test_state).await;
+
+                let token_to_rescue = S::deploy_spl_token(&mut test_state.context).await.pubkey();
+                let order_ata = S::initialize_spl_associated_account(
+                    &mut test_state.context,
+                    &token_to_rescue,
+                    &order,
+                )
+                .await;
+
+                S::mint_spl_tokens(
+                    &mut test_state.context,
+                    &token_to_rescue,
+                    &order_ata,
+                    &test_state.payer_kp.pubkey(),
+                    &test_state.payer_kp,
+                    test_state.test_arguments.rescue_amount,
+                )
+                .await;
+
+                let wrong_taker_ata = S::initialize_spl_associated_account(
+                    &mut test_state.context,
+                    &token_to_rescue,
+                    &test_state.maker_wallet.keypair.pubkey(),
+                )
+                .await;
+
+                let transaction = get_rescue_funds_from_order_tx(
+                    test_state,
+                    &order,
+                    &order_ata,
+                    &token_to_rescue,
+                    &wrong_taker_ata,
+                );
+
+                set_time(
+                    &mut test_state.context,
+                    test_state.init_timestamp + common::constants::RESCUE_DELAY + 100,
+                );
+
+                test_state
+                    .client
+                    .process_transaction(transaction)
                     .await
+                    .expect_error((
+                        0,
+                        ProgramError::Custom(ErrorCode::ConstraintTokenOwner.into()),
+                    ))
             }
 
             #[test_context(TestState)]
@@ -1291,9 +1405,41 @@ run_for_tokens!(
             async fn test_cannot_rescue_funds_from_order_with_wrong_order_ata(
                 test_state: &mut TestState,
             ) {
+                type S = <TestState as HasTokenVariant>::Token;
+
                 prepare_resolvers(test_state, &[test_state.taker_wallet.keypair.pubkey()]).await;
-                helpers_src::test_cannot_rescue_funds_from_order_with_wrong_orders_ata(test_state)
+
+                let (order, order_ata) = create_order(test_state).await;
+
+                let token_to_rescue = S::deploy_spl_token(&mut test_state.context).await.pubkey();
+                let taker_ata = S::initialize_spl_associated_account(
+                    &mut test_state.context,
+                    &token_to_rescue,
+                    &test_state.taker_wallet.keypair.pubkey(),
+                )
+                .await;
+
+                let transaction = get_rescue_funds_from_order_tx(
+                    test_state,
+                    &order,
+                    &order_ata, // Use order ata for order mint, but not for token to rescue
+                    &token_to_rescue,
+                    &taker_ata,
+                );
+
+                set_time(
+                    &mut test_state.context,
+                    test_state.init_timestamp + common::constants::RESCUE_DELAY + 100,
+                );
+
+                test_state
+                    .client
+                    .process_transaction(transaction)
                     .await
+                    .expect_error((
+                        0,
+                        ProgramError::Custom(ErrorCode::ConstraintAssociated.into()),
+                    ))
             }
         }
 

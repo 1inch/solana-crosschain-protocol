@@ -3,7 +3,6 @@ use std::marker::PhantomData;
 use anchor_lang::error::ErrorCode;
 use anchor_lang::prelude::ProgramError;
 use anchor_spl::token::spl_token::native_mint::ID as NATIVE_MINT;
-use common::error::EscrowError;
 use common_tests::helpers::{
     create_escrow, create_escrow_data, find_user_ata, get_min_rent_for_size, get_token_balance,
     native_change, set_time, token_change, BalanceChange, EscrowVariant, Expectation,
@@ -283,52 +282,6 @@ pub async fn test_rescue_part_of_tokens_from_order_and_not_close_ata<S: TokenVar
         .is_some());
 }
 
-pub async fn test_cannot_rescue_funds_from_order_before_rescue_delay_pass<S: TokenVariant>(
-    test_state: &mut TestStateBase<SrcProgram, S>,
-) {
-    let (order, _) = create_order(test_state).await;
-
-    let token_to_rescue = S::deploy_spl_token(&mut test_state.context).await.pubkey();
-    let order_ata =
-        S::initialize_spl_associated_account(&mut test_state.context, &token_to_rescue, &order)
-            .await;
-    let taker_ata = S::initialize_spl_associated_account(
-        &mut test_state.context,
-        &token_to_rescue,
-        &test_state.taker_wallet.keypair.pubkey(),
-    )
-    .await;
-
-    S::mint_spl_tokens(
-        &mut test_state.context,
-        &token_to_rescue,
-        &order_ata,
-        &test_state.payer_kp.pubkey(),
-        &test_state.payer_kp,
-        test_state.test_arguments.rescue_amount,
-    )
-    .await;
-
-    let transaction = get_rescue_funds_from_order_tx(
-        test_state,
-        &order,
-        &order_ata,
-        &token_to_rescue,
-        &taker_ata,
-    );
-
-    set_time(
-        &mut test_state.context,
-        test_state.init_timestamp + common::constants::RESCUE_DELAY - 100,
-    );
-
-    test_state
-        .client
-        .process_transaction(transaction)
-        .await
-        .expect_error((0, ProgramError::Custom(EscrowError::InvalidTime.into())));
-}
-
 pub async fn _test_cannot_rescue_funds_from_order_by_non_recipient<S: TokenVariant>(
     // TODO: use after implement whitelist
     test_state: &mut TestStateBase<SrcProgram, S>,
@@ -375,92 +328,6 @@ pub async fn _test_cannot_rescue_funds_from_order_by_non_recipient<S: TokenVaria
         .process_transaction(transaction)
         .await
         .expect_error((0, ProgramError::Custom(ErrorCode::ConstraintSeeds.into())))
-}
-
-pub async fn test_cannot_rescue_funds_from_order_with_wrong_taker_ata<S: TokenVariant>(
-    test_state: &mut TestStateBase<SrcProgram, S>,
-) {
-    let (order, _) = create_order(test_state).await;
-
-    let token_to_rescue = S::deploy_spl_token(&mut test_state.context).await.pubkey();
-    let order_ata =
-        S::initialize_spl_associated_account(&mut test_state.context, &token_to_rescue, &order)
-            .await;
-
-    S::mint_spl_tokens(
-        &mut test_state.context,
-        &token_to_rescue,
-        &order_ata,
-        &test_state.payer_kp.pubkey(),
-        &test_state.payer_kp,
-        test_state.test_arguments.rescue_amount,
-    )
-    .await;
-
-    let wrong_taker_ata = S::initialize_spl_associated_account(
-        &mut test_state.context,
-        &token_to_rescue,
-        &test_state.maker_wallet.keypair.pubkey(),
-    )
-    .await;
-
-    let transaction = get_rescue_funds_from_order_tx(
-        test_state,
-        &order,
-        &order_ata,
-        &token_to_rescue,
-        &wrong_taker_ata,
-    );
-
-    set_time(
-        &mut test_state.context,
-        test_state.init_timestamp + common::constants::RESCUE_DELAY + 100,
-    );
-
-    test_state
-        .client
-        .process_transaction(transaction)
-        .await
-        .expect_error((
-            0,
-            ProgramError::Custom(ErrorCode::ConstraintTokenOwner.into()),
-        ))
-}
-
-pub async fn test_cannot_rescue_funds_from_order_with_wrong_orders_ata<S: TokenVariant>(
-    test_state: &mut TestStateBase<SrcProgram, S>,
-) {
-    let (order, order_ata) = create_order(test_state).await;
-
-    let token_to_rescue = S::deploy_spl_token(&mut test_state.context).await.pubkey();
-    let taker_ata = S::initialize_spl_associated_account(
-        &mut test_state.context,
-        &token_to_rescue,
-        &test_state.taker_wallet.keypair.pubkey(),
-    )
-    .await;
-
-    let transaction = get_rescue_funds_from_order_tx(
-        test_state,
-        &order,
-        &order_ata, // Use order ata for order mint, but not for token to rescue
-        &token_to_rescue,
-        &taker_ata,
-    );
-
-    set_time(
-        &mut test_state.context,
-        test_state.init_timestamp + common::constants::RESCUE_DELAY + 100,
-    );
-
-    test_state
-        .client
-        .process_transaction(transaction)
-        .await
-        .expect_error((
-            0,
-            ProgramError::Custom(ErrorCode::ConstraintAssociated.into()),
-        ))
 }
 
 pub async fn test_order_cancel<S: TokenVariant>(test_state: &mut TestStateBase<SrcProgram, S>) {
@@ -751,34 +618,6 @@ pub async fn test_cancel_by_resolver_reward_less_then_auction_calculated<S: Toke
     test_state
         .expect_balance_change(transaction, &balance_changes)
         .await;
-}
-
-pub async fn test_escrow_creation_with_excess_tokens<S: TokenVariant>(
-    test_state: &mut TestStateBase<SrcProgram, S>,
-) {
-    let (_, order_ata) = create_order(test_state).await;
-    let excess_amount = 1000;
-    // Send excess tokens to the order ATA.
-    S::mint_spl_tokens(
-        &mut test_state.context,
-        &test_state.token,
-        &order_ata,
-        &test_state.payer_kp.pubkey(),
-        &test_state.payer_kp,
-        excess_amount,
-    )
-    .await;
-    let (_, escrow_ata) = create_escrow(test_state).await;
-
-    // Check that the escrow ATA was created with the correct amount.
-    assert_eq!(
-        test_state.test_arguments.escrow_amount + excess_amount,
-        get_token_balance(&mut test_state.context, &escrow_ata).await
-    );
-
-    // Check that the order ATA was closed.
-    let order_ata_account = test_state.client.get_account(order_ata).await.unwrap();
-    assert!(order_ata_account.is_none());
 }
 
 pub async fn create_order_for_partial_fill<S: TokenVariant>(
