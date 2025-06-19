@@ -8,7 +8,7 @@ use anchor_spl::token_interface::{
 pub use auction::{calculate_premium, calculate_rate_bump, AuctionData};
 pub use common::constants;
 use common::error::EscrowError;
-use common::escrow::{uni_transfer, EscrowBase, EscrowType, UniTransferParams};
+use common::escrow::{uni_transfer, EscrowBase, UniTransferParams};
 use primitive_types::U256;
 
 use crate::merkle_tree::MerkleProof;

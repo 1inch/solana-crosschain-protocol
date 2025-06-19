@@ -4,7 +4,7 @@ use anchor_spl::token::spl_token::native_mint::ID as NATIVE_MINT;
 use anchor_spl::token_interface::{Mint, TokenAccount, TokenInterface};
 pub use common::constants;
 use common::error::EscrowError;
-use common::escrow::{uni_transfer, EscrowBase, EscrowType, UniTransferParams};
+use common::escrow::{uni_transfer, EscrowBase, UniTransferParams};
 
 mod utils;
 
