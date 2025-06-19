@@ -4,9 +4,10 @@ use anchor_spl::token::spl_token::state::Account as SplTokenAccount;
 use common::error::EscrowError;
 use common_tests::helpers::*;
 use common_tests::src_program::{
-    create_order, create_order_data, get_cancel_order_by_resolver_tx, get_cancel_order_tx,
-    SrcProgram,
+    create_order, create_order_data, create_public_escrow_cancel_tx,
+    get_cancel_order_by_resolver_tx, get_cancel_order_tx, SrcProgram,
 };
+
 use common_tests::tests as common_escrow_tests;
 use common_tests::whitelist::prepare_resolvers;
 use solana_program_test::tokio;
@@ -556,7 +557,6 @@ mod test_wrapped_native {
     use solana_program_pack::Pack;
 
     use super::*;
-    use crate::helpers_src::create_public_escrow_cancel_tx;
 
     #[test_context(TestState)]
     #[tokio::test]
