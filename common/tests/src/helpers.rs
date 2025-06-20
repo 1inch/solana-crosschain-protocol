@@ -1,3 +1,4 @@
+use anchor_lang::Space;
 use anchor_spl::associated_token::{
     spl_associated_token_account, spl_associated_token_account::instruction as spl_ata_instruction,
 };
@@ -65,6 +66,15 @@ pub const DEFAULT_ESCROW_AMOUNT: u64 = 100000;
 pub const DEFAULT_DST_ESCROW_AMOUNT: u64 = 1000;
 pub const DEFAULT_RESCUE_AMOUNT: u64 = 100;
 pub const DEFAULT_SAFETY_DEPOSIT: u64 = 25;
+
+pub const DEFAULT_SRC_ESCROW_SIZE: usize = cross_chain_escrow_src::EscrowSrc::INIT_SPACE
+    + cross_chain_escrow_src::constants::DISCRIMINATOR_BYTES;
+
+pub const DEFAULT_DST_ESCROW_SIZE: usize = cross_chain_escrow_dst::EscrowDst::INIT_SPACE
+    + cross_chain_escrow_dst::constants::DISCRIMINATOR_BYTES;
+
+pub const DEFAULT_ORDER_SIZE: usize = cross_chain_escrow_src::constants::DISCRIMINATOR_BYTES
+    + cross_chain_escrow_src::Order::INIT_SPACE;
 
 pub struct TestArgs {
     pub order_amount: u64,
