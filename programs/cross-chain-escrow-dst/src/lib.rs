@@ -4,8 +4,7 @@ use anchor_spl::token::spl_token::native_mint::ID as NATIVE_MINT;
 use anchor_spl::token_interface::{Mint, TokenAccount, TokenInterface};
 pub use common::constants;
 use common::error::EscrowError;
-use common::escrow::{uni_transfer, EscrowBase, UniTransferParams};
-
+use common::escrow::{uni_transfer, UniTransferParams};
 mod utils;
 
 declare_id!("B9SnVJbXNd6RFNxHqPkTvdr46YPT17xunemTQfDsCNzR");
@@ -177,7 +176,7 @@ pub mod cross_chain_escrow_dst {
             EscrowError::InvalidTime
         );
 
-        common::escrow::cancel(
+        utils::cancel(
             &ctx.accounts.escrow,
             ctx.bumps.escrow,
             &ctx.accounts.escrow_ata,
@@ -477,66 +476,16 @@ pub struct RescueFunds<'info> {
 #[account]
 #[derive(InitSpace)]
 pub struct EscrowDst {
-    order_hash: [u8; 32],
-    hashlock: [u8; 32],
-    creator: Pubkey,
-    recipient: Pubkey,
-    token: Pubkey,
-    asset_is_native: bool,
-    amount: u64,
-    safety_deposit: u64,
-    withdrawal_start: u32,
-    public_withdrawal_start: u32,
-    cancellation_start: u32,
-    rescue_start: u32,
-}
-
-impl EscrowBase for EscrowDst {
-    fn order_hash(&self) -> &[u8; 32] {
-        &self.order_hash
-    }
-
-    fn hashlock(&self) -> &[u8; 32] {
-        &self.hashlock
-    }
-
-    fn creator(&self) -> &Pubkey {
-        &self.creator
-    }
-
-    fn recipient(&self) -> &Pubkey {
-        &self.recipient
-    }
-
-    fn token(&self) -> &Pubkey {
-        &self.token
-    }
-
-    fn amount(&self) -> u64 {
-        self.amount
-    }
-
-    fn safety_deposit(&self) -> u64 {
-        self.safety_deposit
-    }
-
-    fn withdrawal_start(&self) -> u32 {
-        self.withdrawal_start
-    }
-
-    fn public_withdrawal_start(&self) -> u32 {
-        self.public_withdrawal_start
-    }
-
-    fn cancellation_start(&self) -> u32 {
-        self.cancellation_start
-    }
-
-    fn rescue_start(&self) -> u32 {
-        self.rescue_start
-    }
-
-    fn asset_is_native(&self) -> bool {
-        self.asset_is_native
-    }
+    pub order_hash: [u8; 32],
+    pub hashlock: [u8; 32],
+    pub creator: Pubkey,
+    pub recipient: Pubkey,
+    pub token: Pubkey,
+    pub asset_is_native: bool,
+    pub amount: u64,
+    pub safety_deposit: u64,
+    pub withdrawal_start: u32,
+    pub public_withdrawal_start: u32,
+    pub cancellation_start: u32,
+    pub rescue_start: u32,
 }

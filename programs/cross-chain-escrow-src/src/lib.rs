@@ -8,7 +8,7 @@ use anchor_spl::token_interface::{
 pub use auction::{calculate_premium, calculate_rate_bump, AuctionData};
 pub use common::constants;
 use common::error::EscrowError;
-use common::escrow::{uni_transfer, EscrowBase, UniTransferParams};
+use common::escrow::{uni_transfer, UniTransferParams};
 use primitive_types::U256;
 
 use crate::merkle_tree::MerkleProof;
@@ -289,8 +289,8 @@ pub mod cross_chain_escrow_src {
         let now = common::utils::get_current_timestamp()?;
 
         require!(
-            now >= ctx.accounts.escrow.withdrawal_start()
-                && now < ctx.accounts.escrow.cancellation_start(),
+            now >= ctx.accounts.escrow.withdrawal_start
+                && now < ctx.accounts.escrow.cancellation_start,
             EscrowError::InvalidTime
         );
 
@@ -314,8 +314,8 @@ pub mod cross_chain_escrow_src {
         let now = common::utils::get_current_timestamp()?;
 
         require!(
-            now >= ctx.accounts.escrow.public_withdrawal_start()
-                && now < ctx.accounts.escrow.cancellation_start(),
+            now >= ctx.accounts.escrow.public_withdrawal_start
+                && now < ctx.accounts.escrow.cancellation_start,
             EscrowError::InvalidTime
         );
 
@@ -339,7 +339,7 @@ pub mod cross_chain_escrow_src {
         let now = common::utils::get_current_timestamp()?;
 
         require!(
-            now >= ctx.accounts.escrow.cancellation_start(),
+            now >= ctx.accounts.escrow.cancellation_start,
             EscrowError::InvalidTime
         );
 
@@ -347,7 +347,7 @@ pub mod cross_chain_escrow_src {
         // because they initially covered the entire rent during escrow creation, while the maker
         // receives their tokens back to their initial ATA or wallet if the token is native.
 
-        common::escrow::cancel(
+        utils::cancel(
             &ctx.accounts.escrow,
             ctx.bumps.escrow,
             &ctx.accounts.escrow_ata,
@@ -372,7 +372,7 @@ pub mod cross_chain_escrow_src {
         // which is awarded to the payer who executed the public cancellation, while the maker
         // receives their tokens back to their initial ATA or wallet if the token is native.
 
-        common::escrow::cancel(
+        utils::cancel(
             &ctx.accounts.escrow,
             ctx.bumps.escrow,
             &ctx.accounts.escrow_ata,
@@ -1152,75 +1152,6 @@ pub struct Order {
     allow_multiple_fills: bool,
 }
 
-#[account]
-#[derive(InitSpace)]
-pub struct EscrowSrc {
-    order_hash: [u8; 32],
-    hashlock: [u8; 32],
-    maker: Pubkey,
-    taker: Pubkey,
-    token: Pubkey,
-    amount: u64,
-    safety_deposit: u64,
-    withdrawal_start: u32,
-    public_withdrawal_start: u32,
-    cancellation_start: u32,
-    public_cancellation_start: u32,
-    rescue_start: u32,
-    asset_is_native: bool,
-    dst_amount: [u64; 4],
-}
-
-impl EscrowBase for EscrowSrc {
-    fn order_hash(&self) -> &[u8; 32] {
-        &self.order_hash
-    }
-
-    fn hashlock(&self) -> &[u8; 32] {
-        &self.hashlock
-    }
-
-    fn creator(&self) -> &Pubkey {
-        &self.maker
-    }
-
-    fn recipient(&self) -> &Pubkey {
-        &self.taker
-    }
-
-    fn token(&self) -> &Pubkey {
-        &self.token
-    }
-
-    fn amount(&self) -> u64 {
-        self.amount
-    }
-
-    fn safety_deposit(&self) -> u64 {
-        self.safety_deposit
-    }
-
-    fn withdrawal_start(&self) -> u32 {
-        self.withdrawal_start
-    }
-
-    fn public_withdrawal_start(&self) -> u32 {
-        self.public_withdrawal_start
-    }
-
-    fn cancellation_start(&self) -> u32 {
-        self.cancellation_start
-    }
-
-    fn rescue_start(&self) -> u32 {
-        self.rescue_start
-    }
-
-    fn asset_is_native(&self) -> bool {
-        self.asset_is_native
-    }
-}
-
 fn get_dst_amount(dst_amount: [u64; 4], data: &AuctionData) -> Result<[u64; 4]> {
     let rate_bump = calculate_rate_bump(Clock::get()?.unix_timestamp as u64, data);
     let multiplier = constants::BASE_1E5 + rate_bump;
@@ -1277,4 +1208,23 @@ pub struct DstChainParams {
     pub maker_address: [u8; 32],
     pub token: [u8; 32],
     pub safety_deposit: u128,
+}
+
+#[account]
+#[derive(InitSpace)]
+pub struct EscrowSrc {
+    pub order_hash: [u8; 32],
+    pub hashlock: [u8; 32],
+    pub maker: Pubkey,
+    pub taker: Pubkey,
+    pub token: Pubkey,
+    pub amount: u64,
+    pub safety_deposit: u64,
+    pub withdrawal_start: u32,
+    pub public_withdrawal_start: u32,
+    pub cancellation_start: u32,
+    pub public_cancellation_start: u32,
+    pub rescue_start: u32,
+    pub asset_is_native: bool,
+    pub dst_amount: [u64; 4],
 }
