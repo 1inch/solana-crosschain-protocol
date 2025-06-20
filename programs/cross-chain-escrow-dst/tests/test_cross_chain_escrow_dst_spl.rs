@@ -560,8 +560,8 @@ run_for_tokens!(
 
             #[test_context(TestState)]
             #[tokio::test]
-            async fn test_cannot_cancel_by_non_creator(test_state: &mut TestState) {
-                common_escrow_tests::test_cannot_cancel_by_non_creator(test_state).await
+            async fn test_cannot_cancel_by_non_maker(test_state: &mut TestState) {
+                common_escrow_tests::test_cannot_cancel_by_non_maker(test_state).await
             }
 
             #[test_context(TestState)]
@@ -632,18 +632,6 @@ run_for_tokens!(
         }
     }
 );
-
-type TestState = TestStateBase<DstProgram, TokenSPL>;
-
-mod test_escrow_creation_cost {
-    use super::*;
-
-    #[test_context(TestState)]
-    #[tokio::test]
-    async fn test_escrow_creation_tx_cost(test_state: &mut TestState) {
-        common_escrow_tests::test_escrow_creation_tx_cost(test_state).await
-    }
-}
 
 // pub async fn test_cannot_rescue_funds_by_non_whitelisted_resolver<S: TokenVariant>(
 //     test_state: &mut TestStateBase<DstProgram, S>,

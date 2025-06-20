@@ -535,7 +535,7 @@ pub async fn test_cancel<T: EscrowVariant<S> + 'static, S: TokenVariant>(
     assert!(acc_lookup_result.is_none());
 }
 
-pub async fn test_cannot_cancel_by_non_creator<T: EscrowVariant<S> + 'static, S: TokenVariant>(
+pub async fn test_cannot_cancel_by_non_maker<T: EscrowVariant<S> + 'static, S: TokenVariant>(
     test_state: &mut TestStateBase<T, S>,
 ) {
     let (escrow, escrow_ata) = create_escrow(test_state).await;

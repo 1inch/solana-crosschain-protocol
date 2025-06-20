@@ -1005,10 +1005,10 @@ run_for_tokens!(
 
             #[test_context(TestState)]
             #[tokio::test]
-            async fn test_cannot_cancel_by_non_creator(test_state: &mut TestState) {
+            async fn test_cannot_cancel_by_non_maker(test_state: &mut TestState) {
                 create_order(test_state).await;
                 prepare_resolvers(test_state, &[test_state.taker_wallet.keypair.pubkey()]).await;
-                common_escrow_tests::test_cannot_cancel_by_non_creator(test_state).await
+                common_escrow_tests::test_cannot_cancel_by_non_maker(test_state).await
             }
 
             #[test_context(TestState)]
