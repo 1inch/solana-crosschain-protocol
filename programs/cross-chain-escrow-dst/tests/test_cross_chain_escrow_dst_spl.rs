@@ -542,18 +542,16 @@ run_for_tokens!(
                 test_state
                     .expect_state_change(
                         transaction,
-                        &[token_change(
-                            maker_ata,
-                            test_state.test_arguments.escrow_amount + excess_amount,
-                        )],
+                        &[
+                            token_change(
+                                maker_ata,
+                                test_state.test_arguments.escrow_amount + excess_amount,
+                            ),
+                            account_closure(escrow_ata, true),
+                            account_closure(escrow, true),
+                        ],
                     )
                     .await;
-
-                let acc_lookup_result = test_state.client.get_account(escrow_ata).await.unwrap();
-                assert!(acc_lookup_result.is_none());
-
-                let acc_lookup_result = test_state.client.get_account(escrow).await.unwrap();
-                assert!(acc_lookup_result.is_none());
             }
 
             #[test_context(TestState)]

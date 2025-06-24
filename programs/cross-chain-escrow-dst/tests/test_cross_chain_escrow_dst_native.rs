@@ -272,18 +272,16 @@ mod test_escrow_native {
         test_state
             .expect_state_change(
                 transaction,
-                &[native_change(
-                    test_state.maker_wallet.keypair.pubkey(),
-                    test_state.test_arguments.escrow_amount + escrow_rent + token_account_rent,
-                )],
+                &[
+                    native_change(
+                        test_state.maker_wallet.keypair.pubkey(),
+                        test_state.test_arguments.escrow_amount + escrow_rent + token_account_rent,
+                    ),
+                    account_closure(escrow_ata, true),
+                    account_closure(escrow, true),
+                ],
             )
             .await;
-
-        let acc_lookup_result = test_state.client.get_account(escrow_ata).await.unwrap();
-        assert!(acc_lookup_result.is_none());
-
-        let acc_lookup_result = test_state.client.get_account(escrow).await.unwrap();
-        assert!(acc_lookup_result.is_none());
     }
 
     #[test_context(TestState)]

@@ -4,11 +4,11 @@ use anchor_lang::error::ErrorCode;
 use anchor_lang::prelude::ProgramError;
 use anchor_spl::token::spl_token::native_mint::ID as NATIVE_MINT;
 use common_tests::helpers::{
-    create_escrow, create_escrow_data, find_user_ata, get_min_rent_for_size, get_token_balance,
-    native_change, set_time, token_change, EscrowVariant, Expectation, HasTokenVariant, PeriodType,
-    StateChange, TestStateBase, TokenVariant, DEFAULT_ESCROW_AMOUNT, DEFAULT_ORDER_SIZE,
-    DEFAULT_PARTS_AMOUNT_FOR_MULTIPLE, DEFAULT_PERIOD_DURATION, DEFAULT_SRC_ESCROW_SIZE,
-    WALLET_DEFAULT_LAMPORTS, WALLET_DEFAULT_TOKENS,
+    account_closure, create_escrow, create_escrow_data, find_user_ata, get_min_rent_for_size,
+    get_token_balance, native_change, set_time, token_change, EscrowVariant, Expectation,
+    HasTokenVariant, PeriodType, StateChange, TestStateBase, TokenVariant, DEFAULT_ESCROW_AMOUNT,
+    DEFAULT_ORDER_SIZE, DEFAULT_PARTS_AMOUNT_FOR_MULTIPLE, DEFAULT_PERIOD_DURATION,
+    DEFAULT_SRC_ESCROW_SIZE, WALLET_DEFAULT_LAMPORTS, WALLET_DEFAULT_TOKENS,
 };
 use common_tests::src_program::{
     create_order, create_order_data, create_public_escrow_cancel_tx,
@@ -341,10 +341,14 @@ pub async fn test_order_cancel<S: TokenVariant>(test_state: &mut TestStateBase<S
     let (maker_ata, _) = find_user_ata(test_state);
 
     let balance_changes: Vec<StateChange> = if test_state.test_arguments.asset_is_native {
-        vec![native_change(
-            test_state.maker_wallet.keypair.pubkey(),
-            token_account_rent + order_rent + test_state.test_arguments.order_amount,
-        )]
+        vec![
+            native_change(
+                test_state.maker_wallet.keypair.pubkey(),
+                token_account_rent + order_rent + test_state.test_arguments.order_amount,
+            ),
+            account_closure(order, true),
+            account_closure(order_ata, true),
+        ]
     } else {
         vec![
             token_change(maker_ata, test_state.test_arguments.order_amount),
@@ -352,18 +356,14 @@ pub async fn test_order_cancel<S: TokenVariant>(test_state: &mut TestStateBase<S
                 test_state.maker_wallet.keypair.pubkey(),
                 token_account_rent + order_rent,
             ),
+            account_closure(order, true),
+            account_closure(order_ata, true),
         ]
     };
 
     test_state
         .expect_state_change(transaction, &balance_changes)
         .await;
-
-    let acc_lookup_result = test_state.client.get_account(order).await.unwrap();
-    assert!(acc_lookup_result.is_none());
-
-    let acc_lookup_result = test_state.client.get_account(order_ata).await.unwrap();
-    assert!(acc_lookup_result.is_none());
 }
 
 pub async fn test_cancel_by_resolver_for_free_at_the_auction_start<S: TokenVariant>(
@@ -385,10 +385,14 @@ pub async fn test_cancel_by_resolver_for_free_at_the_auction_start<S: TokenVaria
     let (maker_ata, _) = find_user_ata(test_state);
 
     let balance_changes: Vec<StateChange> = if test_state.test_arguments.asset_is_native {
-        vec![native_change(
-            test_state.maker_wallet.keypair.pubkey(),
-            token_account_rent + order_rent + test_state.test_arguments.order_amount,
-        )]
+        vec![
+            native_change(
+                test_state.maker_wallet.keypair.pubkey(),
+                token_account_rent + order_rent + test_state.test_arguments.order_amount,
+            ),
+            account_closure(order, true),
+            account_closure(order_ata, true),
+        ]
     } else {
         vec![
             token_change(maker_ata, test_state.test_arguments.order_amount),
@@ -396,18 +400,14 @@ pub async fn test_cancel_by_resolver_for_free_at_the_auction_start<S: TokenVaria
                 test_state.maker_wallet.keypair.pubkey(),
                 token_account_rent + order_rent,
             ),
+            account_closure(order, true),
+            account_closure(order_ata, true),
         ]
     };
 
     test_state
         .expect_state_change(transaction, &balance_changes)
         .await;
-
-    let acc_lookup_result = test_state.client.get_account(order).await.unwrap();
-    assert!(acc_lookup_result.is_none());
-
-    let acc_lookup_result = test_state.client.get_account(order_ata).await.unwrap();
-    assert!(acc_lookup_result.is_none());
 }
 
 pub async fn test_cancel_by_resolver_at_different_points<S: TokenVariant>(

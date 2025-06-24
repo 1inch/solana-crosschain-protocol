@@ -426,15 +426,11 @@ mod test_native_src {
                         test_state.taker_wallet.keypair.pubkey(),
                         escrow_rent + token_account_rent,
                     ),
+                    account_closure(escrow, true),
+                    account_closure(escrow_ata, true),
                 ],
             )
             .await;
-
-        let acc_lookup_result = test_state.client.get_account(escrow_ata).await.unwrap();
-        assert!(acc_lookup_result.is_none());
-
-        let acc_lookup_result = test_state.client.get_account(escrow).await.unwrap();
-        assert!(acc_lookup_result.is_none());
     }
 
     #[test_context(TestState)]

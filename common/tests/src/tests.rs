@@ -505,15 +505,11 @@ pub async fn test_cancel<T: EscrowVariant<S> + 'static, S: TokenVariant>(
             &[
                 native_change(rent_recipient, escrow_rent + token_account_rent),
                 token_change(maker_ata, test_state.test_arguments.escrow_amount),
+                account_closure(escrow_ata, true),
+                account_closure(escrow, true),
             ],
         )
         .await;
-
-    let acc_lookup_result = test_state.client.get_account(escrow_ata).await.unwrap();
-    assert!(acc_lookup_result.is_none());
-
-    let acc_lookup_result = test_state.client.get_account(escrow).await.unwrap();
-    assert!(acc_lookup_result.is_none());
 }
 
 pub async fn test_cannot_cancel_by_non_maker<T: EscrowVariant<S> + 'static, S: TokenVariant>(
