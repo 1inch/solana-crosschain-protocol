@@ -1056,7 +1056,7 @@ run_for_tokens!(
                 // Send excess tokens to the order account
                 mint_excess_tokens(test_state, &order_ata, excess_amount).await;
 
-                let balance_changes: Vec<BalanceChange> = vec![token_change(
+                let balance_changes: Vec<StateChange> = vec![token_change(
                     maker_ata,
                     test_state.test_arguments.order_amount + excess_amount,
                 )];
@@ -1107,7 +1107,7 @@ run_for_tokens!(
                 // Send excess tokens to the order account
                 mint_excess_tokens(test_state, &order_ata, excess_amount).await;
 
-                let balance_changes: Vec<BalanceChange> = vec![token_change(
+                let balance_changes: Vec<StateChange> = vec![token_change(
                     maker_ata,
                     test_state.test_arguments.order_amount + excess_amount,
                 )];

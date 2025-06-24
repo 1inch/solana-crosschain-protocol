@@ -704,31 +704,35 @@ pub async fn get_token_balance(ctx: &mut ProgramTestContext, account: &Pubkey) -
 }
 
 #[derive(Clone)]
-pub enum BalanceChange {
+pub enum StateChange {
     Token(Pubkey, i128),
     Native(Pubkey, i128),
+    ClosedAccount(Pubkey),
 }
 
-pub fn native_change(k: Pubkey, d: u64) -> BalanceChange {
-    BalanceChange::Native(k, d as i128)
+pub fn native_change(k: Pubkey, d: u64) -> StateChange {
+    StateChange::Native(k, d as i128)
 }
 
-pub fn token_change(k: Pubkey, d: u64) -> BalanceChange {
-    BalanceChange::Token(k, d as i128)
+pub fn token_change(k: Pubkey, d: u64) -> StateChange {
+    StateChange::Token(k, d as i128)
 }
 
 async fn get_balances<T, S>(
     test_state: &mut TestStateBase<T, S>,
-    balance_query: &[BalanceChange],
+    balance_query: &[StateChange],
 ) -> Vec<u64> {
     let mut result: Vec<u64> = vec![];
     for b in balance_query {
         match b {
-            BalanceChange::Token(k, _) => {
+            StateChange::Token(k, _) => {
                 result.push(get_token_balance(&mut test_state.context, k).await)
             }
-            BalanceChange::Native(k, _) => {
+            StateChange::Native(k, _) => {
                 result.push(test_state.client.get_balance(*k).await.unwrap())
+            }
+            StateChange::ClosedAccount(_) => {
+                // Skip collecting a balance for closed accounts
             }
         }
     }
@@ -736,7 +740,7 @@ async fn get_balances<T, S>(
 }
 
 impl<T, S> TestStateBase<T, S> {
-    pub async fn expect_balance_change(&mut self, tx: Transaction, diff: &[BalanceChange]) {
+    pub async fn expect_balance_change(&mut self, tx: Transaction, diff: &[StateChange]) {
         let balances_before = get_balances(self, diff).await;
 
         // execute transaction
@@ -744,26 +748,33 @@ impl<T, S> TestStateBase<T, S> {
 
         // compare balances
         let balances_after = get_balances(self, diff).await;
+
         for ((before, after), exp) in balances_before
             .iter()
             .zip(balances_after.iter())
             .zip(diff.iter())
         {
-            let real_diff: i128 = *after as i128 - *before as i128;
             match exp {
-                BalanceChange::Token(k, token_expected_diff) => {
+                StateChange::Token(k, token_expected_diff)
+                | StateChange::Native(k, token_expected_diff) => {
+                    let real_diff: i128 = *after as i128 - *before as i128;
                     assert_eq!(
-                        real_diff, *token_expected_diff,
-                        "Token balance changed unexpectedley for {}, real = {}, expected = {}, diff = {}",
-                        k, real_diff, token_expected_diff, token_expected_diff - real_diff
-                    )
+                        real_diff,
+                        *token_expected_diff,
+                        "Balance change unexpected for {}, real = {}, expected = {}, diff = {}",
+                        k,
+                        real_diff,
+                        token_expected_diff,
+                        token_expected_diff - real_diff
+                    );
                 }
-                BalanceChange::Native(k, native_expected_diff) => {
-                    assert_eq!(
-                        real_diff, *native_expected_diff,
-                        "SOL balance changed unexpectedley for {}, real = {}, expected = {}, diff= {}",
-                        k, real_diff, native_expected_diff, native_expected_diff - real_diff
-                    )
+                StateChange::ClosedAccount(account) => {
+                    let acc = self.client.get_account(*account).await.unwrap();
+                    assert!(
+                        acc.is_none(),
+                        "Expected account {} to be closed, but it still exists",
+                        account
+                    );
                 }
             }
         }
