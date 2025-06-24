@@ -160,7 +160,7 @@ run_for_tokens!(
                     .client
                     .process_transaction(transaction)
                     .await
-                    .expect_error((0, ProgramError::Custom(EscrowError::InvalidAmount.into())));
+                    .expect_error(ProgramError::Custom(EscrowError::InvalidAmount.into()));
             }
 
             #[test_context(TestState)]
@@ -183,10 +183,7 @@ run_for_tokens!(
                     .client
                     .process_transaction(transaction)
                     .await
-                    .expect_error((
-                        0,
-                        ProgramError::Custom(EscrowError::InvalidPartialFill.into()),
-                    ));
+                    .expect_error(ProgramError::Custom(EscrowError::InvalidPartialFill.into()));
             }
 
             #[test_context(TestState)]
@@ -221,10 +218,7 @@ run_for_tokens!(
                     .client
                     .process_transaction(transaction)
                     .await
-                    .expect_error((
-                        0,
-                        ProgramError::Custom(EscrowError::InvalidMerkleProof.into()),
-                    ));
+                    .expect_error(ProgramError::Custom(EscrowError::InvalidMerkleProof.into()));
             }
 
             #[test_context(TestState)]
@@ -257,10 +251,7 @@ run_for_tokens!(
                     .client
                     .process_transaction(transaction)
                     .await
-                    .expect_error((
-                        0,
-                        ProgramError::Custom(EscrowError::InvalidMerkleProof.into()),
-                    ));
+                    .expect_error(ProgramError::Custom(EscrowError::InvalidMerkleProof.into()));
             }
 
             #[test_context(TestState)]
@@ -276,9 +267,8 @@ run_for_tokens!(
                     .client
                     .process_transaction(transaction)
                     .await
-                    .expect_error((
-                        0,
-                        ProgramError::Custom(EscrowError::InconsistentMerkleProofTrait.into()),
+                    .expect_error(ProgramError::Custom(
+                        EscrowError::InconsistentMerkleProofTrait.into(),
                     ));
             }
 
@@ -314,9 +304,8 @@ run_for_tokens!(
                     .client
                     .process_transaction(transaction)
                     .await
-                    .expect_error((
-                        0,
-                        ProgramError::Custom(EscrowError::InconsistentMerkleProofTrait.into()),
+                    .expect_error(ProgramError::Custom(
+                        EscrowError::InconsistentMerkleProofTrait.into(),
                     ));
             }
         }

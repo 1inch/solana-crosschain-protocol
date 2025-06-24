@@ -91,9 +91,8 @@ pub async fn test_escrow_creation_fails_with_zero_amount<T: EscrowVariant<S>, S:
         .client
         .process_transaction(transaction)
         .await
-        .expect_error((
-            0,
-            ProgramError::Custom(EscrowError::ZeroAmountOrDeposit.into()),
+        .expect_error(ProgramError::Custom(
+            EscrowError::ZeroAmountOrDeposit.into(),
         ));
 
     let acc_lookup_result = test_state.client.get_account(escrow_ata).await.unwrap();
@@ -113,9 +112,8 @@ pub async fn test_escrow_creation_fails_with_zero_safety_deposit<
         .client
         .process_transaction(transaction)
         .await
-        .expect_error((
-            0,
-            ProgramError::Custom(EscrowError::ZeroAmountOrDeposit.into()),
+        .expect_error(ProgramError::Custom(
+            EscrowError::ZeroAmountOrDeposit.into(),
         ));
 
     let acc_lookup_result = test_state.client.get_account(escrow_ata).await.unwrap();
@@ -135,9 +133,8 @@ pub async fn test_escrow_creation_fails_with_insufficient_funds<
         .client
         .process_transaction(transaction)
         .await
-        .expect_error((
-            0,
-            ProgramError::Custom(EscrowError::SafetyDepositTooLarge.into()),
+        .expect_error(ProgramError::Custom(
+            EscrowError::SafetyDepositTooLarge.into(),
         ));
 
     let acc_lookup_result = test_state.client.get_account(escrow_ata).await.unwrap();
@@ -160,7 +157,7 @@ pub async fn test_escrow_creation_fails_with_insufficient_tokens<
         .client
         .process_transaction(transaction)
         .await
-        .expect_error((0, ProgramError::from(TokenError::InsufficientFunds)));
+        .expect_error(ProgramError::from(TokenError::InsufficientFunds));
 
     let acc_lookup_result = test_state.client.get_account(escrow_ata).await.unwrap();
     assert!(acc_lookup_result.is_none());
@@ -196,9 +193,8 @@ pub async fn test_escrow_creation_fails_with_existing_order_hash<
         .client
         .process_transaction(transaction)
         .await
-        .expect_error((
-            0,
-            ProgramError::Custom(SystemError::AccountAlreadyInUse as u32),
+        .expect_error(ProgramError::Custom(
+            SystemError::AccountAlreadyInUse as u32,
         ));
 }
 
@@ -216,10 +212,7 @@ pub async fn test_escrow_creation_fails_with_invalid_rescue_start<
         .client
         .process_transaction(transaction)
         .await
-        .expect_error((
-            0,
-            ProgramError::Custom(EscrowError::InvalidRescueStart.into()),
-        ));
+        .expect_error(ProgramError::Custom(EscrowError::InvalidRescueStart.into()));
 
     let acc_lookup_result = test_state.client.get_account(escrow_ata).await.unwrap();
     assert!(acc_lookup_result.is_none());
@@ -242,7 +235,7 @@ pub async fn test_withdraw_does_not_work_with_wrong_secret<T: EscrowVariant<S>, 
         .client
         .process_transaction(transaction)
         .await
-        .expect_error((0, ProgramError::Custom(EscrowError::InvalidSecret.into())));
+        .expect_error(ProgramError::Custom(EscrowError::InvalidSecret.into()));
 
     // Try to withdraw with zero filled secret.
     test_state.secret = [0u8; 32];
@@ -252,7 +245,7 @@ pub async fn test_withdraw_does_not_work_with_wrong_secret<T: EscrowVariant<S>, 
         .client
         .process_transaction(transaction)
         .await
-        .expect_error((0, ProgramError::Custom(EscrowError::InvalidSecret.into())));
+        .expect_error(ProgramError::Custom(EscrowError::InvalidSecret.into()));
 
     assert_eq!(
         get_token_balance(&mut test_state.context, &escrow_ata).await,
@@ -280,7 +273,7 @@ pub async fn test_withdraw_does_not_work_with_non_recipient<
         .client
         .process_transaction(transaction)
         .await
-        .expect_error((0, ProgramError::Custom(EscrowError::InvalidAccount.into())))
+        .expect_error(ProgramError::Custom(EscrowError::InvalidAccount.into()))
 }
 
 pub async fn test_withdraw_does_not_work_with_wrong_taker_ata<
@@ -298,10 +291,7 @@ pub async fn test_withdraw_does_not_work_with_wrong_taker_ata<
         .client
         .process_transaction(transaction)
         .await
-        .expect_error((
-            0,
-            ProgramError::Custom(ErrorCode::ConstraintTokenOwner.into()),
-        ))
+        .expect_error(ProgramError::Custom(ErrorCode::ConstraintTokenOwner.into()))
 }
 
 pub async fn test_withdraw_does_not_work_with_wrong_escrow_ata<
@@ -323,10 +313,7 @@ pub async fn test_withdraw_does_not_work_with_wrong_escrow_ata<
         .client
         .process_transaction(transaction)
         .await
-        .expect_error((
-            0,
-            ProgramError::Custom(ErrorCode::ConstraintTokenOwner.into()),
-        ))
+        .expect_error(ProgramError::Custom(ErrorCode::ConstraintTokenOwner.into()))
 }
 
 pub async fn test_withdraw_does_not_work_before_withdrawal_start<
@@ -347,7 +334,7 @@ pub async fn test_withdraw_does_not_work_before_withdrawal_start<
         .client
         .process_transaction(transaction)
         .await
-        .expect_error((0, ProgramError::Custom(EscrowError::InvalidTime.into())))
+        .expect_error(ProgramError::Custom(EscrowError::InvalidTime.into()))
 }
 
 pub async fn test_withdraw_does_not_work_after_cancellation_start<
@@ -367,7 +354,7 @@ pub async fn test_withdraw_does_not_work_after_cancellation_start<
         .client
         .process_transaction(transaction)
         .await
-        .expect_error((0, ProgramError::Custom(EscrowError::InvalidTime.into())))
+        .expect_error(ProgramError::Custom(EscrowError::InvalidTime.into()))
 }
 
 pub async fn test_public_withdraw_fails_with_wrong_secret<T: EscrowVariant<S>, S: TokenVariant>(
@@ -388,7 +375,7 @@ pub async fn test_public_withdraw_fails_with_wrong_secret<T: EscrowVariant<S>, S
         .client
         .process_transaction(transaction)
         .await
-        .expect_error((0, ProgramError::Custom(EscrowError::InvalidSecret.into())))
+        .expect_error(ProgramError::Custom(EscrowError::InvalidSecret.into()))
 }
 
 pub async fn test_public_withdraw_fails_with_wrong_taker_ata<
@@ -413,10 +400,7 @@ pub async fn test_public_withdraw_fails_with_wrong_taker_ata<
         .client
         .process_transaction(transaction)
         .await
-        .expect_error((
-            0,
-            ProgramError::Custom(ErrorCode::ConstraintTokenOwner.into()),
-        ))
+        .expect_error(ProgramError::Custom(ErrorCode::ConstraintTokenOwner.into()))
 }
 
 pub async fn test_public_withdraw_fails_with_wrong_escrow_ata<
@@ -445,10 +429,7 @@ pub async fn test_public_withdraw_fails_with_wrong_escrow_ata<
         .client
         .process_transaction(transaction)
         .await
-        .expect_error((
-            0,
-            ProgramError::Custom(ErrorCode::ConstraintTokenOwner.into()),
-        ))
+        .expect_error(ProgramError::Custom(ErrorCode::ConstraintTokenOwner.into()))
 }
 
 pub async fn test_public_withdraw_fails_before_start_of_public_withdraw<
@@ -470,7 +451,7 @@ pub async fn test_public_withdraw_fails_before_start_of_public_withdraw<
         .client
         .process_transaction(transaction)
         .await
-        .expect_error((0, ProgramError::Custom(EscrowError::InvalidTime.into())))
+        .expect_error(ProgramError::Custom(EscrowError::InvalidTime.into()))
 }
 
 pub async fn test_public_withdraw_fails_after_cancellation_start<
@@ -492,7 +473,7 @@ pub async fn test_public_withdraw_fails_after_cancellation_start<
         .client
         .process_transaction(transaction)
         .await
-        .expect_error((0, ProgramError::Custom(EscrowError::InvalidTime.into())))
+        .expect_error(ProgramError::Custom(EscrowError::InvalidTime.into()))
 }
 
 pub async fn test_cancel<T: EscrowVariant<S> + 'static, S: TokenVariant>(
@@ -551,7 +532,7 @@ pub async fn test_cannot_cancel_by_non_maker<T: EscrowVariant<S> + 'static, S: T
         .client
         .process_transaction(transaction)
         .await
-        .expect_error((0, ProgramError::Custom(EscrowError::InvalidAccount.into())))
+        .expect_error(ProgramError::Custom(EscrowError::InvalidAccount.into()))
 }
 
 pub async fn test_cannot_cancel_with_wrong_maker_ata<T: EscrowVariant<S>, S: TokenVariant>(
@@ -566,10 +547,7 @@ pub async fn test_cannot_cancel_with_wrong_maker_ata<T: EscrowVariant<S>, S: Tok
         .client
         .process_transaction(transaction)
         .await
-        .expect_error((
-            0,
-            ProgramError::Custom(ErrorCode::ConstraintTokenOwner.into()),
-        ))
+        .expect_error(ProgramError::Custom(ErrorCode::ConstraintTokenOwner.into()))
 }
 
 pub async fn test_cannot_cancel_with_wrong_escrow_ata<T: EscrowVariant<S>, S: TokenVariant>(
@@ -586,10 +564,7 @@ pub async fn test_cannot_cancel_with_wrong_escrow_ata<T: EscrowVariant<S>, S: To
         .client
         .process_transaction(transaction)
         .await
-        .expect_error((
-            0,
-            ProgramError::Custom(ErrorCode::ConstraintTokenOwner.into()),
-        ))
+        .expect_error(ProgramError::Custom(ErrorCode::ConstraintTokenOwner.into()))
 }
 
 pub async fn test_cannot_cancel_before_cancellation_start<T: EscrowVariant<S>, S: TokenVariant>(
@@ -606,7 +581,7 @@ pub async fn test_cannot_cancel_before_cancellation_start<T: EscrowVariant<S>, S
         .client
         .process_transaction(transaction)
         .await
-        .expect_error((0, ProgramError::Custom(EscrowError::InvalidTime.into())))
+        .expect_error(ProgramError::Custom(EscrowError::InvalidTime.into()))
 }
 
 pub async fn test_escrow_creation_fails_if_finality_duration_overflows<
@@ -621,7 +596,7 @@ pub async fn test_escrow_creation_fails_if_finality_duration_overflows<
         .client
         .process_transaction(transaction)
         .await
-        .expect_error((0, ProgramError::ArithmeticOverflow));
+        .expect_error(ProgramError::ArithmeticOverflow);
 }
 
 pub async fn test_escrow_creation_fails_if_withdrawal_duration_overflows<
@@ -636,7 +611,7 @@ pub async fn test_escrow_creation_fails_if_withdrawal_duration_overflows<
         .client
         .process_transaction(transaction)
         .await
-        .expect_error((0, ProgramError::ArithmeticOverflow));
+        .expect_error(ProgramError::ArithmeticOverflow);
 }
 
 pub async fn test_escrow_creation_fails_if_public_withdrawal_duration_overflows<
@@ -651,7 +626,7 @@ pub async fn test_escrow_creation_fails_if_public_withdrawal_duration_overflows<
         .client
         .process_transaction(transaction)
         .await
-        .expect_error((0, ProgramError::ArithmeticOverflow));
+        .expect_error(ProgramError::ArithmeticOverflow);
 }
 
 pub async fn test_rescue_all_tokens_and_close_ata<
@@ -837,7 +812,7 @@ pub async fn test_cannot_rescue_funds_before_rescue_delay_pass<
         .client
         .process_transaction(transaction)
         .await
-        .expect_error((0, ProgramError::Custom(EscrowError::InvalidTime.into())));
+        .expect_error(ProgramError::Custom(EscrowError::InvalidTime.into()));
 }
 
 pub async fn test_cannot_rescue_funds_by_non_recipient<T: EscrowVariant<S>, S: TokenVariant>(
@@ -884,7 +859,7 @@ pub async fn test_cannot_rescue_funds_by_non_recipient<T: EscrowVariant<S>, S: T
         .client
         .process_transaction(transaction)
         .await
-        .expect_error((0, ProgramError::Custom(ErrorCode::ConstraintSeeds.into())))
+        .expect_error(ProgramError::Custom(ErrorCode::ConstraintSeeds.into()))
 }
 
 pub async fn test_cannot_rescue_funds_with_wrong_taker_ata<
@@ -937,10 +912,7 @@ pub async fn test_cannot_rescue_funds_with_wrong_taker_ata<
         .client
         .process_transaction(transaction)
         .await
-        .expect_error((
-            0,
-            ProgramError::Custom(ErrorCode::ConstraintTokenOwner.into()),
-        ))
+        .expect_error(ProgramError::Custom(ErrorCode::ConstraintTokenOwner.into()))
 }
 
 pub async fn test_cannot_rescue_funds_with_wrong_escrow_ata<
@@ -980,10 +952,7 @@ pub async fn test_cannot_rescue_funds_with_wrong_escrow_ata<
         .client
         .process_transaction(transaction)
         .await
-        .expect_error((
-            0,
-            ProgramError::Custom(ErrorCode::ConstraintAssociated.into()),
-        ))
+        .expect_error(ProgramError::Custom(ErrorCode::ConstraintAssociated.into()))
 }
 
 pub async fn test_escrow_creation_fails_if_token_is_not_native<
@@ -997,8 +966,7 @@ pub async fn test_escrow_creation_fails_if_token_is_not_native<
         .client
         .process_transaction(tx)
         .await
-        .expect_error((
-            0,
-            ProgramError::Custom(EscrowError::InconsistentNativeTrait.into()),
+        .expect_error(ProgramError::Custom(
+            EscrowError::InconsistentNativeTrait.into(),
         ));
 }

@@ -777,23 +777,28 @@ pub trait Expectation {
 }
 
 impl Expectation for Result<(), BanksClientError> {
-    type ExpectationType = (u8, ProgramError);
+    type ExpectationType = ProgramError;
+
     fn expect_success(self) {
-        self.unwrap()
+        self.unwrap();
     }
-    fn expect_error(self, expectation: (u8, ProgramError)) {
-        let (index, expected_program_error) = expectation;
-        if let TransactionError::InstructionError(result_instr_idx, result_instr_error) = self
+
+    fn expect_error(self, expected_program_error: ProgramError) {
+        let err = self
             .expect_err("Expected an error, but transaction succeeded")
-            .unwrap()
-        {
-            let result_program_error: ProgramError = result_instr_error.try_into().unwrap();
+            .unwrap();
+
+        if let TransactionError::InstructionError(_, result_instr_error) = err {
+            let result_program_error: ProgramError = result_instr_error
+                .try_into()
+                .expect("Failed to convert InstructionError to ProgramError");
+
             assert_eq!(
-                (index, expected_program_error),
-                (result_instr_idx, result_program_error)
+                expected_program_error, result_program_error,
+                "Unexpected ProgramError"
             );
         } else {
-            panic!("Unexpected error provided: {:?}", expected_program_error);
+            panic!("Unexpected error type: {:?}", err);
         }
     }
 }

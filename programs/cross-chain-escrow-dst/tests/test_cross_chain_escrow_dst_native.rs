@@ -391,9 +391,8 @@ mod test_escrow_wrapped_native {
             .client
             .process_transaction(transaction)
             .await
-            .expect_error((
-                0,
-                ProgramError::Custom(EscrowError::MissingRecipientAta.into()),
+            .expect_error(ProgramError::Custom(
+                EscrowError::MissingRecipientAta.into(),
             ));
     }
 
@@ -573,9 +572,8 @@ mod test_escrow_wrapped_native {
             .client
             .process_transaction(transaction)
             .await
-            .expect_error((
-                0,
-                ProgramError::Custom(EscrowError::MissingRecipientAta.into()),
+            .expect_error(ProgramError::Custom(
+                EscrowError::MissingRecipientAta.into(),
             ));
     }
 

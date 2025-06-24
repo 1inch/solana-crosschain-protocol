@@ -109,9 +109,8 @@ run_for_tokens!(
                     .client
                     .process_transaction(transaction)
                     .await
-                    .expect_error((
-                        0,
-                        ProgramError::Custom(EscrowError::InvalidCreationTime.into()),
+                    .expect_error(ProgramError::Custom(
+                        EscrowError::InvalidCreationTime.into(),
                     ))
             }
         }
@@ -507,9 +506,8 @@ run_for_tokens!(
                     .client
                     .process_transaction(transaction)
                     .await
-                    .expect_error((
-                        0,
-                        ProgramError::Custom(ErrorCode::AccountNotInitialized.into()),
+                    .expect_error(ProgramError::Custom(
+                        ErrorCode::AccountNotInitialized.into(),
                     ));
             }
         }

@@ -327,7 +327,7 @@ pub async fn _test_cannot_rescue_funds_from_order_by_non_recipient<S: TokenVaria
         .client
         .process_transaction(transaction)
         .await
-        .expect_error((0, ProgramError::Custom(ErrorCode::ConstraintSeeds.into())))
+        .expect_error(ProgramError::Custom(ErrorCode::ConstraintSeeds.into()))
 }
 
 pub async fn test_order_cancel<S: TokenVariant>(test_state: &mut TestStateBase<SrcProgram, S>) {

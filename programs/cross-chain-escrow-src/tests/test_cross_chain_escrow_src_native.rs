@@ -83,9 +83,8 @@ mod test_native_src {
             .client
             .process_transaction(tx)
             .await
-            .expect_error((
-                0,
-                ProgramError::Custom(EscrowError::InconsistentNativeTrait.into()),
+            .expect_error(ProgramError::Custom(
+                EscrowError::InconsistentNativeTrait.into(),
             ));
     }
 
@@ -319,9 +318,8 @@ mod test_native_src {
             .client
             .process_transaction(transaction)
             .await
-            .expect_error((
-                0,
-                ProgramError::Custom(EscrowError::InconsistentNativeTrait.into()),
+            .expect_error(ProgramError::Custom(
+                EscrowError::InconsistentNativeTrait.into(),
             ));
     }
 
@@ -391,9 +389,8 @@ mod test_native_src {
             .client
             .process_transaction(transaction)
             .await
-            .expect_error((
-                0,
-                ProgramError::Custom(EscrowError::InconsistentNativeTrait.into()),
+            .expect_error(ProgramError::Custom(
+                EscrowError::InconsistentNativeTrait.into(),
             ));
     }
 
@@ -796,9 +793,8 @@ mod test_wrapped_native {
             .client
             .process_transaction(transaction)
             .await
-            .expect_error((
-                0,
-                ProgramError::Custom(EscrowError::InconsistentNativeTrait.into()),
+            .expect_error(ProgramError::Custom(
+                EscrowError::InconsistentNativeTrait.into(),
             ));
     }
 
@@ -865,9 +861,8 @@ mod test_wrapped_native {
             .client
             .process_transaction(transaction)
             .await
-            .expect_error((
-                0,
-                ProgramError::Custom(EscrowError::InconsistentNativeTrait.into()),
+            .expect_error(ProgramError::Custom(
+                EscrowError::InconsistentNativeTrait.into(),
             ));
     }
 
