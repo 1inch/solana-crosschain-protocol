@@ -24,8 +24,8 @@ pub struct DstProgram;
 impl<S: TokenVariant> EscrowVariant<S> for DstProgram {
     fn get_program_spec() -> (Pubkey, Option<BuiltinFunctionWithContext>) {
         (
-            cross_chain_escrow_dst::id(),
-            wrap_entry!(cross_chain_escrow_dst::entry),
+            cross_chain_escrow_mock::id(),
+            wrap_entry!(cross_chain_escrow_mock::entry),
         )
     }
 

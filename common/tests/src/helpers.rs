@@ -445,27 +445,46 @@ pub trait EscrowVariant<S: TokenVariant> {
 fn mock_pg(
     program_id: &Pubkey,
     accounts: &[AccountInfo],
-    instruction_data: &[u8],
+    _instruction_data: &[u8],
 ) -> ProgramResult {
     use anchor_lang::AnchorSerialize;
     use cross_chain_escrow_src::EscrowSrc;
-    use solana_program::program::invoke_signed;
-    use solana_program::sysvar::{rent::Rent, Sysvar};
-    use std::io::Write;
-    use std::mem;
+    use solana_program::{
+        program::invoke_signed,
+        pubkey::Pubkey,
+        system_instruction,
+        sysvar::{rent::Rent, Sysvar},
+    };
+    use std::{io::Write, mem};
+
+    // Define fixed inputs used to derive the PDA
+    let order_hash = [0u8; 32];
+    let hashlock = [0u8; 32];
+    let creator = accounts[2].key;
+    let recipient = accounts[1].key; // or change if needed
+    let mint = accounts[0].key;
+    let amount: u64 = 20;
+    let safety_deposit: u64 = 20;
+    let rescue_start: u32 = 0;
+
+    let (expected_pda, bump) = Pubkey::find_program_address(&["order".as_bytes()], &program_id);
+    // Validate the PDA matches what's passed
+    let pda_account = &accounts[3];
+    assert_eq!(*pda_account.key, expected_pda);
+
     let escrow = EscrowSrc {
-        order_hash: [0; 32],
-        hashlock: [0; 32],
-        token: accounts[0].key.clone(),
-        maker: accounts[1].key.clone(),
-        taker: accounts[2].key.clone(),
-        amount: 20,
-        safety_deposit: 20,
+        order_hash,
+        hashlock,
+        token: *mint,
+        maker: *creator,
+        taker: *recipient,
+        amount,
+        safety_deposit,
         withdrawal_start: 0,
         public_withdrawal_start: 0,
         cancellation_start: 0,
         public_cancellation_start: 9,
-        rescue_start: 0,
+        rescue_start,
         asset_is_native: true,
         dst_amount: [0; 4],
     };
@@ -474,21 +493,35 @@ fn mock_pg(
 
     invoke_signed(
         &system_instruction::create_account(
-            accounts[2].key,
-            accounts[3].key,
+            creator,
+            &expected_pda,
             rent,
             mem::size_of::<EscrowSrc>() as u64,
             program_id,
         ),
         &[
-            accounts[2].clone(),
-            accounts[3].clone(),
-            accounts[4].clone(),
+            accounts[2].clone(), // payer
+            pda_account.clone(), // PDA
+            accounts[4].clone(), // system program
         ],
-        &[&["order".as_bytes(), &[instruction_data[0]]]],
+        &[&[
+            b"escrow",
+            &order_hash,
+            &hashlock,
+            creator.as_ref(),
+            recipient.as_ref(),
+            mint.as_ref(),
+            &amount.to_be_bytes(),
+            &safety_deposit.to_be_bytes(),
+            &rescue_start.to_be_bytes(),
+            &[bump],
+        ]],
     )?;
-    let mut data: &mut [u8] = &mut accounts[3].data.borrow_mut();
+
+    // Write data to the PDA
+    let mut data: &mut [u8] = &mut pda_account.data.borrow_mut();
     data.write_all(&escrow.try_to_vec()?)?;
+
     Ok(())
 }
 
@@ -504,7 +537,7 @@ where
             get_program_whitelist_spec()
         });
         let mock_id = Pubkey::new_unique();
-        program_test.add_program("pda_creation_mock", mock_id, wrap_entry!(mock_pg));
+        program_test.add_program("escrow_dst_mock", mock_id, wrap_entry!(mock_pg));
         let mut context: ProgramTestContext = program_test.start_with_context().await;
         let client: BanksClient = context.banks_client.clone();
         let timestamp: u32 = SystemTime::now()

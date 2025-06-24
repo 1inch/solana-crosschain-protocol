@@ -1051,6 +1051,7 @@ dependencies = [
  "async-trait",
  "common",
  "cross-chain-escrow-dst",
+ "cross-chain-escrow-mock",
  "cross-chain-escrow-src",
  "primitive-types",
  "solana-program",
@@ -1176,6 +1177,23 @@ dependencies = [
 
 [[package]]
 name = "cross-chain-escrow-dst"
+version = "0.1.0"
+dependencies = [
+ "anchor-lang",
+ "anchor-spl",
+ "common",
+ "common_tests",
+ "solana-program",
+ "solana-program-pack",
+ "solana-program-runtime",
+ "solana-program-test",
+ "solana-sdk",
+ "test-context",
+ "whitelist",
+]
+
+[[package]]
+name = "cross-chain-escrow-mock"
 version = "0.1.0"
 dependencies = [
  "anchor-lang",
