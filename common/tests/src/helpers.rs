@@ -745,18 +745,25 @@ async fn get_balances<T, S>(
 
 impl<T, S> TestStateBase<T, S> {
     pub async fn expect_balance_change(&mut self, tx: Transaction, diff: &[StateChange]) {
-        let balances_before = get_balances(self, diff).await;
+        // Separate balance-related changes and closure checks
+        let balance_changes: Vec<_> = diff
+            .iter()
+            .filter(|c| matches!(c, StateChange::Token(_, _) | StateChange::Native(_, _)))
+            .cloned()
+            .collect();
 
-        // execute transaction
+        let balances_before = get_balances(self, &balance_changes).await;
+
+        // Execute transaction
         self.client.process_transaction(tx).await.expect_success();
 
-        // compare balances
-        let balances_after = get_balances(self, diff).await;
+        let balances_after = get_balances(self, &balance_changes).await;
 
+        // Assert balance differences
         for ((before, after), exp) in balances_before
             .iter()
             .zip(balances_after.iter())
-            .zip(diff.iter())
+            .zip(balance_changes.iter())
         {
             match exp {
                 StateChange::Token(k, token_expected_diff)
@@ -772,22 +779,27 @@ impl<T, S> TestStateBase<T, S> {
                         token_expected_diff - real_diff
                     );
                 }
-                StateChange::ClosedAccount(account, should_be_closed) => {
-                    let acc = self.client.get_account(*account).await.unwrap();
+                _ => (),
+            }
+        }
 
-                    if *should_be_closed {
-                        assert!(
-                            acc.is_none(),
-                            "Expected account {} to be closed, but it still exists",
-                            account
-                        );
-                    } else {
-                        assert!(
-                            acc.is_some(),
-                            "Expected account {} to exist, but it was closed",
-                            account
-                        );
-                    }
+        // Assert account closures/existence
+        for exp in diff.iter() {
+            if let StateChange::ClosedAccount(account, should_be_closed) = exp {
+                let acc = self.client.get_account(*account).await.unwrap();
+
+                if *should_be_closed {
+                    assert!(
+                        acc.is_none(),
+                        "Expected account {} to be closed, but it still exists",
+                        account
+                    );
+                } else {
+                    assert!(
+                        acc.is_some(),
+                        "Expected account {} to exist, but it was closed",
+                        account
+                    );
                 }
             }
         }
