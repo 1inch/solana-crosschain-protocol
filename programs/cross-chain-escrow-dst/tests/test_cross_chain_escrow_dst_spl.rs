@@ -143,7 +143,7 @@ run_for_tokens!(
                 let (_, taker_ata) = find_user_ata(test_state);
 
                 test_state
-                    .expect_balance_change(
+                    .expect_state_change(
                         transaction,
                         &[
                             native_change(rent_recipient, token_account_rent + escrow_rent),
@@ -187,7 +187,7 @@ run_for_tokens!(
                 // Send excess tokens to the escrow account
                 mint_excess_tokens(test_state, &escrow_ata, excess_amount).await;
                 test_state
-                    .expect_balance_change(
+                    .expect_state_change(
                         transaction,
                         &[token_change(
                             taker_ata,
@@ -326,7 +326,7 @@ run_for_tokens!(
                 );
 
                 test_state
-                    .expect_balance_change(
+                    .expect_state_change(
                         transaction,
                         &[
                             native_change(
@@ -411,7 +411,7 @@ run_for_tokens!(
                 let (_, taker_ata) = find_user_ata(test_state);
 
                 test_state
-                    .expect_balance_change(
+                    .expect_state_change(
                         transaction,
                         &[
                             native_change(
@@ -540,7 +540,7 @@ run_for_tokens!(
                 mint_excess_tokens(test_state, &escrow_ata, excess_amount).await;
 
                 test_state
-                    .expect_balance_change(
+                    .expect_state_change(
                         transaction,
                         &[token_change(
                             maker_ata,

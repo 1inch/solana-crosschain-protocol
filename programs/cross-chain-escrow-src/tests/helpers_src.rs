@@ -142,7 +142,7 @@ pub async fn test_public_cancel_escrow<S: TokenVariant>(
     };
 
     test_state
-        .expect_balance_change(transaction, &balance_changes)
+        .expect_state_change(transaction, &balance_changes)
         .await;
 
     // Assert accounts were closed
@@ -204,7 +204,7 @@ pub async fn test_rescue_all_tokens_from_order_and_close_ata<S: TokenVariant>(
         test_state.init_timestamp + common::constants::RESCUE_DELAY + 100,
     );
     test_state
-        .expect_balance_change(
+        .expect_state_change(
             transaction,
             &[
                 native_change(test_state.taker_wallet.keypair.pubkey(), token_account_rent),
@@ -264,7 +264,7 @@ pub async fn test_rescue_part_of_tokens_from_order_and_not_close_ata<S: TokenVar
     );
 
     test_state
-        .expect_balance_change(
+        .expect_state_change(
             transaction,
             &[token_change(
                 taker_ata,
@@ -356,7 +356,7 @@ pub async fn test_order_cancel<S: TokenVariant>(test_state: &mut TestStateBase<S
     };
 
     test_state
-        .expect_balance_change(transaction, &balance_changes)
+        .expect_state_change(transaction, &balance_changes)
         .await;
 
     let acc_lookup_result = test_state.client.get_account(order).await.unwrap();
@@ -400,7 +400,7 @@ pub async fn test_cancel_by_resolver_for_free_at_the_auction_start<S: TokenVaria
     };
 
     test_state
-        .expect_balance_change(transaction, &balance_changes)
+        .expect_state_change(transaction, &balance_changes)
         .await;
 
     let acc_lookup_result = test_state.client.get_account(order).await.unwrap();
@@ -508,7 +508,7 @@ pub async fn test_cancel_by_resolver_at_different_points<S: TokenVariant>(
             };
 
             test_state
-                .expect_balance_change(transaction, &balance_changes)
+                .expect_state_change(transaction, &balance_changes)
                 .await;
 
             let order_acc = test_state.client.get_account(order).await.unwrap();
@@ -565,7 +565,7 @@ pub async fn test_cancel_by_resolver_after_auction<S: TokenVariant>(
     };
 
     test_state
-        .expect_balance_change(transaction, &balance_changes)
+        .expect_state_change(transaction, &balance_changes)
         .await;
 }
 
@@ -616,7 +616,7 @@ pub async fn test_cancel_by_resolver_reward_less_then_auction_calculated<S: Toke
     };
 
     test_state
-        .expect_balance_change(transaction, &balance_changes)
+        .expect_state_change(transaction, &balance_changes)
         .await;
 }
 

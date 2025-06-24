@@ -744,7 +744,7 @@ async fn get_balances<T, S>(
 }
 
 impl<T, S> TestStateBase<T, S> {
-    pub async fn expect_balance_change(&mut self, tx: Transaction, diff: &[StateChange]) {
+    pub async fn expect_state_change(&mut self, tx: Transaction, diff: &[StateChange]) {
         // Separate balance-related changes and closure checks
         let balance_changes: Vec<_> = diff
             .iter()

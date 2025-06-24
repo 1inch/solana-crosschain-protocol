@@ -84,7 +84,7 @@ mod test_escrow_native {
         );
 
         test_state
-            .expect_balance_change(
+            .expect_state_change(
                 transaction,
                 &[
                     native_change(
@@ -143,7 +143,7 @@ mod test_escrow_native {
             get_min_rent_for_size(&mut test_state.client, TokenSPL::get_token_account_size()).await;
 
         test_state
-            .expect_balance_change(
+            .expect_state_change(
                 transaction,
                 &[
                     native_change(
@@ -214,7 +214,7 @@ mod test_escrow_native {
             get_min_rent_for_size(&mut test_state.client, TokenSPL::get_token_account_size()).await;
 
         test_state
-            .expect_balance_change(
+            .expect_state_change(
                 transaction,
                 &[
                     native_change(
@@ -270,7 +270,7 @@ mod test_escrow_native {
             get_min_rent_for_size(&mut test_state.client, DEFAULT_DST_ESCROW_SIZE).await;
 
         test_state
-            .expect_balance_change(
+            .expect_state_change(
                 transaction,
                 &[native_change(
                     test_state.maker_wallet.keypair.pubkey(),
@@ -342,7 +342,7 @@ mod test_escrow_wrapped_native {
         let (_, taker_ata) = find_user_ata(test_state);
 
         test_state
-            .expect_balance_change(
+            .expect_state_change(
                 transaction,
                 &[
                     native_change(
@@ -429,7 +429,7 @@ mod test_escrow_wrapped_native {
         );
 
         test_state
-            .expect_balance_change(
+            .expect_state_change(
                 transaction,
                 &[
                     native_change(
@@ -501,7 +501,7 @@ mod test_escrow_wrapped_native {
         );
 
         test_state
-            .expect_balance_change(
+            .expect_state_change(
                 transaction,
                 &[
                     native_change(

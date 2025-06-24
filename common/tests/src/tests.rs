@@ -500,7 +500,7 @@ pub async fn test_cancel<T: EscrowVariant<S> + 'static, S: TokenVariant>(
     };
 
     test_state
-        .expect_balance_change(
+        .expect_state_change(
             transaction,
             &[
                 native_change(rent_recipient, escrow_rent + token_account_rent),
@@ -677,7 +677,7 @@ pub async fn test_rescue_all_tokens_and_close_ata<
         test_state.init_timestamp + RESCUE_DELAY + 100,
     );
     test_state
-        .expect_balance_change(
+        .expect_state_change(
             transaction,
             &[
                 native_change(wallet, token_account_rent),
@@ -744,7 +744,7 @@ pub async fn test_rescue_part_of_tokens_and_not_close_ata<
     );
 
     test_state
-        .expect_balance_change(
+        .expect_state_change(
             transaction,
             &[token_change(
                 taker_ata,
