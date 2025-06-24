@@ -707,7 +707,7 @@ pub async fn get_token_balance(ctx: &mut ProgramTestContext, account: &Pubkey) -
 pub enum StateChange {
     Token(Pubkey, i128),
     Native(Pubkey, i128),
-    ClosedAccount(Pubkey),
+    ClosedAccount(Pubkey, bool),
 }
 
 pub fn native_change(k: Pubkey, d: u64) -> StateChange {
@@ -716,6 +716,10 @@ pub fn native_change(k: Pubkey, d: u64) -> StateChange {
 
 pub fn token_change(k: Pubkey, d: u64) -> StateChange {
     StateChange::Token(k, d as i128)
+}
+
+pub fn account_closure(k: Pubkey, d: bool) -> StateChange {
+    StateChange::ClosedAccount(k, d)
 }
 
 async fn get_balances<T, S>(
@@ -731,7 +735,7 @@ async fn get_balances<T, S>(
             StateChange::Native(k, _) => {
                 result.push(test_state.client.get_balance(*k).await.unwrap())
             }
-            StateChange::ClosedAccount(_) => {
+            StateChange::ClosedAccount(_, _) => {
                 // Skip collecting a balance for closed accounts
             }
         }
@@ -768,13 +772,22 @@ impl<T, S> TestStateBase<T, S> {
                         token_expected_diff - real_diff
                     );
                 }
-                StateChange::ClosedAccount(account) => {
+                StateChange::ClosedAccount(account, should_be_closed) => {
                     let acc = self.client.get_account(*account).await.unwrap();
-                    assert!(
-                        acc.is_none(),
-                        "Expected account {} to be closed, but it still exists",
-                        account
-                    );
+
+                    if *should_be_closed {
+                        assert!(
+                            acc.is_none(),
+                            "Expected account {} to be closed, but it still exists",
+                            account
+                        );
+                    } else {
+                        assert!(
+                            acc.is_some(),
+                            "Expected account {} to exist, but it was closed",
+                            account
+                        );
+                    }
                 }
             }
         }
