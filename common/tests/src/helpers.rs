@@ -745,13 +745,13 @@ async fn get_balances<T, S>(
 
 impl<T, S> TestStateBase<T, S> {
     pub async fn expect_state_change(&mut self, tx: Transaction, diff: &[StateChange]) {
-        // Separate balance-related changes and closure checks
-        let balance_changes: Vec<_> = diff
-            .iter()
-            .filter(|c| matches!(c, StateChange::Token(_, _) | StateChange::Native(_, _)))
-            .cloned()
-            .collect();
+        // Split state changes into balances and closures
+        let (balance_changes, closure_checks): (Vec<_>, Vec<_>) =
+            diff.iter().cloned().partition(|change| {
+                matches!(change, StateChange::Token(_, _) | StateChange::Native(_, _))
+            });
 
+        // Get balances before tx
         let balances_before = get_balances(self, &balance_changes).await;
 
         // Execute transaction
@@ -769,36 +769,37 @@ impl<T, S> TestStateBase<T, S> {
                 StateChange::Token(k, token_expected_diff) => {
                     let real_diff: i128 = *after as i128 - *before as i128;
                     assert_eq!(
-            real_diff,
-            *token_expected_diff,
-            "Token balance changed unexpectedly for {}, real = {}, expected = {}, diff = {}",
-            k,
-            real_diff,
-            token_expected_diff,
-            token_expected_diff - real_diff
-        );
+                        real_diff,
+                        *token_expected_diff,
+                        "Token balance changed unexpectedly for {}, real = {}, expected = {}, diff = {}",
+                        k,
+                        real_diff,
+                        token_expected_diff,
+                        token_expected_diff - real_diff
+                    );
                 }
                 StateChange::Native(k, token_expected_diff) => {
                     let real_diff: i128 = *after as i128 - *before as i128;
                     assert_eq!(
-            real_diff,
-            *token_expected_diff,
-            "SOL balance changed unexpectedly for {}, real = {}, expected = {}, diff = {}",
-            k,
-            real_diff,
-            token_expected_diff,
-            token_expected_diff - real_diff
-        );
+                        real_diff,
+                        *token_expected_diff,
+                        "SOL balance changed unexpectedly for {}, real = {}, expected = {}, diff = {}",
+                        k,
+                        real_diff,
+                        token_expected_diff,
+                        token_expected_diff - real_diff
+                    );
                 }
                 _ => (),
             }
         }
-        // Assert account closures/existence
-        for exp in diff.iter() {
-            if let StateChange::ClosedAccount(account, should_be_closed) = exp {
-                let acc = self.client.get_account(*account).await.unwrap();
 
-                if *should_be_closed {
+        // Assert account closures/existence
+        for exp in closure_checks {
+            if let StateChange::ClosedAccount(account, should_be_closed) = exp {
+                let acc = self.client.get_account(account).await.unwrap();
+
+                if should_be_closed {
                     assert!(
                         acc.is_none(),
                         "Expected account {} to be closed, but it still exists",
