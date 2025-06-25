@@ -818,16 +818,13 @@ impl<T, S> TestStateBase<T, S> {
 }
 
 pub trait Expectation {
-    type ExpectationType;
     fn expect_success(self);
-    fn expect_error(self, expectation: Self::ExpectationType);
+    fn expect_error(self, expectation: ProgramError);
 }
 
 impl Expectation for Result<(), BanksClientError> {
-    type ExpectationType = ProgramError;
-
     fn expect_success(self) {
-        self.unwrap();
+        self.unwrap()
     }
 
     fn expect_error(self, expected_program_error: ProgramError) {
