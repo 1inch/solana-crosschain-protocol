@@ -223,6 +223,88 @@ impl<S: TokenVariant> EscrowVariant<S> for SrcProgram {
     }
 }
 
+pub fn create_public_escrow_cancel_tx<S: TokenVariant>(
+    test_state: &TestStateBase<SrcProgram, S>,
+    escrow: &Pubkey,
+    escrow_ata: &Pubkey,
+    canceller: &Keypair,
+) -> Transaction {
+    let instruction_data =
+        InstructionData::data(&cross_chain_escrow_src::instruction::PublicCancelEscrow {});
+
+    let (maker_ata, _) = find_user_ata(test_state);
+    let (whitelist_access, _) = get_whitelist_access_address(&canceller.pubkey());
+
+    let instruction: Instruction = Instruction {
+        program_id: cross_chain_escrow_src::id(),
+        accounts: vec![
+            AccountMeta::new(test_state.taker_wallet.keypair.pubkey(), false),
+            AccountMeta::new(test_state.maker_wallet.keypair.pubkey(), false),
+            AccountMeta::new_readonly(test_state.token, false),
+            AccountMeta::new(canceller.pubkey(), true),
+            AccountMeta::new_readonly(whitelist_access, false),
+            AccountMeta::new(*escrow, false),
+            AccountMeta::new(*escrow_ata, false),
+            AccountMeta::new(maker_ata, false),
+            AccountMeta::new_readonly(S::get_token_program_id(), false),
+            AccountMeta::new_readonly(system_program_id, false),
+        ],
+        data: instruction_data,
+    };
+
+    Transaction::new_signed_with_payer(
+        &[instruction],
+        Some(&test_state.payer_kp.pubkey()),
+        &[&test_state.payer_kp, canceller],
+        test_state.context.last_blockhash,
+    )
+}
+
+pub fn get_rescue_funds_from_order_tx<S: TokenVariant>(
+    test_state: &mut TestStateBase<SrcProgram, S>,
+    order: &Pubkey,
+    order_ata: &Pubkey,
+    token_to_rescue: &Pubkey,
+    taker_ata: &Pubkey,
+) -> Transaction {
+    let instruction_data =
+        InstructionData::data(&cross_chain_escrow_src::instruction::RescueFundsForOrder {
+            hashlock: test_state.hashlock.to_bytes(),
+            order_hash: test_state.order_hash.to_bytes(),
+            order_creator: test_state.maker_wallet.keypair.pubkey(),
+            order_mint: test_state.token,
+            order_amount: test_state.test_arguments.order_amount,
+            safety_deposit: test_state.test_arguments.safety_deposit,
+            rescue_start: test_state.test_arguments.rescue_start,
+            rescue_amount: test_state.test_arguments.rescue_amount,
+        });
+
+    let (whitelist_access, _) =
+        get_whitelist_access_address(&test_state.taker_wallet.keypair.pubkey());
+
+    let instruction: Instruction = Instruction {
+        program_id: cross_chain_escrow_src::id(),
+        accounts: vec![
+            AccountMeta::new(test_state.taker_wallet.keypair.pubkey(), true),
+            AccountMeta::new_readonly(whitelist_access, false),
+            AccountMeta::new_readonly(*token_to_rescue, false),
+            AccountMeta::new(*order, false),
+            AccountMeta::new(*order_ata, false),
+            AccountMeta::new(*taker_ata, false),
+            AccountMeta::new_readonly(S::get_token_program_id(), false),
+            AccountMeta::new_readonly(system_program_id, false),
+        ],
+        data: instruction_data,
+    };
+
+    Transaction::new_signed_with_payer(
+        &[instruction],
+        Some(&test_state.payer_kp.pubkey()),
+        &[&test_state.context.payer, &test_state.taker_wallet.keypair],
+        test_state.context.last_blockhash,
+    )
+}
+
 pub fn get_order_addresses<S: TokenVariant>(
     test_state: &TestStateBase<SrcProgram, S>,
 ) -> (Pubkey, Pubkey) {
