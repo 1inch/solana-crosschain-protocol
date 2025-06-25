@@ -740,7 +740,6 @@ pub fn get_index_for_escrow_amount<T: EscrowVariant<S>, S: TokenVariant>(
         / test_state.test_arguments.order_amount) as usize
 }
 
-// TODO! Move into a separate crate
 pub mod merkle_tree_helpers {
     use solana_sdk::keccak::hashv;
 
