@@ -504,54 +504,7 @@ run_for_tokens!(
             #[test_context(TestState)]
             #[tokio::test]
             async fn test_withdraw(test_state: &mut TestState) {
-                create_order(test_state).await;
-                prepare_resolvers(test_state, &[test_state.taker_wallet.keypair.pubkey()]).await;
-                let rent_recipient = test_state.taker_wallet.keypair.pubkey();
-                let (escrow, escrow_ata) = create_escrow(test_state).await;
-                let transaction = SrcProgram::get_withdraw_tx(test_state, &escrow, &escrow_ata);
-
-                let token_account_rent = get_min_rent_for_size(
-                    &mut test_state.client,
-                    <TestState as HasTokenVariant>::Token::get_token_account_size(),
-                )
-                .await;
-
-                let escrow_rent =
-                    get_min_rent_for_size(&mut test_state.client, DEFAULT_SRC_ESCROW_SIZE).await;
-
-                set_time(
-                    &mut test_state.context,
-                    test_state.init_timestamp
-                        + DEFAULT_PERIOD_DURATION * PeriodType::Withdrawal as u32,
-                );
-
-                let (_, taker_ata) = find_user_ata(test_state);
-
-                test_state
-                    .expect_state_change(
-                        transaction,
-                        &[
-                            native_change(rent_recipient, token_account_rent + escrow_rent),
-                            token_change(taker_ata, test_state.test_arguments.escrow_amount),
-                        ],
-                    )
-                    .await;
-
-                // Assert escrow was closed
-                assert!(test_state
-                    .client
-                    .get_account(escrow)
-                    .await
-                    .unwrap()
-                    .is_none());
-
-                // Assert escrow_ata was closed
-                assert!(test_state
-                    .client
-                    .get_account(escrow_ata)
-                    .await
-                    .unwrap()
-                    .is_none());
+                helpers_src::test_withdraw_escrow(test_state).await;
             }
 
             #[test_context(TestState)]
