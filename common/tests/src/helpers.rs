@@ -766,23 +766,33 @@ impl<T, S> TestStateBase<T, S> {
             .zip(balance_changes.iter())
         {
             match exp {
-                StateChange::Token(k, token_expected_diff)
-                | StateChange::Native(k, token_expected_diff) => {
+                StateChange::Token(k, token_expected_diff) => {
                     let real_diff: i128 = *after as i128 - *before as i128;
                     assert_eq!(
-                        real_diff,
-                        *token_expected_diff,
-                        "Balance change unexpected for {}, real = {}, expected = {}, diff = {}",
-                        k,
-                        real_diff,
-                        token_expected_diff,
-                        token_expected_diff - real_diff
-                    );
+            real_diff,
+            *token_expected_diff,
+            "Token balance changed unexpectedly for {}, real = {}, expected = {}, diff = {}",
+            k,
+            real_diff,
+            token_expected_diff,
+            token_expected_diff - real_diff
+        );
+                }
+                StateChange::Native(k, token_expected_diff) => {
+                    let real_diff: i128 = *after as i128 - *before as i128;
+                    assert_eq!(
+            real_diff,
+            *token_expected_diff,
+            "SOL balance changed unexpectedly for {}, real = {}, expected = {}, diff = {}",
+            k,
+            real_diff,
+            token_expected_diff,
+            token_expected_diff - real_diff
+        );
                 }
                 _ => (),
             }
         }
-
         // Assert account closures/existence
         for exp in diff.iter() {
             if let StateChange::ClosedAccount(account, should_be_closed) = exp {
