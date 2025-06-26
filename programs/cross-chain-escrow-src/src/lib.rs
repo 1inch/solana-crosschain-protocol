@@ -602,7 +602,7 @@ pub struct Create<'info> {
     order: Box<Account<'info, Order>>,
     /// Account to store escrowed tokens
     #[account(
-        init,
+        init_if_needed,
         payer = creator,
         associated_token::mint = mint,
         associated_token::authority = order,
@@ -686,7 +686,7 @@ pub struct CreateEscrow<'info> {
     escrow: Box<Account<'info, EscrowSrc>>,
     /// Account to store escrowed tokens
     #[account(
-        init,
+        init_if_needed,
         payer = taker,
         associated_token::mint = mint,
         associated_token::authority = escrow,
