@@ -206,7 +206,7 @@ pub mod cross_chain_escrow_src {
             maker: order.creator,
             taker: ctx.accounts.taker.key(),
             token: order.token,
-            amount: order.amount,
+            amount,
             safety_deposit: order.safety_deposit,
             withdrawal_start,
             public_withdrawal_start,
