@@ -398,5 +398,52 @@ run_for_tokens!(
                     .expect_error(ProgramError::Custom(EscrowError::InvalidSecret.into()));
             }
         }
+        mod test_partial_fill_escrow_cancel {
+            use super::*;
+
+            #[test_context(TestState)]
+            #[tokio::test]
+            async fn test_cancel_escrow_from_partial_order(test_state: &mut TestState) {
+                create_order_for_partial_fill(test_state).await;
+
+                let escrow_amount = DEFAULT_ESCROW_AMOUNT / DEFAULT_PARTS_AMOUNT_FOR_MULTIPLE * 3;
+                prepare_resolvers(test_state, &[test_state.taker_wallet.keypair.pubkey()]).await;
+
+                let (escrow, escrow_ata) =
+                    test_escrow_creation_for_partial_fill(test_state, escrow_amount).await;
+
+                set_time(
+                    &mut test_state.context,
+                    test_state.init_timestamp
+                        + DEFAULT_PERIOD_DURATION * PeriodType::Cancellation as u32,
+                );
+
+                test_cancel_escrow_partial(test_state, &escrow, &escrow_ata).await;
+            }
+
+            #[test_context(TestState)]
+            #[tokio::test]
+            async fn test_cancel_two_escrows_from_partial_order(test_state: &mut TestState) {
+                create_order_for_partial_fill(test_state).await;
+
+                let escrow_amount = DEFAULT_ESCROW_AMOUNT / DEFAULT_PARTS_AMOUNT_FOR_MULTIPLE;
+                prepare_resolvers(test_state, &[test_state.taker_wallet.keypair.pubkey()]).await;
+
+                let (escrow, escrow_ata) =
+                    test_escrow_creation_for_partial_fill(test_state, escrow_amount).await;
+
+                let (escrow_2, escrow_ata_2) =
+                    test_escrow_creation_for_partial_fill(test_state, escrow_amount).await;
+
+                set_time(
+                    &mut test_state.context,
+                    test_state.init_timestamp
+                        + DEFAULT_PERIOD_DURATION * PeriodType::Cancellation as u32,
+                );
+
+                test_cancel_escrow_partial(test_state, &escrow, &escrow_ata).await;
+                test_cancel_escrow_partial(test_state, &escrow_2, &escrow_ata_2).await;
+            }
+        }
     }
 );

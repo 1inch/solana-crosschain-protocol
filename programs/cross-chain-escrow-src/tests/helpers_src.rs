@@ -169,6 +169,43 @@ pub async fn test_withdraw_escrow_partial<S: TokenVariant>(
         .await;
 }
 
+pub async fn test_cancel_escrow_partial<S: TokenVariant>(
+    test_state: &mut TestStateBase<SrcProgram, S>,
+    escrow: &Pubkey,
+    escrow_ata: &Pubkey,
+) {
+    let transaction = SrcProgram::get_cancel_tx(test_state, &escrow, &escrow_ata);
+
+    set_time(
+        &mut test_state.context,
+        test_state.init_timestamp + DEFAULT_PERIOD_DURATION * PeriodType::PublicCancellation as u32,
+    );
+
+    let escrow_data_len = DEFAULT_SRC_ESCROW_SIZE;
+    let rent_lamports = get_min_rent_for_size(&mut test_state.client, escrow_data_len).await;
+
+    let token_account_rent =
+        get_min_rent_for_size(&mut test_state.client, S::get_token_account_size()).await;
+
+    test_state
+        .expect_state_change(
+            transaction,
+            &[
+                token_change(
+                    test_state.maker_wallet.token_account,
+                    test_state.test_arguments.escrow_amount,
+                ),
+                native_change(
+                    test_state.taker_wallet.keypair.pubkey(),
+                    rent_lamports + token_account_rent,
+                ),
+                account_closure(*escrow, true),
+                account_closure(*escrow_ata, true),
+            ],
+        )
+        .await;
+}
+
 pub async fn test_public_cancel_escrow<S: TokenVariant>(
     test_state: &mut TestStateBase<SrcProgram, S>,
     canceller: &Keypair,
@@ -199,6 +236,8 @@ pub async fn test_public_cancel_escrow<S: TokenVariant>(
                 test_state.taker_wallet.keypair.pubkey(),
                 rent_lamports + token_account_rent - test_state.test_arguments.safety_deposit,
             ),
+            account_closure(escrow, true),
+            account_closure(escrow_ata, true),
         ]
         .to_vec()
     } else {
@@ -208,6 +247,8 @@ pub async fn test_public_cancel_escrow<S: TokenVariant>(
                 test_state.taker_wallet.keypair.pubkey(),
                 rent_lamports + token_account_rent,
             ),
+            account_closure(escrow, true),
+            account_closure(escrow_ata, true),
         ]
         .to_vec()
     };
@@ -215,22 +256,6 @@ pub async fn test_public_cancel_escrow<S: TokenVariant>(
     test_state
         .expect_state_change(transaction, &balance_changes)
         .await;
-
-    // Assert accounts were closed
-    assert!(test_state
-        .client
-        .get_account(escrow)
-        .await
-        .unwrap()
-        .is_none());
-
-    // Assert escrow_ata was closed
-    assert!(test_state
-        .client
-        .get_account(escrow_ata)
-        .await
-        .unwrap()
-        .is_none());
 }
 
 pub async fn test_rescue_all_tokens_from_order_and_close_ata<S: TokenVariant>(
