@@ -748,6 +748,7 @@ pub async fn reset_test_state<T, S: TokenVariant>(
 pub struct MerkleHashes {
     pub leaves: Vec<[u8; 32]>,
     pub hashed_secrets: Vec<[u8; 32]>,
+    pub secrets: Vec<[u8; 32]>,
 }
 
 pub fn compute_merkle_leaves<T: EscrowVariant<S>, S: TokenVariant>(
@@ -756,10 +757,12 @@ pub fn compute_merkle_leaves<T: EscrowVariant<S>, S: TokenVariant>(
     let secret_amount = (test_state.test_arguments.order_parts_amount + 1) as usize;
     let mut hashed_leaves = Vec::with_capacity(secret_amount);
     let mut hashed_secrets = Vec::with_capacity(secret_amount);
+    let mut secrets = Vec::with_capacity(secret_amount);
 
     for i in 0..secret_amount {
         let i_bytes = (i as u64).to_be_bytes();
         let secret = hashv(&[&i_bytes]).0; // For example secret is hashv(index)
+        secrets.push(secret);
         let hashed_secret = hashv(&[&secret]).0;
         hashed_secrets.push(hashed_secret);
 
@@ -771,6 +774,7 @@ pub fn compute_merkle_leaves<T: EscrowVariant<S>, S: TokenVariant>(
     MerkleHashes {
         leaves: hashed_leaves,
         hashed_secrets,
+        secrets,
     }
 }
 
