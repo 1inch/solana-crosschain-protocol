@@ -309,5 +309,127 @@ run_for_tokens!(
                     ));
             }
         }
+
+        mod test_partial_fill_escrow_withdraw {
+            use super::*;
+
+            #[test_context(TestState)]
+            #[tokio::test]
+            async fn test_withdraw_from_partial_order(test_state: &mut TestState) {
+                create_order_for_partial_fill(test_state).await;
+
+                let escrow_amount = DEFAULT_ESCROW_AMOUNT / DEFAULT_PARTS_AMOUNT_FOR_MULTIPLE * 3;
+                prepare_resolvers(test_state, &[test_state.taker_wallet.keypair.pubkey()]).await;
+
+                let secret_index = get_index_for_escrow_amount(test_state, escrow_amount);
+
+                let (escrow, escrow_ata) =
+                    test_escrow_creation_for_partial_fill(test_state, escrow_amount).await;
+
+                set_time(
+                    &mut test_state.context,
+                    test_state.init_timestamp
+                        + DEFAULT_PERIOD_DURATION * PeriodType::Withdrawal as u32,
+                );
+
+                test_state.secret = test_state.test_arguments.partial_secrets[secret_index];
+                let transaction = SrcProgram::get_withdraw_tx(test_state, &escrow, &escrow_ata);
+
+                test_state
+                    .expect_state_change(
+                        transaction,
+                        &[
+                            token_change(test_state.taker_wallet.token_account, escrow_amount),
+                            account_closure(escrow, true),
+                            account_closure(escrow_ata, true),
+                        ],
+                    )
+                    .await;
+            }
+
+            #[test_context(TestState)]
+            #[tokio::test]
+            async fn test_withdraw_two_escrows_from_partial_order(test_state: &mut TestState) {
+                create_order_for_partial_fill(test_state).await;
+
+                let escrow_amount = DEFAULT_ESCROW_AMOUNT / DEFAULT_PARTS_AMOUNT_FOR_MULTIPLE;
+                prepare_resolvers(test_state, &[test_state.taker_wallet.keypair.pubkey()]).await;
+
+                let secret_index = get_index_for_escrow_amount(test_state, escrow_amount);
+
+                let (escrow, escrow_ata) =
+                    test_escrow_creation_for_partial_fill(test_state, escrow_amount).await;
+
+                let secret_index_2 = get_index_for_escrow_amount(test_state, escrow_amount);
+
+                let (escrow_2, escrow_ata_2) =
+                    test_escrow_creation_for_partial_fill(test_state, escrow_amount).await;
+
+                set_time(
+                    &mut test_state.context,
+                    test_state.init_timestamp
+                        + DEFAULT_PERIOD_DURATION * PeriodType::Withdrawal as u32,
+                );
+
+                test_state.secret = test_state.test_arguments.partial_secrets[secret_index];
+                let transaction = SrcProgram::get_withdraw_tx(test_state, &escrow, &escrow_ata);
+
+                test_state
+                    .expect_state_change(
+                        transaction,
+                        &[
+                            token_change(test_state.taker_wallet.token_account, escrow_amount),
+                            account_closure(escrow, true),
+                            account_closure(escrow_ata, true),
+                        ],
+                    )
+                    .await;
+
+                test_state.secret = test_state.test_arguments.partial_secrets[secret_index_2];
+                let transaction_2 =
+                    SrcProgram::get_withdraw_tx(test_state, &escrow_2, &escrow_ata_2);
+
+                test_state
+                    .expect_state_change(
+                        transaction_2,
+                        &[
+                            token_change(test_state.taker_wallet.token_account, escrow_amount),
+                            account_closure(escrow_2, true),
+                            account_closure(escrow_ata_2, true),
+                        ],
+                    )
+                    .await;
+            }
+
+            #[test_context(TestState)]
+            #[tokio::test]
+            async fn test_cannot_withdraw_from_partial_order_with_invalid_secret(
+                test_state: &mut TestState,
+            ) {
+                create_order_for_partial_fill(test_state).await;
+
+                let escrow_amount = DEFAULT_ESCROW_AMOUNT / DEFAULT_PARTS_AMOUNT_FOR_MULTIPLE * 3;
+                prepare_resolvers(test_state, &[test_state.taker_wallet.keypair.pubkey()]).await;
+
+                let (escrow, escrow_ata) =
+                    test_escrow_creation_for_partial_fill(test_state, escrow_amount).await;
+
+                set_time(
+                    &mut test_state.context,
+                    test_state.init_timestamp
+                        + DEFAULT_PERIOD_DURATION * PeriodType::Withdrawal as u32,
+                );
+
+                test_state.secret = [0u8; 32]; // Invalid secret
+
+                let transaction = SrcProgram::get_withdraw_tx(test_state, &escrow, &escrow_ata);
+
+                test_state
+                    .client
+                    .process_transaction(transaction)
+                    .await
+                    .expect_error(ProgramError::Custom(EscrowError::InvalidSecret.into()));
+            }
+        }
     }
 );
