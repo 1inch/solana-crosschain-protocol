@@ -137,19 +137,12 @@ pub async fn test_withdraw_escrow_partial<S: TokenVariant>(
     escrow: &Pubkey,
     escrow_ata: &Pubkey,
 ) {
-    create_order(test_state).await;
-    prepare_resolvers(test_state, &[test_state.taker_wallet.keypair.pubkey()]).await;
-    let transaction = SrcProgram::get_withdraw_tx(test_state, &escrow, &escrow_ata);
+    let transaction = SrcProgram::get_withdraw_tx(test_state, escrow, escrow_ata);
 
     let token_account_rent =
         get_min_rent_for_size(&mut test_state.client, S::get_token_account_size()).await;
 
     let escrow_rent = get_min_rent_for_size(&mut test_state.client, DEFAULT_SRC_ESCROW_SIZE).await;
-
-    set_time(
-        &mut test_state.context,
-        test_state.init_timestamp + DEFAULT_PERIOD_DURATION * PeriodType::Withdrawal as u32,
-    );
 
     let (_, taker_ata) = find_user_ata(test_state);
 
