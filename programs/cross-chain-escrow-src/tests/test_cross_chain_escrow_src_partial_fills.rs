@@ -333,18 +333,7 @@ run_for_tokens!(
                 );
 
                 test_state.secret = test_state.test_arguments.partial_secrets[secret_index];
-                let transaction = SrcProgram::get_withdraw_tx(test_state, &escrow, &escrow_ata);
-
-                test_state
-                    .expect_state_change(
-                        transaction,
-                        &[
-                            token_change(test_state.taker_wallet.token_account, escrow_amount),
-                            account_closure(escrow, true),
-                            account_closure(escrow_ata, true),
-                        ],
-                    )
-                    .await;
+                helpers_src::test_withdraw_escrow_partial(test_state, &escrow, &escrow_ata).await;
             }
 
             #[test_context(TestState)]
@@ -372,32 +361,10 @@ run_for_tokens!(
                 );
 
                 test_state.secret = test_state.test_arguments.partial_secrets[secret_index];
-                let transaction = SrcProgram::get_withdraw_tx(test_state, &escrow, &escrow_ata);
-
-                test_state
-                    .expect_state_change(
-                        transaction,
-                        &[
-                            token_change(test_state.taker_wallet.token_account, escrow_amount),
-                            account_closure(escrow, true),
-                            account_closure(escrow_ata, true),
-                        ],
-                    )
-                    .await;
+                helpers_src::test_withdraw_escrow_partial(test_state, &escrow, &escrow_ata).await;
 
                 test_state.secret = test_state.test_arguments.partial_secrets[secret_index_2];
-                let transaction_2 =
-                    SrcProgram::get_withdraw_tx(test_state, &escrow_2, &escrow_ata_2);
-
-                test_state
-                    .expect_state_change(
-                        transaction_2,
-                        &[
-                            token_change(test_state.taker_wallet.token_account, escrow_amount),
-                            account_closure(escrow_2, true),
-                            account_closure(escrow_ata_2, true),
-                        ],
-                    )
+                helpers_src::test_withdraw_escrow_partial(test_state, &escrow_2, &escrow_ata_2)
                     .await;
             }
 

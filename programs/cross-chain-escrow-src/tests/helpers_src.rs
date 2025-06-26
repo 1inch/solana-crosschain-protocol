@@ -125,25 +125,48 @@ pub async fn test_withdraw_escrow<S: TokenVariant>(test_state: &mut TestStateBas
                     token_account_rent + escrow_rent,
                 ),
                 token_change(taker_ata, test_state.test_arguments.escrow_amount),
+                account_closure(escrow, true),
+                account_closure(escrow_ata, true),
             ],
         )
         .await;
+}
 
-    // Assert escrow was closed
-    assert!(test_state
-        .client
-        .get_account(escrow)
-        .await
-        .unwrap()
-        .is_none());
+pub async fn test_withdraw_escrow_partial<S: TokenVariant>(
+    test_state: &mut TestStateBase<SrcProgram, S>,
+    escrow: &Pubkey,
+    escrow_ata: &Pubkey,
+) {
+    create_order(test_state).await;
+    prepare_resolvers(test_state, &[test_state.taker_wallet.keypair.pubkey()]).await;
+    let transaction = SrcProgram::get_withdraw_tx(test_state, &escrow, &escrow_ata);
 
-    // Assert escrow_ata was closed
-    assert!(test_state
-        .client
-        .get_account(escrow_ata)
-        .await
-        .unwrap()
-        .is_none());
+    let token_account_rent =
+        get_min_rent_for_size(&mut test_state.client, S::get_token_account_size()).await;
+
+    let escrow_rent = get_min_rent_for_size(&mut test_state.client, DEFAULT_SRC_ESCROW_SIZE).await;
+
+    set_time(
+        &mut test_state.context,
+        test_state.init_timestamp + DEFAULT_PERIOD_DURATION * PeriodType::Withdrawal as u32,
+    );
+
+    let (_, taker_ata) = find_user_ata(test_state);
+
+    test_state
+        .expect_state_change(
+            transaction,
+            &[
+                native_change(
+                    test_state.taker_wallet.keypair.pubkey(),
+                    token_account_rent + escrow_rent,
+                ),
+                token_change(taker_ata, test_state.test_arguments.escrow_amount),
+                account_closure(*escrow, true),
+                account_closure(*escrow_ata, true),
+            ],
+        )
+        .await;
 }
 
 pub async fn test_public_cancel_escrow<S: TokenVariant>(
