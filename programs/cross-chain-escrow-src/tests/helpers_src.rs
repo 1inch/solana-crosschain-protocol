@@ -300,6 +300,51 @@ pub async fn test_public_cancel_escrow<S: TokenVariant>(
         .await;
 }
 
+pub async fn test_public_cancel_escrow_partial<S: TokenVariant>(
+    test_state: &mut TestStateBase<SrcProgram, S>,
+    escrow: &Pubkey,
+    escrow_ata: &Pubkey,
+    canceller: &Keypair,
+) {
+    let transaction = create_public_escrow_cancel_tx(test_state, escrow, escrow_ata, canceller);
+
+    let token_account_rent =
+        get_min_rent_for_size(&mut test_state.client, S::get_token_account_size()).await;
+
+    let escrow_rent = get_min_rent_for_size(&mut test_state.client, DEFAULT_SRC_ESCROW_SIZE).await;
+
+    let (maker_ata, _) = find_user_ata(test_state);
+
+    let balance_changes: Vec<StateChange> = if canceller != &test_state.taker_wallet.keypair {
+        [
+            token_change(maker_ata, test_state.test_arguments.escrow_amount),
+            native_change(canceller.pubkey(), test_state.test_arguments.safety_deposit),
+            native_change(
+                test_state.taker_wallet.keypair.pubkey(),
+                token_account_rent + escrow_rent - test_state.test_arguments.safety_deposit,
+            ),
+            account_closure(*escrow, true),
+            account_closure(*escrow_ata, true),
+        ]
+        .to_vec()
+    } else {
+        [
+            token_change(maker_ata, test_state.test_arguments.escrow_amount),
+            native_change(
+                test_state.taker_wallet.keypair.pubkey(),
+                token_account_rent + escrow_rent,
+            ),
+            account_closure(*escrow, true),
+            account_closure(*escrow_ata, true),
+        ]
+        .to_vec()
+    };
+
+    test_state
+        .expect_state_change(transaction, &balance_changes)
+        .await;
+}
+
 pub async fn test_rescue_all_tokens_from_order_and_close_ata<S: TokenVariant>(
     test_state: &mut TestStateBase<SrcProgram, S>,
 ) {
