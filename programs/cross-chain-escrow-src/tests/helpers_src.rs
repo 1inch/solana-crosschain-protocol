@@ -696,6 +696,7 @@ pub async fn test_escrow_creation_for_partial_fill_data<S: TokenVariant>(
     };
 
     test_state.test_arguments.merkle_proof = Some(proof);
+    test_state.test_arguments.partial_secrets = merkle_hashes.secrets;
 
     create_escrow_data(test_state)
 }
