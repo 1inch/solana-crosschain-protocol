@@ -37,6 +37,21 @@ run_for_tokens!(
 
             #[test_context(TestState)]
             #[tokio::test]
+            async fn test_order_creation_with_pre_existing_order_ata(test_state: &mut TestState) {
+                let (order_pda, _) = get_order_addresses(test_state);
+
+                let _order_ata =
+                    <TestState as HasTokenVariant>::Token::initialize_spl_associated_account(
+                        &mut test_state.context,
+                        &test_state.token,
+                        &order_pda,
+                    )
+                    .await;
+                helpers_src::test_order_creation(test_state).await;
+            }
+
+            #[test_context(TestState)]
+            #[tokio::test]
             async fn test_order_creation_fails_with_zero_amount(test_state: &mut TestState) {
                 test_state.test_arguments.order_amount = 0;
                 let (_, _, transaction) = create_order_data(test_state);
@@ -227,6 +242,24 @@ run_for_tokens!(
             async fn test_escrow_creation(test_state: &mut TestState) {
                 create_order(test_state).await;
                 prepare_resolvers(test_state, &[test_state.taker_wallet.keypair.pubkey()]).await;
+                common_escrow_tests::test_escrow_creation(test_state).await;
+            }
+
+            #[test_context(TestState)]
+            #[tokio::test]
+            async fn test_escrow_creation_with_pre_existing_escrow_ata(test_state: &mut TestState) {
+                create_order(test_state).await;
+                prepare_resolvers(test_state, &[test_state.taker_wallet.keypair.pubkey()]).await;
+                let (escrow_pda, _) =
+                    get_escrow_addresses(test_state, test_state.taker_wallet.keypair.pubkey());
+
+                let _escrow_ata =
+                    <TestState as HasTokenVariant>::Token::initialize_spl_associated_account(
+                        &mut test_state.context,
+                        &test_state.token,
+                        &escrow_pda,
+                    )
+                    .await;
                 common_escrow_tests::test_escrow_creation(test_state).await;
             }
 
