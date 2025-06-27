@@ -205,12 +205,48 @@ pub async fn test_cancel_escrow_partial<S: TokenVariant>(
     let token_account_rent =
         get_min_rent_for_size(&mut test_state.client, S::get_token_account_size()).await;
 
+    let maker_ata = find_user_ata(test_state).0;
+
     test_state
         .expect_state_change(
             transaction,
             &[
-                token_change(
-                    test_state.maker_wallet.token_account,
+                token_change(maker_ata, test_state.test_arguments.escrow_amount),
+                native_change(
+                    test_state.taker_wallet.keypair.pubkey(),
+                    rent_lamports + token_account_rent,
+                ),
+                account_closure(*escrow, true),
+                account_closure(*escrow_ata, true),
+            ],
+        )
+        .await;
+}
+
+pub async fn test_cancel_escrow_partial_native<S: TokenVariant>(
+    test_state: &mut TestStateBase<SrcProgram, S>,
+    escrow: &Pubkey,
+    escrow_ata: &Pubkey,
+) {
+    let transaction = SrcProgram::get_cancel_tx(test_state, escrow, escrow_ata);
+
+    set_time(
+        &mut test_state.context,
+        test_state.init_timestamp + DEFAULT_PERIOD_DURATION * PeriodType::Cancellation as u32,
+    );
+
+    let escrow_data_len = DEFAULT_SRC_ESCROW_SIZE;
+    let rent_lamports = get_min_rent_for_size(&mut test_state.client, escrow_data_len).await;
+
+    let token_account_rent =
+        get_min_rent_for_size(&mut test_state.client, S::get_token_account_size()).await;
+
+    test_state
+        .expect_state_change(
+            transaction,
+            &[
+                native_change(
+                    test_state.maker_wallet.keypair.pubkey(),
                     test_state.test_arguments.escrow_amount,
                 ),
                 native_change(
