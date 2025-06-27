@@ -586,12 +586,6 @@ run_for_tokens!(
                 let (escrow, escrow_ata) =
                     test_escrow_creation_for_partial_fill(test_state, escrow_amount).await;
 
-                set_time(
-                    &mut test_state.context,
-                    test_state.init_timestamp
-                        + DEFAULT_PERIOD_DURATION * PeriodType::Cancellation as u32,
-                );
-
                 test_cancel_escrow_partial(test_state, &escrow, &escrow_ata).await;
             }
 
