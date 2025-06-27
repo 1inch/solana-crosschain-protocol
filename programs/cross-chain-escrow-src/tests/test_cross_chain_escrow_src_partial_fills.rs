@@ -656,12 +656,6 @@ run_for_tokens!(
                 let (escrow, escrow_ata) =
                     test_escrow_creation_for_partial_fill(test_state, escrow_amount).await;
 
-                set_time(
-                    &mut test_state.context,
-                    test_state.init_timestamp
-                        + DEFAULT_PERIOD_DURATION * PeriodType::PublicCancellation as u32,
-                );
-
                 let taker_kp = test_state.taker_wallet.keypair.insecure_clone();
 
                 test_public_cancel_escrow(test_state, &escrow, &escrow_ata, &taker_kp).await;
@@ -682,12 +676,6 @@ run_for_tokens!(
 
                 let (escrow_2, escrow_ata_2) =
                     test_escrow_creation_for_partial_fill(test_state, escrow_amount).await;
-
-                set_time(
-                    &mut test_state.context,
-                    test_state.init_timestamp
-                        + DEFAULT_PERIOD_DURATION * PeriodType::PublicCancellation as u32,
-                );
 
                 let taker_kp = test_state.taker_wallet.keypair.insecure_clone();
 
@@ -723,12 +711,6 @@ run_for_tokens!(
 
                 let (escrow, escrow_ata) =
                     test_escrow_creation_for_partial_fill(test_state, escrow_amount).await;
-
-                set_time(
-                    &mut test_state.context,
-                    test_state.init_timestamp
-                        + DEFAULT_PERIOD_DURATION * PeriodType::PublicCancellation as u32,
-                );
 
                 test_public_cancel_escrow(test_state, &escrow, &escrow_ata, &canceller).await;
             }
