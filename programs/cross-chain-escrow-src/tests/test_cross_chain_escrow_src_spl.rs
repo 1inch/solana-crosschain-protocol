@@ -537,7 +537,10 @@ run_for_tokens!(
             #[test_context(TestState)]
             #[tokio::test]
             async fn test_withdraw(test_state: &mut TestState) {
-                helpers_src::test_withdraw_escrow(test_state).await;
+                create_order(test_state).await;
+                prepare_resolvers(test_state, &[test_state.taker_wallet.keypair.pubkey()]).await;
+                let (escrow, escrow_ata) = create_escrow(test_state).await;
+                helpers_src::test_withdraw_escrow(test_state, &escrow, &escrow_ata).await;
             }
 
             #[test_context(TestState)]
@@ -1155,8 +1158,12 @@ run_for_tokens!(
             #[tokio::test]
             async fn test_public_cancel_by_taker(test_state: &mut TestState) {
                 prepare_resolvers(test_state, &[test_state.taker_wallet.keypair.pubkey()]).await;
+                create_order(test_state).await;
+                let (escrow, escrow_ata) = create_escrow(test_state).await;
                 test_public_cancel_escrow(
                     test_state,
+                    &escrow,
+                    &escrow_ata,
                     &test_state.taker_wallet.keypair.insecure_clone(),
                 )
                 .await;
@@ -1180,7 +1187,9 @@ run_for_tokens!(
                 )
                 .await;
 
-                test_public_cancel_escrow(test_state, &canceller).await;
+                create_order(test_state).await;
+                let (escrow, escrow_ata) = create_escrow(test_state).await;
+                test_public_cancel_escrow(test_state, &escrow, &escrow_ata, &canceller).await;
             }
 
             #[test_context(TestState)]

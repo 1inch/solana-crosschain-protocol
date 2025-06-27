@@ -327,14 +327,8 @@ run_for_tokens!(
                 let (escrow, escrow_ata) =
                     test_escrow_creation_for_partial_fill(test_state, escrow_amount).await;
 
-                set_time(
-                    &mut test_state.context,
-                    test_state.init_timestamp
-                        + DEFAULT_PERIOD_DURATION * PeriodType::Withdrawal as u32,
-                );
-
                 test_state.secret = test_state.test_arguments.partial_secrets[secret_index];
-                helpers_src::test_withdraw_escrow_partial(test_state, &escrow, &escrow_ata).await;
+                helpers_src::test_withdraw_escrow(test_state, &escrow, &escrow_ata).await;
             }
 
             #[test_context(TestState)]
@@ -355,18 +349,11 @@ run_for_tokens!(
                 let (escrow_2, escrow_ata_2) =
                     test_escrow_creation_for_partial_fill(test_state, escrow_amount).await;
 
-                set_time(
-                    &mut test_state.context,
-                    test_state.init_timestamp
-                        + DEFAULT_PERIOD_DURATION * PeriodType::Withdrawal as u32,
-                );
-
                 test_state.secret = test_state.test_arguments.partial_secrets[secret_index];
-                helpers_src::test_withdraw_escrow_partial(test_state, &escrow, &escrow_ata).await;
+                helpers_src::test_withdraw_escrow(test_state, &escrow, &escrow_ata).await;
 
                 test_state.secret = test_state.test_arguments.partial_secrets[secret_index_2];
-                helpers_src::test_withdraw_escrow_partial(test_state, &escrow_2, &escrow_ata_2)
-                    .await;
+                helpers_src::test_withdraw_escrow(test_state, &escrow_2, &escrow_ata_2).await;
             }
 
             #[test_context(TestState)]
@@ -449,17 +436,11 @@ run_for_tokens!(
                 let (escrow, escrow_ata) =
                     test_escrow_creation_for_partial_fill(test_state, escrow_amount).await;
 
-                set_time(
-                    &mut test_state.context,
-                    test_state.init_timestamp
-                        + DEFAULT_PERIOD_DURATION * PeriodType::PublicWithdrawal as u32,
-                );
-
                 test_state.secret = test_state.test_arguments.partial_secrets[secret_index];
 
                 let taker_kp = test_state.taker_wallet.keypair.insecure_clone();
 
-                helpers_src::test_public_withdraw_escrow_partial(
+                helpers_src::test_public_withdraw_escrow(
                     test_state,
                     &escrow,
                     &escrow_ata,
@@ -488,16 +469,11 @@ run_for_tokens!(
                 let (escrow_2, escrow_ata_2) =
                     test_escrow_creation_for_partial_fill(test_state, escrow_amount).await;
 
-                set_time(
-                    &mut test_state.context,
-                    test_state.init_timestamp
-                        + DEFAULT_PERIOD_DURATION * PeriodType::PublicWithdrawal as u32,
-                );
                 let taker_kp = test_state.taker_wallet.keypair.insecure_clone();
 
                 test_state.secret = test_state.test_arguments.partial_secrets[secret_index];
 
-                helpers_src::test_public_withdraw_escrow_partial(
+                helpers_src::test_public_withdraw_escrow(
                     test_state,
                     &escrow,
                     &escrow_ata,
@@ -507,7 +483,7 @@ run_for_tokens!(
 
                 test_state.secret = test_state.test_arguments.partial_secrets[secret_index_2];
 
-                helpers_src::test_public_withdraw_escrow_partial(
+                helpers_src::test_public_withdraw_escrow(
                     test_state,
                     &escrow_2,
                     &escrow_ata_2,
@@ -548,15 +524,9 @@ run_for_tokens!(
                 let (escrow, escrow_ata) =
                     test_escrow_creation_for_partial_fill(test_state, escrow_amount).await;
 
-                set_time(
-                    &mut test_state.context,
-                    test_state.init_timestamp
-                        + DEFAULT_PERIOD_DURATION * PeriodType::PublicWithdrawal as u32,
-                );
-
                 test_state.secret = test_state.test_arguments.partial_secrets[secret_index];
 
-                helpers_src::test_public_withdraw_escrow_partial(
+                helpers_src::test_public_withdraw_escrow(
                     test_state,
                     &escrow,
                     &escrow_ata,
@@ -616,12 +586,6 @@ run_for_tokens!(
                 let (escrow, escrow_ata) =
                     test_escrow_creation_for_partial_fill(test_state, escrow_amount).await;
 
-                set_time(
-                    &mut test_state.context,
-                    test_state.init_timestamp
-                        + DEFAULT_PERIOD_DURATION * PeriodType::Cancellation as u32,
-                );
-
                 test_cancel_escrow_partial(test_state, &escrow, &escrow_ata).await;
             }
 
@@ -638,12 +602,6 @@ run_for_tokens!(
 
                 let (escrow_2, escrow_ata_2) =
                     test_escrow_creation_for_partial_fill(test_state, escrow_amount).await;
-
-                set_time(
-                    &mut test_state.context,
-                    test_state.init_timestamp
-                        + DEFAULT_PERIOD_DURATION * PeriodType::Cancellation as u32,
-                );
 
                 test_cancel_escrow_partial(test_state, &escrow, &escrow_ata).await;
                 test_cancel_escrow_partial(test_state, &escrow_2, &escrow_ata_2).await;
@@ -698,16 +656,9 @@ run_for_tokens!(
                 let (escrow, escrow_ata) =
                     test_escrow_creation_for_partial_fill(test_state, escrow_amount).await;
 
-                set_time(
-                    &mut test_state.context,
-                    test_state.init_timestamp
-                        + DEFAULT_PERIOD_DURATION * PeriodType::PublicCancellation as u32,
-                );
-
                 let taker_kp = test_state.taker_wallet.keypair.insecure_clone();
 
-                test_public_cancel_escrow_partial(test_state, &escrow, &escrow_ata, &taker_kp)
-                    .await;
+                test_public_cancel_escrow(test_state, &escrow, &escrow_ata, &taker_kp).await;
             }
 
             #[test_context(TestState)]
@@ -726,20 +677,12 @@ run_for_tokens!(
                 let (escrow_2, escrow_ata_2) =
                     test_escrow_creation_for_partial_fill(test_state, escrow_amount).await;
 
-                set_time(
-                    &mut test_state.context,
-                    test_state.init_timestamp
-                        + DEFAULT_PERIOD_DURATION * PeriodType::PublicCancellation as u32,
-                );
-
                 let taker_kp = test_state.taker_wallet.keypair.insecure_clone();
 
-                test_public_cancel_escrow_partial(test_state, &escrow, &escrow_ata, &taker_kp)
-                    .await;
+                test_public_cancel_escrow(test_state, &escrow, &escrow_ata, &taker_kp).await;
                 let taker_kp = test_state.taker_wallet.keypair.insecure_clone();
 
-                test_public_cancel_escrow_partial(test_state, &escrow_2, &escrow_ata_2, &taker_kp)
-                    .await;
+                test_public_cancel_escrow(test_state, &escrow_2, &escrow_ata_2, &taker_kp).await;
             }
 
             #[test_context(TestState)]
@@ -769,14 +712,7 @@ run_for_tokens!(
                 let (escrow, escrow_ata) =
                     test_escrow_creation_for_partial_fill(test_state, escrow_amount).await;
 
-                set_time(
-                    &mut test_state.context,
-                    test_state.init_timestamp
-                        + DEFAULT_PERIOD_DURATION * PeriodType::PublicCancellation as u32,
-                );
-
-                test_public_cancel_escrow_partial(test_state, &escrow, &escrow_ata, &canceller)
-                    .await;
+                test_public_cancel_escrow(test_state, &escrow, &escrow_ata, &canceller).await;
             }
 
             #[test_context(TestState)]
