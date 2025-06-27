@@ -4,11 +4,11 @@ use anchor_lang::error::ErrorCode;
 use anchor_lang::prelude::ProgramError;
 use anchor_spl::token::spl_token::native_mint::ID as NATIVE_MINT;
 use common_tests::helpers::{
-    account_closure, create_escrow, create_escrow_data, find_user_ata, get_min_rent_for_size,
-    get_token_balance, native_change, set_time, token_change, EscrowVariant, Expectation,
-    HasTokenVariant, PeriodType, StateChange, TestStateBase, TokenVariant, DEFAULT_ESCROW_AMOUNT,
-    DEFAULT_ORDER_SIZE, DEFAULT_PARTS_AMOUNT_FOR_MULTIPLE, DEFAULT_PERIOD_DURATION,
-    DEFAULT_SRC_ESCROW_SIZE, WALLET_DEFAULT_LAMPORTS, WALLET_DEFAULT_TOKENS,
+    account_closure, create_escrow_data, find_user_ata, get_min_rent_for_size, get_token_balance,
+    native_change, set_time, token_change, EscrowVariant, Expectation, HasTokenVariant, PeriodType,
+    StateChange, TestStateBase, TokenVariant, DEFAULT_ESCROW_AMOUNT, DEFAULT_ORDER_SIZE,
+    DEFAULT_PARTS_AMOUNT_FOR_MULTIPLE, DEFAULT_PERIOD_DURATION, DEFAULT_SRC_ESCROW_SIZE,
+    WALLET_DEFAULT_LAMPORTS, WALLET_DEFAULT_TOKENS,
 };
 use common_tests::src_program::{
     create_order, create_order_data, create_public_escrow_cancel_tx,
@@ -98,45 +98,16 @@ pub async fn test_order_creation<S: TokenVariant>(test_state: &mut TestStateBase
     );
 }
 
-pub async fn test_withdraw_escrow<S: TokenVariant>(test_state: &mut TestStateBase<SrcProgram, S>) {
-    create_order(test_state).await;
-    prepare_resolvers(test_state, &[test_state.taker_wallet.keypair.pubkey()]).await;
-    let (escrow, escrow_ata) = create_escrow(test_state).await;
-    let transaction = SrcProgram::get_withdraw_tx(test_state, &escrow, &escrow_ata);
-
-    let token_account_rent =
-        get_min_rent_for_size(&mut test_state.client, S::get_token_account_size()).await;
-
-    let escrow_rent = get_min_rent_for_size(&mut test_state.client, DEFAULT_SRC_ESCROW_SIZE).await;
-
+pub async fn test_withdraw_escrow<S: TokenVariant>(
+    test_state: &mut TestStateBase<SrcProgram, S>,
+    escrow: &Pubkey,
+    escrow_ata: &Pubkey,
+) {
     set_time(
         &mut test_state.context,
         test_state.init_timestamp + DEFAULT_PERIOD_DURATION * PeriodType::Withdrawal as u32,
     );
 
-    let (_, taker_ata) = find_user_ata(test_state);
-
-    test_state
-        .expect_state_change(
-            transaction,
-            &[
-                native_change(
-                    test_state.taker_wallet.keypair.pubkey(),
-                    token_account_rent + escrow_rent,
-                ),
-                token_change(taker_ata, test_state.test_arguments.escrow_amount),
-                account_closure(escrow, true),
-                account_closure(escrow_ata, true),
-            ],
-        )
-        .await;
-}
-
-pub async fn test_withdraw_escrow_partial<S: TokenVariant>(
-    test_state: &mut TestStateBase<SrcProgram, S>,
-    escrow: &Pubkey,
-    escrow_ata: &Pubkey,
-) {
     let transaction = SrcProgram::get_withdraw_tx(test_state, escrow, escrow_ata);
 
     let token_account_rent =
@@ -162,12 +133,17 @@ pub async fn test_withdraw_escrow_partial<S: TokenVariant>(
         .await;
 }
 
-pub async fn test_public_withdraw_escrow_partial<S: TokenVariant>(
+pub async fn test_public_withdraw_escrow<S: TokenVariant>(
     test_state: &mut TestStateBase<SrcProgram, S>,
     escrow: &Pubkey,
     escrow_ata: &Pubkey,
     withdrawer: &Keypair,
 ) {
+    set_time(
+        &mut test_state.context,
+        test_state.init_timestamp + DEFAULT_PERIOD_DURATION * PeriodType::PublicWithdrawal as u32,
+    );
+
     let transaction =
         SrcProgram::get_public_withdraw_tx(test_state, escrow, escrow_ata, withdrawer);
 
@@ -220,7 +196,7 @@ pub async fn test_cancel_escrow_partial<S: TokenVariant>(
 
     set_time(
         &mut test_state.context,
-        test_state.init_timestamp + DEFAULT_PERIOD_DURATION * PeriodType::PublicCancellation as u32,
+        test_state.init_timestamp + DEFAULT_PERIOD_DURATION * PeriodType::Cancellation as u32,
     );
 
     let escrow_data_len = DEFAULT_SRC_ESCROW_SIZE;
@@ -250,62 +226,14 @@ pub async fn test_cancel_escrow_partial<S: TokenVariant>(
 
 pub async fn test_public_cancel_escrow<S: TokenVariant>(
     test_state: &mut TestStateBase<SrcProgram, S>,
-    canceller: &Keypair,
-) {
-    create_order(test_state).await;
-    let (escrow, escrow_ata) = create_escrow(test_state).await;
-
-    let transaction = create_public_escrow_cancel_tx(test_state, &escrow, &escrow_ata, canceller);
-
-    set_time(
-        &mut test_state.context,
-        test_state.init_timestamp + DEFAULT_PERIOD_DURATION * PeriodType::PublicCancellation as u32,
-    );
-
-    let escrow_data_len = DEFAULT_SRC_ESCROW_SIZE;
-    let rent_lamports = get_min_rent_for_size(&mut test_state.client, escrow_data_len).await;
-
-    let token_account_rent =
-        get_min_rent_for_size(&mut test_state.client, S::get_token_account_size()).await;
-
-    let (maker_ata, _) = find_user_ata(test_state);
-
-    let balance_changes: Vec<StateChange> = if canceller != &test_state.taker_wallet.keypair {
-        [
-            token_change(maker_ata, DEFAULT_ESCROW_AMOUNT),
-            native_change(canceller.pubkey(), test_state.test_arguments.safety_deposit),
-            native_change(
-                test_state.taker_wallet.keypair.pubkey(),
-                rent_lamports + token_account_rent - test_state.test_arguments.safety_deposit,
-            ),
-            account_closure(escrow, true),
-            account_closure(escrow_ata, true),
-        ]
-        .to_vec()
-    } else {
-        [
-            token_change(maker_ata, DEFAULT_ESCROW_AMOUNT),
-            native_change(
-                test_state.taker_wallet.keypair.pubkey(),
-                rent_lamports + token_account_rent,
-            ),
-            account_closure(escrow, true),
-            account_closure(escrow_ata, true),
-        ]
-        .to_vec()
-    };
-
-    test_state
-        .expect_state_change(transaction, &balance_changes)
-        .await;
-}
-
-pub async fn test_public_cancel_escrow_partial<S: TokenVariant>(
-    test_state: &mut TestStateBase<SrcProgram, S>,
     escrow: &Pubkey,
     escrow_ata: &Pubkey,
     canceller: &Keypair,
 ) {
+    set_time(
+        &mut test_state.context,
+        test_state.init_timestamp + DEFAULT_PERIOD_DURATION * PeriodType::PublicCancellation as u32,
+    );
     let transaction = create_public_escrow_cancel_tx(test_state, escrow, escrow_ata, canceller);
 
     let token_account_rent =
