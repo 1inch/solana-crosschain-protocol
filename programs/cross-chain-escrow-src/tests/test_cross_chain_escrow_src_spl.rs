@@ -212,7 +212,7 @@ run_for_tokens!(
 
             #[test_context(TestState)]
             #[tokio::test]
-            async fn test_order_creation_fails_when_rescue_start_less_then_cancellation_time_for_last_escrow(
+            async fn test_order_creation_fails_when_rescue_start_less_expiration_time(
                 test_state: &mut TestState,
             ) {
                 test_state.test_arguments.expiration_duration = common::constants::RESCUE_DELAY;
