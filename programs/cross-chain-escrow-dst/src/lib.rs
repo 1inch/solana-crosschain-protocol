@@ -44,6 +44,11 @@ pub mod cross_chain_escrow_dst {
             EscrowError::InvalidCreationTime
         );
 
+        require!(
+            src_cancellation_timestamp < rescue_start,
+            EscrowError::InvalidRescueStart
+        );
+
         common::escrow::create(
             EscrowDst::INIT_SPACE + constants::DISCRIMINATOR_BYTES,
             EscrowType::Dst,
