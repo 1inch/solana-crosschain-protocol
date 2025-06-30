@@ -84,7 +84,7 @@ mod test_escrow_native {
         );
 
         test_state
-            .expect_balance_change(
+            .expect_state_change(
                 transaction,
                 &[
                     native_change(
@@ -143,7 +143,7 @@ mod test_escrow_native {
             get_min_rent_for_size(&mut test_state.client, TokenSPL::get_token_account_size()).await;
 
         test_state
-            .expect_balance_change(
+            .expect_state_change(
                 transaction,
                 &[
                     native_change(
@@ -214,7 +214,7 @@ mod test_escrow_native {
             get_min_rent_for_size(&mut test_state.client, TokenSPL::get_token_account_size()).await;
 
         test_state
-            .expect_balance_change(
+            .expect_state_change(
                 transaction,
                 &[
                     native_change(
@@ -270,20 +270,18 @@ mod test_escrow_native {
             get_min_rent_for_size(&mut test_state.client, DEFAULT_DST_ESCROW_SIZE).await;
 
         test_state
-            .expect_balance_change(
+            .expect_state_change(
                 transaction,
-                &[native_change(
-                    test_state.maker_wallet.keypair.pubkey(),
-                    test_state.test_arguments.escrow_amount + escrow_rent + token_account_rent,
-                )],
+                &[
+                    native_change(
+                        test_state.maker_wallet.keypair.pubkey(),
+                        test_state.test_arguments.escrow_amount + escrow_rent + token_account_rent,
+                    ),
+                    account_closure(escrow_ata, true),
+                    account_closure(escrow, true),
+                ],
             )
             .await;
-
-        let acc_lookup_result = test_state.client.get_account(escrow_ata).await.unwrap();
-        assert!(acc_lookup_result.is_none());
-
-        let acc_lookup_result = test_state.client.get_account(escrow).await.unwrap();
-        assert!(acc_lookup_result.is_none());
     }
 
     #[test_context(TestState)]
@@ -342,7 +340,7 @@ mod test_escrow_wrapped_native {
         let (_, taker_ata) = find_user_ata(test_state);
 
         test_state
-            .expect_balance_change(
+            .expect_state_change(
                 transaction,
                 &[
                     native_change(
@@ -391,9 +389,8 @@ mod test_escrow_wrapped_native {
             .client
             .process_transaction(transaction)
             .await
-            .expect_error((
-                0,
-                ProgramError::Custom(EscrowError::MissingRecipientAta.into()),
+            .expect_error(ProgramError::Custom(
+                EscrowError::MissingRecipientAta.into(),
             ));
     }
 
@@ -430,7 +427,7 @@ mod test_escrow_wrapped_native {
         );
 
         test_state
-            .expect_balance_change(
+            .expect_state_change(
                 transaction,
                 &[
                     native_change(
@@ -502,7 +499,7 @@ mod test_escrow_wrapped_native {
         );
 
         test_state
-            .expect_balance_change(
+            .expect_state_change(
                 transaction,
                 &[
                     native_change(
@@ -573,9 +570,8 @@ mod test_escrow_wrapped_native {
             .client
             .process_transaction(transaction)
             .await
-            .expect_error((
-                0,
-                ProgramError::Custom(EscrowError::MissingRecipientAta.into()),
+            .expect_error(ProgramError::Custom(
+                EscrowError::MissingRecipientAta.into(),
             ));
     }
 

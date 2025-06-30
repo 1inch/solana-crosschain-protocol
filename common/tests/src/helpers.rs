@@ -709,19 +709,29 @@ pub enum BalanceChange {
     Native(Pubkey, i128),
 }
 
-pub fn native_change(k: Pubkey, d: u64) -> BalanceChange {
-    BalanceChange::Native(k, d as i128)
+#[derive(Clone)]
+pub enum StateChange {
+    Balance(BalanceChange),
+    ClosedAccount(Pubkey, bool),
 }
 
-pub fn token_change(k: Pubkey, d: u64) -> BalanceChange {
-    BalanceChange::Token(k, d as i128)
+pub fn native_change(k: Pubkey, d: u64) -> StateChange {
+    StateChange::Balance(BalanceChange::Native(k, d as i128))
+}
+
+pub fn token_change(k: Pubkey, d: u64) -> StateChange {
+    StateChange::Balance(BalanceChange::Token(k, d as i128))
+}
+
+pub fn account_closure(k: Pubkey, d: bool) -> StateChange {
+    StateChange::ClosedAccount(k, d)
 }
 
 async fn get_balances<T, S>(
     test_state: &mut TestStateBase<T, S>,
     balance_query: &[BalanceChange],
 ) -> Vec<u64> {
-    let mut result: Vec<u64> = vec![];
+    let mut result = Vec::with_capacity(balance_query.len());
     for b in balance_query {
         match b {
             BalanceChange::Token(k, _) => {
@@ -736,64 +746,96 @@ async fn get_balances<T, S>(
 }
 
 impl<T, S> TestStateBase<T, S> {
-    pub async fn expect_balance_change(&mut self, tx: Transaction, diff: &[BalanceChange]) {
-        let balances_before = get_balances(self, diff).await;
+    pub async fn expect_state_change(&mut self, tx: Transaction, diff: &[StateChange]) {
+        let mut balance_changes = Vec::new();
+        let mut closure_checks = Vec::new();
 
-        // execute transaction
+        for change in diff {
+            match change {
+                StateChange::Balance(b) => balance_changes.push(b.clone()),
+                StateChange::ClosedAccount(p, b) => closure_checks.push((p, b)),
+            }
+        }
+
+        // Get balances before tx
+        let balances_before = get_balances(self, &balance_changes).await;
+
+        // Execute transaction
         self.client.process_transaction(tx).await.expect_success();
 
-        // compare balances
-        let balances_after = get_balances(self, diff).await;
+        let balances_after = get_balances(self, &balance_changes).await;
+
+        // Assert balance differences
         for ((before, after), exp) in balances_before
             .iter()
             .zip(balances_after.iter())
-            .zip(diff.iter())
+            .zip(balance_changes.iter())
         {
-            let real_diff: i128 = *after as i128 - *before as i128;
+            let real_diff = *after as i128 - *before as i128;
             match exp {
-                BalanceChange::Token(k, token_expected_diff) => {
+                BalanceChange::Token(k, expected) => {
                     assert_eq!(
-                        real_diff, *token_expected_diff,
-                        "Token balance changed unexpectedley for {}, real = {}, expected = {}, diff = {}",
-                        k, real_diff, token_expected_diff, token_expected_diff - real_diff
-                    )
+                        real_diff, *expected,
+                        "Token balance changed unexpectedly for {}, real = {}, expected = {}, diff = {}",
+                        k, real_diff, expected, expected - real_diff
+                    );
                 }
-                BalanceChange::Native(k, native_expected_diff) => {
+                BalanceChange::Native(k, expected) => {
                     assert_eq!(
-                        real_diff, *native_expected_diff,
-                        "SOL balance changed unexpectedley for {}, real = {}, expected = {}, diff= {}",
-                        k, real_diff, native_expected_diff, native_expected_diff - real_diff
-                    )
+                        real_diff, *expected,
+                        "SOL balance changed unexpectedly for {}, real = {}, expected = {}, diff = {}",
+                        k, real_diff, expected, expected - real_diff
+                    );
                 }
+            }
+        }
+
+        // Assert account closures
+        for (account, should_be_closed) in closure_checks {
+            let acc = self.client.get_account(*account).await.unwrap();
+            if *should_be_closed {
+                assert!(
+                    acc.is_none(),
+                    "Expected account {} to be closed, but it still exists",
+                    account
+                );
+            } else {
+                assert!(
+                    acc.is_some(),
+                    "Expected account {} to exist, but it was closed",
+                    account
+                );
             }
         }
     }
 }
 
 pub trait Expectation {
-    type ExpectationType;
     fn expect_success(self);
-    fn expect_error(self, expectation: Self::ExpectationType);
+    fn expect_error(self, expectation: ProgramError);
 }
 
 impl Expectation for Result<(), BanksClientError> {
-    type ExpectationType = (u8, ProgramError);
     fn expect_success(self) {
         self.unwrap()
     }
-    fn expect_error(self, expectation: (u8, ProgramError)) {
-        let (index, expected_program_error) = expectation;
-        if let TransactionError::InstructionError(result_instr_idx, result_instr_error) = self
+
+    fn expect_error(self, expected_program_error: ProgramError) {
+        let err = self
             .expect_err("Expected an error, but transaction succeeded")
-            .unwrap()
-        {
-            let result_program_error: ProgramError = result_instr_error.try_into().unwrap();
+            .unwrap();
+
+        if let TransactionError::InstructionError(_, result_instr_error) = err {
+            let result_program_error: ProgramError = result_instr_error
+                .try_into()
+                .expect("Failed to convert InstructionError to ProgramError");
+
             assert_eq!(
-                (index, expected_program_error),
-                (result_instr_idx, result_program_error)
+                expected_program_error, result_program_error,
+                "Unexpected ProgramError"
             );
         } else {
-            panic!("Unexpected error provided: {:?}", expected_program_error);
+            panic!("Unexpected error type: {:?}", err);
         }
     }
 }

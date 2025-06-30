@@ -113,7 +113,7 @@ mod test_whitelist {
             .client
             .process_transaction(tx)
             .await
-            .expect_error((0, ProgramError::Custom(0)));
+            .expect_error(ProgramError::Custom(0));
     }
 
     #[test_context(TestState)]
@@ -183,7 +183,7 @@ mod test_whitelist {
             .client
             .process_transaction(tx)
             .await
-            .expect_error((0, ProgramError::Custom(WhitelistError::Unauthorized.into())));
+            .expect_error(ProgramError::Custom(WhitelistError::Unauthorized.into()));
     }
 
     #[test_context(TestState)]
@@ -203,7 +203,7 @@ mod test_whitelist {
             .client
             .process_transaction(tx)
             .await
-            .expect_error((0, ProgramError::Custom(WhitelistError::Unauthorized.into())));
+            .expect_error(ProgramError::Custom(WhitelistError::Unauthorized.into()));
     }
 
     #[test_context(TestState)]
@@ -221,7 +221,7 @@ mod test_whitelist {
             .client
             .process_transaction(tx)
             .await
-            .expect_error((0, ProgramError::Custom(WhitelistError::Unauthorized.into())));
+            .expect_error(ProgramError::Custom(WhitelistError::Unauthorized.into()));
 
         // Register user and then try to deregister with previous authority
         let previous_kp = test_state.authority_kp.insecure_clone();
@@ -238,7 +238,7 @@ mod test_whitelist {
             .client
             .process_transaction(tx)
             .await
-            .expect_error((0, ProgramError::Custom(WhitelistError::Unauthorized.into())));
+            .expect_error(ProgramError::Custom(WhitelistError::Unauthorized.into()));
     }
 
     #[test_context(TestState)]
@@ -253,6 +253,6 @@ mod test_whitelist {
             .client
             .process_transaction(tx)
             .await
-            .expect_error((0, ProgramError::Custom(WhitelistError::Unauthorized.into())));
+            .expect_error(ProgramError::Custom(WhitelistError::Unauthorized.into()));
     }
 }

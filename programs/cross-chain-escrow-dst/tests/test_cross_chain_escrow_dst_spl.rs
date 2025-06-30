@@ -109,9 +109,8 @@ run_for_tokens!(
                     .client
                     .process_transaction(transaction)
                     .await
-                    .expect_error((
-                        0,
-                        ProgramError::Custom(EscrowError::InvalidCreationTime.into()),
+                    .expect_error(ProgramError::Custom(
+                        EscrowError::InvalidCreationTime.into(),
                     ))
             }
         }
@@ -144,7 +143,7 @@ run_for_tokens!(
                 let (_, taker_ata) = find_user_ata(test_state);
 
                 test_state
-                    .expect_balance_change(
+                    .expect_state_change(
                         transaction,
                         &[
                             native_change(rent_recipient, token_account_rent + escrow_rent),
@@ -188,7 +187,7 @@ run_for_tokens!(
                 // Send excess tokens to the escrow account
                 mint_excess_tokens(test_state, &escrow_ata, excess_amount).await;
                 test_state
-                    .expect_balance_change(
+                    .expect_state_change(
                         transaction,
                         &[token_change(
                             taker_ata,
@@ -327,7 +326,7 @@ run_for_tokens!(
                 );
 
                 test_state
-                    .expect_balance_change(
+                    .expect_state_change(
                         transaction,
                         &[
                             native_change(
@@ -412,7 +411,7 @@ run_for_tokens!(
                 let (_, taker_ata) = find_user_ata(test_state);
 
                 test_state
-                    .expect_balance_change(
+                    .expect_state_change(
                         transaction,
                         &[
                             native_change(
@@ -507,9 +506,8 @@ run_for_tokens!(
                     .client
                     .process_transaction(transaction)
                     .await
-                    .expect_error((
-                        0,
-                        ProgramError::Custom(ErrorCode::AccountNotInitialized.into()),
+                    .expect_error(ProgramError::Custom(
+                        ErrorCode::AccountNotInitialized.into(),
                     ));
             }
         }
@@ -542,20 +540,18 @@ run_for_tokens!(
                 mint_excess_tokens(test_state, &escrow_ata, excess_amount).await;
 
                 test_state
-                    .expect_balance_change(
+                    .expect_state_change(
                         transaction,
-                        &[token_change(
-                            maker_ata,
-                            test_state.test_arguments.escrow_amount + excess_amount,
-                        )],
+                        &[
+                            token_change(
+                                maker_ata,
+                                test_state.test_arguments.escrow_amount + excess_amount,
+                            ),
+                            account_closure(escrow_ata, true),
+                            account_closure(escrow, true),
+                        ],
                     )
                     .await;
-
-                let acc_lookup_result = test_state.client.get_account(escrow_ata).await.unwrap();
-                assert!(acc_lookup_result.is_none());
-
-                let acc_lookup_result = test_state.client.get_account(escrow).await.unwrap();
-                assert!(acc_lookup_result.is_none());
             }
 
             #[test_context(TestState)]

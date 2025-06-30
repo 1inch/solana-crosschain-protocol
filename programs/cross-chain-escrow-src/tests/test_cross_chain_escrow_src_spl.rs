@@ -45,9 +45,8 @@ run_for_tokens!(
                     .client
                     .process_transaction(transaction)
                     .await
-                    .expect_error((
-                        0,
-                        ProgramError::Custom(EscrowError::ZeroAmountOrDeposit.into()),
+                    .expect_error(ProgramError::Custom(
+                        EscrowError::ZeroAmountOrDeposit.into(),
                     ));
             }
 
@@ -63,9 +62,8 @@ run_for_tokens!(
                     .client
                     .process_transaction(transaction)
                     .await
-                    .expect_error((
-                        0,
-                        ProgramError::Custom(EscrowError::ZeroAmountOrDeposit.into()),
+                    .expect_error(ProgramError::Custom(
+                        EscrowError::ZeroAmountOrDeposit.into(),
                     ));
             }
 
@@ -80,9 +78,8 @@ run_for_tokens!(
                     .client
                     .process_transaction(transaction)
                     .await
-                    .expect_error((
-                        0,
-                        ProgramError::Custom(EscrowError::SafetyDepositTooLarge.into()),
+                    .expect_error(ProgramError::Custom(
+                        EscrowError::SafetyDepositTooLarge.into(),
                     ));
             }
 
@@ -114,11 +111,8 @@ run_for_tokens!(
                     .client
                     .process_transaction(transaction)
                     .await
-                    .expect_error((
-                        0,
-                        ProgramError::Custom(
-                            solana_sdk::system_instruction::SystemError::AccountAlreadyInUse as u32,
-                        ),
+                    .expect_error(ProgramError::Custom(
+                        solana_sdk::system_instruction::SystemError::AccountAlreadyInUse as u32,
                     ));
             }
 
@@ -134,7 +128,7 @@ run_for_tokens!(
                     .client
                     .process_transaction(tx)
                     .await
-                    .expect_error((0, ProgramError::Custom(EscrowError::InvalidTime.into())));
+                    .expect_error(ProgramError::Custom(EscrowError::InvalidTime.into()));
 
                 // Check that the order accounts have not been created.
                 let acc_lookup_result = test_state.client.get_account(order).await.unwrap();
@@ -165,9 +159,8 @@ run_for_tokens!(
                     .client
                     .process_transaction(transaction)
                     .await
-                    .expect_error((
-                        0,
-                        ProgramError::Custom(EscrowError::InvalidCancellationFee.into()),
+                    .expect_error(ProgramError::Custom(
+                        EscrowError::InvalidCancellationFee.into(),
                     ));
             }
 
@@ -183,10 +176,7 @@ run_for_tokens!(
                     .client
                     .process_transaction(transaction)
                     .await
-                    .expect_error((
-                        0,
-                        ProgramError::Custom(EscrowError::InvalidPartsAmount.into()),
-                    ));
+                    .expect_error(ProgramError::Custom(EscrowError::InvalidPartsAmount.into()));
             }
 
             #[test_context(TestState)]
@@ -201,10 +191,7 @@ run_for_tokens!(
                     .client
                     .process_transaction(transaction)
                     .await
-                    .expect_error((
-                        0,
-                        ProgramError::Custom(EscrowError::InvalidPartsAmount.into()),
-                    ));
+                    .expect_error(ProgramError::Custom(EscrowError::InvalidPartsAmount.into()));
             }
 
             #[test_context(TestState)]
@@ -220,10 +207,7 @@ run_for_tokens!(
                     .client
                     .process_transaction(transaction)
                     .await
-                    .expect_error((
-                        0,
-                        ProgramError::Custom(EscrowError::InvalidPartsAmount.into()),
-                    ));
+                    .expect_error(ProgramError::Custom(EscrowError::InvalidPartsAmount.into()));
             }
         }
 
@@ -335,9 +319,8 @@ run_for_tokens!(
                     .client
                     .process_transaction(tx)
                     .await
-                    .expect_error((
-                        0,
-                        ProgramError::Custom(EscrowError::DutchAuctionDataHashMismatch.into()),
+                    .expect_error(ProgramError::Custom(
+                        EscrowError::DutchAuctionDataHashMismatch.into(),
                     ));
             }
 
@@ -392,9 +375,8 @@ run_for_tokens!(
                     .client
                     .process_transaction(tx)
                     .await
-                    .expect_error((
-                        0,
-                        ProgramError::Custom(ErrorCode::AccountNotInitialized.into()),
+                    .expect_error(ProgramError::Custom(
+                        ErrorCode::AccountNotInitialized.into(),
                     ));
 
                 // Check that the order accounts have not been created.
@@ -460,7 +442,7 @@ run_for_tokens!(
                     .client
                     .process_transaction(transaction)
                     .await
-                    .expect_error((0, ProgramError::ArithmeticOverflow));
+                    .expect_error(ProgramError::ArithmeticOverflow);
             }
 
             #[test_context(TestState)]
@@ -480,7 +462,7 @@ run_for_tokens!(
                     .client
                     .process_transaction(transaction)
                     .await
-                    .expect_error((0, ProgramError::Custom(EscrowError::OrderHasExpired.into())));
+                    .expect_error(ProgramError::Custom(EscrowError::OrderHasExpired.into()));
             }
 
             #[test_context(TestState)]
@@ -498,7 +480,7 @@ run_for_tokens!(
                     .client
                     .process_transaction(transaction)
                     .await
-                    .expect_error((0, ProgramError::Custom(EscrowError::InvalidAmount.into())));
+                    .expect_error(ProgramError::Custom(EscrowError::InvalidAmount.into()));
             }
 
             #[test_context(TestState)]
@@ -511,9 +493,8 @@ run_for_tokens!(
                     .client
                     .process_transaction(transaction)
                     .await
-                    .expect_error((
-                        0,
-                        ProgramError::Custom(ErrorCode::AccountNotInitialized.into()),
+                    .expect_error(ProgramError::Custom(
+                        ErrorCode::AccountNotInitialized.into(),
                     ));
             }
         }
@@ -546,7 +527,7 @@ run_for_tokens!(
                 // Send excess tokens to the escrow account
                 mint_excess_tokens(test_state, &escrow_ata, excess_amount).await;
                 test_state
-                    .expect_balance_change(
+                    .expect_state_change(
                         transaction,
                         &[token_change(
                             taker_ata,
@@ -679,7 +660,7 @@ run_for_tokens!(
                 );
 
                 test_state
-                    .expect_balance_change(
+                    .expect_state_change(
                         transaction,
                         &[
                             native_change(
@@ -763,7 +744,7 @@ run_for_tokens!(
                 );
 
                 test_state
-                    .expect_balance_change(
+                    .expect_state_change(
                         transaction,
                         &[
                             native_change(
@@ -900,9 +881,8 @@ run_for_tokens!(
                     .client
                     .process_transaction(transaction)
                     .await
-                    .expect_error((
-                        0,
-                        ProgramError::Custom(ErrorCode::AccountNotInitialized.into()),
+                    .expect_error(ProgramError::Custom(
+                        ErrorCode::AccountNotInitialized.into(),
                     ));
             }
         }
@@ -940,20 +920,18 @@ run_for_tokens!(
                 mint_excess_tokens(test_state, &escrow_ata, excess_amount).await;
 
                 test_state
-                    .expect_balance_change(
+                    .expect_state_change(
                         transaction,
-                        &[token_change(
-                            maker_ata,
-                            test_state.test_arguments.escrow_amount + excess_amount,
-                        )],
+                        &[
+                            token_change(
+                                maker_ata,
+                                test_state.test_arguments.escrow_amount + excess_amount,
+                            ),
+                            account_closure(escrow, true),
+                            account_closure(escrow_ata, true),
+                        ],
                     )
                     .await;
-
-                let acc_lookup_result = test_state.client.get_account(escrow_ata).await.unwrap();
-                assert!(acc_lookup_result.is_none());
-
-                let acc_lookup_result = test_state.client.get_account(escrow).await.unwrap();
-                assert!(acc_lookup_result.is_none());
             }
 
             #[test_context(TestState)]
@@ -991,10 +969,7 @@ run_for_tokens!(
                     .client
                     .process_transaction(transaction)
                     .await
-                    .expect_error((
-                        0,
-                        ProgramError::Custom(ErrorCode::ConstraintTokenOwner.into()),
-                    ))
+                    .expect_error(ProgramError::Custom(ErrorCode::ConstraintTokenOwner.into()))
             }
 
             #[test_context(TestState)]
@@ -1032,20 +1007,18 @@ run_for_tokens!(
                 // Send excess tokens to the order account
                 mint_excess_tokens(test_state, &order_ata, excess_amount).await;
 
-                let balance_changes: Vec<BalanceChange> = vec![token_change(
-                    maker_ata,
-                    test_state.test_arguments.order_amount + excess_amount,
-                )];
+                let balance_changes: Vec<StateChange> = vec![
+                    token_change(
+                        maker_ata,
+                        test_state.test_arguments.order_amount + excess_amount,
+                    ),
+                    account_closure(order, true),
+                    account_closure(order_ata, true),
+                ];
 
                 test_state
-                    .expect_balance_change(transaction, &balance_changes)
+                    .expect_state_change(transaction, &balance_changes)
                     .await;
-
-                let acc_lookup_result = test_state.client.get_account(order).await.unwrap();
-                assert!(acc_lookup_result.is_none());
-
-                let acc_lookup_result = test_state.client.get_account(order_ata).await.unwrap();
-                assert!(acc_lookup_result.is_none());
             }
         }
 
@@ -1083,20 +1056,18 @@ run_for_tokens!(
                 // Send excess tokens to the order account
                 mint_excess_tokens(test_state, &order_ata, excess_amount).await;
 
-                let balance_changes: Vec<BalanceChange> = vec![token_change(
-                    maker_ata,
-                    test_state.test_arguments.order_amount + excess_amount,
-                )];
+                let balance_changes: Vec<StateChange> = vec![
+                    token_change(
+                        maker_ata,
+                        test_state.test_arguments.order_amount + excess_amount,
+                    ),
+                    account_closure(order, true),
+                    account_closure(order_ata, true),
+                ];
 
                 test_state
-                    .expect_balance_change(transaction, &balance_changes)
+                    .expect_state_change(transaction, &balance_changes)
                     .await;
-
-                let acc_lookup_result = test_state.client.get_account(order).await.unwrap();
-                assert!(acc_lookup_result.is_none());
-
-                let acc_lookup_result = test_state.client.get_account(order_ata).await.unwrap();
-                assert!(acc_lookup_result.is_none());
             }
 
             #[test_context(TestState)]
@@ -1140,7 +1111,7 @@ run_for_tokens!(
                     .client
                     .process_transaction(transaction)
                     .await
-                    .expect_error((0, ProgramError::Custom(EscrowError::OrderNotExpired.into())));
+                    .expect_error(ProgramError::Custom(EscrowError::OrderNotExpired.into()));
             }
         }
 
@@ -1211,7 +1182,7 @@ run_for_tokens!(
                     .client
                     .process_transaction(transaction)
                     .await
-                    .expect_error((0, ProgramError::Custom(EscrowError::InvalidTime.into())))
+                    .expect_error(ProgramError::Custom(EscrowError::InvalidTime.into()))
             }
         }
 
@@ -1286,7 +1257,7 @@ run_for_tokens!(
                     .client
                     .process_transaction(transaction)
                     .await
-                    .expect_error((0, ProgramError::Custom(EscrowError::InvalidTime.into())));
+                    .expect_error(ProgramError::Custom(EscrowError::InvalidTime.into()));
             }
 
             // #[test_context(TestState)]
@@ -1347,10 +1318,7 @@ run_for_tokens!(
                     .client
                     .process_transaction(transaction)
                     .await
-                    .expect_error((
-                        0,
-                        ProgramError::Custom(ErrorCode::ConstraintTokenOwner.into()),
-                    ))
+                    .expect_error(ProgramError::Custom(ErrorCode::ConstraintTokenOwner.into()))
             }
 
             #[test_context(TestState)]
@@ -1389,10 +1357,7 @@ run_for_tokens!(
                     .client
                     .process_transaction(transaction)
                     .await
-                    .expect_error((
-                        0,
-                        ProgramError::Custom(ErrorCode::ConstraintAssociated.into()),
-                    ))
+                    .expect_error(ProgramError::Custom(ErrorCode::ConstraintAssociated.into()))
             }
         }
 

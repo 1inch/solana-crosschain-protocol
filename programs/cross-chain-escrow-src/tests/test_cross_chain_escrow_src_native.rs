@@ -83,9 +83,8 @@ mod test_native_src {
             .client
             .process_transaction(tx)
             .await
-            .expect_error((
-                0,
-                ProgramError::Custom(EscrowError::InconsistentNativeTrait.into()),
+            .expect_error(ProgramError::Custom(
+                EscrowError::InconsistentNativeTrait.into(),
             ));
     }
 
@@ -125,7 +124,7 @@ mod test_native_src {
             get_min_rent_for_size(&mut test_state.client, TokenSPL::get_token_account_size()).await;
 
         test_state
-            .expect_balance_change(
+            .expect_state_change(
                 transaction,
                 &[
                     native_change(
@@ -202,7 +201,7 @@ mod test_native_src {
             get_min_rent_for_size(&mut test_state.client, TokenSPL::get_token_account_size()).await;
 
         test_state
-            .expect_balance_change(
+            .expect_state_change(
                 transaction,
                 &[
                     native_change(
@@ -270,9 +269,8 @@ mod test_native_src {
             .client
             .process_transaction(transaction)
             .await
-            .expect_error((
-                0,
-                ProgramError::Custom(EscrowError::InconsistentNativeTrait.into()),
+            .expect_error(ProgramError::Custom(
+                EscrowError::InconsistentNativeTrait.into(),
             ));
     }
 
@@ -342,9 +340,8 @@ mod test_native_src {
             .client
             .process_transaction(transaction)
             .await
-            .expect_error((
-                0,
-                ProgramError::Custom(EscrowError::InconsistentNativeTrait.into()),
+            .expect_error(ProgramError::Custom(
+                EscrowError::InconsistentNativeTrait.into(),
             ));
     }
 
@@ -369,7 +366,7 @@ mod test_native_src {
             get_min_rent_for_size(&mut test_state.client, DEFAULT_SRC_ESCROW_SIZE).await;
 
         test_state
-            .expect_balance_change(
+            .expect_state_change(
                 transaction,
                 &[
                     native_change(
@@ -380,15 +377,11 @@ mod test_native_src {
                         test_state.taker_wallet.keypair.pubkey(),
                         escrow_rent + token_account_rent,
                     ),
+                    account_closure(escrow, true),
+                    account_closure(escrow_ata, true),
                 ],
             )
             .await;
-
-        let acc_lookup_result = test_state.client.get_account(escrow_ata).await.unwrap();
-        assert!(acc_lookup_result.is_none());
-
-        let acc_lookup_result = test_state.client.get_account(escrow).await.unwrap();
-        assert!(acc_lookup_result.is_none());
     }
 
     #[test_context(TestState)]
@@ -430,7 +423,7 @@ mod test_native_src {
             get_min_rent_for_size(&mut test_state.client, SplTokenAccount::LEN).await;
 
         test_state
-            .expect_balance_change(
+            .expect_state_change(
                 transaction,
                 &[
                     native_change(canceller.pubkey(), test_state.test_arguments.safety_deposit),
@@ -560,7 +553,7 @@ mod test_wrapped_native {
             get_min_rent_for_size(&mut test_state.client, TokenSPL::get_token_account_size()).await;
 
         test_state
-            .expect_balance_change(
+            .expect_state_change(
                 transaction,
                 &[
                     native_change(
@@ -633,7 +626,7 @@ mod test_wrapped_native {
             get_min_rent_for_size(&mut test_state.client, TokenSPL::get_token_account_size()).await;
 
         test_state
-            .expect_balance_change(
+            .expect_state_change(
                 transaction,
                 &[
                     native_change(
@@ -698,9 +691,8 @@ mod test_wrapped_native {
             .client
             .process_transaction(transaction)
             .await
-            .expect_error((
-                0,
-                ProgramError::Custom(EscrowError::InconsistentNativeTrait.into()),
+            .expect_error(ProgramError::Custom(
+                EscrowError::InconsistentNativeTrait.into(),
             ));
     }
 
@@ -767,9 +759,8 @@ mod test_wrapped_native {
             .client
             .process_transaction(transaction)
             .await
-            .expect_error((
-                0,
-                ProgramError::Custom(EscrowError::InconsistentNativeTrait.into()),
+            .expect_error(ProgramError::Custom(
+                EscrowError::InconsistentNativeTrait.into(),
             ));
     }
 
@@ -821,7 +812,7 @@ mod test_wrapped_native {
             get_min_rent_for_size(&mut test_state.client, SplTokenAccount::LEN).await;
 
         test_state
-            .expect_balance_change(
+            .expect_state_change(
                 transaction,
                 &[
                     native_change(canceller.pubkey(), test_state.test_arguments.safety_deposit),
