@@ -448,7 +448,9 @@ run_for_tokens!(
             async fn test_escrow_creation_fails_if_cancellation_duration_overflows(
                 test_state: &mut TestState,
             ) {
-                test_state.test_arguments.cancellation_duration = u32::MAX;
+                test_state.test_arguments.cancellation_duration = u32::MAX / 2;
+                test_state.test_arguments.public_withdrawal_duration = u32::MAX / 2;
+                test_state.test_arguments.rescue_start = u32::MAX;
                 create_order(test_state).await;
                 prepare_resolvers(test_state, &[test_state.taker_wallet.keypair.pubkey()]).await;
                 let (_, _, transaction) = create_escrow_data(test_state);
