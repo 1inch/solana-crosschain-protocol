@@ -82,10 +82,7 @@ pub mod cross_chain_escrow_src {
             .ok_or(ProgramError::ArithmeticOverflow)?;
 
         require!(
-            expiration_time
-                .checked_add(cancellation_duration)
-                .ok_or(ProgramError::ArithmeticOverflow)?
-                < rescue_start,
+            expiration_time < rescue_start,
             EscrowError::InvalidRescueStart
         );
 
