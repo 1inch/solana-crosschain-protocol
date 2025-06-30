@@ -116,7 +116,7 @@ run_for_tokens!(
 
             #[test_context(TestState)]
             #[tokio::test]
-            async fn test_escrow_creation_fails_when_rescue_start_less_then_cancellation_start(
+            async fn test_escrow_creation_fails_when_rescue_start_is_less_than_cancellation_start(
                 test_state: &mut TestState,
             ) {
                 test_state.test_arguments.src_cancellation_timestamp =
