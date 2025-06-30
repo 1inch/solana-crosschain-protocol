@@ -776,7 +776,8 @@ mod test_wrapped_native {
         test_state.token = NATIVE_MINT;
         create_order(test_state).await;
         prepare_resolvers(test_state, &[test_state.taker_wallet.keypair.pubkey()]).await;
-        common_escrow_tests::test_cancel(test_state).await
+        let (escrow, escrow_ata) = create_escrow(test_state).await;
+        common_escrow_tests::test_cancel(test_state, &escrow, &escrow_ata).await
     }
 
     #[test_context(TestState)]

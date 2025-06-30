@@ -518,7 +518,8 @@ run_for_tokens!(
             #[test_context(TestState)]
             #[tokio::test]
             async fn test_cancel(test_state: &mut TestState) {
-                common_escrow_tests::test_cancel(test_state).await
+                let (escrow, escrow_ata) = create_escrow(test_state).await;
+                common_escrow_tests::test_cancel(test_state, &escrow, &escrow_ata).await
             }
 
             #[test_context(TestState)]
