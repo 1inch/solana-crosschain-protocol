@@ -178,6 +178,10 @@ pub mod cross_chain_escrow_src {
             order.token.as_ref(),
             &order.amount.to_be_bytes(),
             &order.safety_deposit.to_be_bytes(),
+            &order.finality_duration.to_be_bytes(),
+            &order.withdrawal_duration.to_be_bytes(),
+            &order.public_withdrawal_duration.to_be_bytes(),
+            &order.cancellation_duration.to_be_bytes(),
             &order.rescue_start.to_be_bytes(),
             &[ctx.bumps.order],
         ];
@@ -361,6 +365,10 @@ pub mod cross_chain_escrow_src {
             order.token.as_ref(),
             &order.amount.to_be_bytes(),
             &order.safety_deposit.to_be_bytes(),
+            &order.finality_duration.to_be_bytes(),
+            &order.withdrawal_duration.to_be_bytes(),
+            &order.public_withdrawal_duration.to_be_bytes(),
+            &order.cancellation_duration.to_be_bytes(),
             &order.rescue_start.to_be_bytes(),
             &[ctx.bumps.order],
         ];
@@ -428,6 +436,10 @@ pub mod cross_chain_escrow_src {
             order.token.as_ref(),
             &order.amount.to_be_bytes(),
             &order.safety_deposit.to_be_bytes(),
+            &order.finality_duration.to_be_bytes(),
+            &order.withdrawal_duration.to_be_bytes(),
+            &order.public_withdrawal_duration.to_be_bytes(),
+            &order.cancellation_duration.to_be_bytes(),
             &order.rescue_start.to_be_bytes(),
             &[ctx.bumps.order],
         ];
@@ -536,6 +548,10 @@ pub mod cross_chain_escrow_src {
         order_mint: Pubkey,
         order_amount: u64,
         safety_deposit: u64,
+        finality_duration: u32,
+        withdrawal_duration: u32,
+        public_withdrawal_duration: u32,
+        cancellation_duration: u32,
         rescue_start: u32,
         rescue_amount: u64,
     ) -> Result<()> {
@@ -547,6 +563,10 @@ pub mod cross_chain_escrow_src {
             order_mint.as_ref(),
             &order_amount.to_be_bytes(),
             &safety_deposit.to_be_bytes(),
+            &finality_duration.to_be_bytes(),
+            &withdrawal_duration.to_be_bytes(),
+            &public_withdrawal_duration.to_be_bytes(),
+            &cancellation_duration.to_be_bytes(),
             &rescue_start.to_be_bytes(),
             &[ctx.bumps.order],
         ];
@@ -595,6 +615,10 @@ pub struct Create<'info> {
             mint.key().as_ref(),
             amount.to_be_bytes().as_ref(),
             safety_deposit.to_be_bytes().as_ref(),
+            finality_duration.to_be_bytes().as_ref(),
+            withdrawal_duration.to_be_bytes().as_ref(),
+            public_withdrawal_duration.to_be_bytes().as_ref(),
+            cancellation_duration.to_be_bytes().as_ref(),
             rescue_start.to_be_bytes().as_ref(),
             ],
         bump,
@@ -648,6 +672,10 @@ pub struct CreateEscrow<'info> {
             order.token.key().as_ref(),
             order.amount.to_be_bytes().as_ref(),
             order.safety_deposit.to_be_bytes().as_ref(),
+            order.finality_duration.to_be_bytes().as_ref(),
+            order.withdrawal_duration.to_be_bytes().as_ref(),
+            order.public_withdrawal_duration.to_be_bytes().as_ref(),
+            order.cancellation_duration.to_be_bytes().as_ref(),
             order.rescue_start.to_be_bytes().as_ref(),
         ],
         bump,
@@ -917,6 +945,10 @@ pub struct CancelOrder<'info> {
             mint.key().as_ref(),
             order.amount.to_be_bytes().as_ref(),
             order.safety_deposit.to_be_bytes().as_ref(),
+            order.finality_duration.to_be_bytes().as_ref(),
+            order.withdrawal_duration.to_be_bytes().as_ref(),
+            order.public_withdrawal_duration.to_be_bytes().as_ref(),
+            order.cancellation_duration.to_be_bytes().as_ref(),
             order.rescue_start.to_be_bytes().as_ref(),
         ],
         bump,
@@ -969,6 +1001,10 @@ pub struct CancelOrderbyResolver<'info> {
             order.token.key().as_ref(),
             order.amount.to_be_bytes().as_ref(),
             order.safety_deposit.to_be_bytes().as_ref(),
+            order.finality_duration.to_be_bytes().as_ref(),
+            order.withdrawal_duration.to_be_bytes().as_ref(),
+            order.public_withdrawal_duration.to_be_bytes().as_ref(),
+            order.cancellation_duration.to_be_bytes().as_ref(),
             order.rescue_start.to_be_bytes().as_ref(),
         ],
         bump,
@@ -1036,7 +1072,7 @@ pub struct RescueFundsForEscrow<'info> {
 }
 
 #[derive(Accounts)]
-#[instruction(order_hash: [u8; 32], hashlock: [u8; 32], order_creator: Pubkey, order_mint: Pubkey, order_amount: u64, safety_deposit: u64, rescue_start: u32)]
+#[instruction(order_hash: [u8; 32], hashlock: [u8; 32], order_creator: Pubkey, order_mint: Pubkey, order_amount: u64, safety_deposit: u64, finality_duration: u32, withdrawal_duration: u32, public_withdrawal_duration: u32, cancellation_duration: u32, rescue_start: u32)]
 pub struct RescueFundsForOrder<'info> {
     #[account(
         mut, // Needed because this account receives lamports from closed token account.
@@ -1059,6 +1095,10 @@ pub struct RescueFundsForOrder<'info> {
             order_mint.as_ref(),
             order_amount.to_be_bytes().as_ref(),
             safety_deposit.to_be_bytes().as_ref(),
+            finality_duration.to_be_bytes().as_ref(),
+            withdrawal_duration.to_be_bytes().as_ref(),
+            public_withdrawal_duration.to_be_bytes().as_ref(),
+            cancellation_duration.to_be_bytes().as_ref(),
             rescue_start.to_be_bytes().as_ref(),
         ],
         bump,

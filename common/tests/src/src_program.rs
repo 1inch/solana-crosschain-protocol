@@ -275,6 +275,10 @@ pub fn get_rescue_funds_from_order_tx<S: TokenVariant>(
             order_mint: test_state.token,
             order_amount: test_state.test_arguments.order_amount,
             safety_deposit: test_state.test_arguments.safety_deposit,
+            finality_duration: test_state.test_arguments.finality_duration,
+            withdrawal_duration: test_state.test_arguments.withdrawal_duration,
+            public_withdrawal_duration: test_state.test_arguments.public_withdrawal_duration,
+            cancellation_duration: test_state.test_arguments.cancellation_duration,
             rescue_start: test_state.test_arguments.rescue_start,
             rescue_amount: test_state.test_arguments.rescue_amount,
         });
@@ -324,6 +328,26 @@ pub fn get_order_addresses<S: TokenVariant>(
             test_state
                 .test_arguments
                 .safety_deposit
+                .to_be_bytes()
+                .as_ref(),
+            test_state
+                .test_arguments
+                .finality_duration
+                .to_be_bytes()
+                .as_ref(),
+            test_state
+                .test_arguments
+                .withdrawal_duration
+                .to_be_bytes()
+                .as_ref(),
+            test_state
+                .test_arguments
+                .public_withdrawal_duration
+                .to_be_bytes()
+                .as_ref(),
+            test_state
+                .test_arguments
+                .cancellation_duration
                 .to_be_bytes()
                 .as_ref(),
             test_state
