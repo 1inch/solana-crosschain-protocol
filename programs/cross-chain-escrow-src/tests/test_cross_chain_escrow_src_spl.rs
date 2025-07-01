@@ -518,10 +518,12 @@ run_for_tokens!(
             async fn test_escrow_creation_fails_when_rescue_start_is_less_than_public_cancellation_time(
                 test_state: &mut TestState,
             ) {
+                // set expiration_duration to be less than rescue_start for skip require in create_order
                 test_state.test_arguments.expiration_duration = common::constants::RESCUE_DELAY - 1;
                 create_order(test_state).await;
                 prepare_resolvers(test_state, &[test_state.taker_wallet.keypair.pubkey()]).await;
 
+                // create escrow just before rescue_start
                 set_time(
                     &mut test_state.context,
                     test_state.init_timestamp + test_state.test_arguments.expiration_duration - 1,
