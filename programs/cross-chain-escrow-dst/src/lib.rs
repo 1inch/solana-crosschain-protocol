@@ -45,7 +45,7 @@ pub mod cross_chain_escrow_dst {
         );
 
         require!(
-            src_cancellation_timestamp < rescue_start,
+            cancellation_start < rescue_start,
             EscrowError::InvalidRescueStart
         );
 
