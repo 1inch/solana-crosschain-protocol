@@ -304,6 +304,9 @@ pub fn uni_transfer(
             amount,
             program,
         } => {
+            if *amount == 0 {
+                return Ok(());
+            }
             let ctx = system_program::Transfer {
                 from: from.to_account_info(),
                 to: to.to_account_info(),
@@ -325,6 +328,9 @@ pub fn uni_transfer(
             amount,
             program,
         } => {
+            if *amount == 0 {
+                return Ok(());
+            }
             let ctx = TransferChecked {
                 from: from.to_account_info(),
                 mint: mint.to_account_info(),
