@@ -116,7 +116,7 @@ pub fn get_default_testargs(nowsecs: u32) -> TestArgs {
         cancellation_duration: DEFAULT_PERIOD_DURATION,
         src_cancellation_timestamp: nowsecs + 10000,
         init_timestamp: nowsecs,
-        rescue_start: nowsecs + RESCUE_DELAY + 100,
+        rescue_start: nowsecs + RESCUE_DELAY,
         rescue_amount: DEFAULT_RESCUE_AMOUNT,
         expiration_time: nowsecs + DEFAULT_PERIOD_DURATION,
         asset_is_native: false, // This is set to false by default, will be changed for native tests.

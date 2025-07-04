@@ -77,6 +77,11 @@ pub mod cross_chain_escrow_src {
             now,
         )?;
 
+        require!(
+            expiration_time < rescue_start,
+            EscrowError::InvalidRescueStart
+        );
+
         ctx.accounts.order.set_inner(Order {
             order_hash,
             hashlock,
@@ -165,6 +170,11 @@ pub mod cross_chain_escrow_src {
         let public_cancellation_start = cancellation_start
             .checked_add(order.cancellation_duration)
             .ok_or(ProgramError::ArithmeticOverflow)?;
+
+        require!(
+            public_cancellation_start < order.rescue_start,
+            EscrowError::InvalidRescueStart
+        );
 
         let order_seeds = [
             "order".as_bytes(),
