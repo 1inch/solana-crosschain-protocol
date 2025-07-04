@@ -1222,11 +1222,11 @@ fn is_valid_partial_fill(
     calculated_index == validated_index
 }
 
-pub fn get_escrow_hashlock(order_hash: [u8; 32], merkle_proof: Option<MerkleProof>) -> [u8; 32] {
+pub fn get_escrow_hashlock(order_hashlock: [u8; 32], merkle_proof: Option<MerkleProof>) -> [u8; 32] {
     if let Some(merkle_proof) = merkle_proof {
         merkle_proof.hashed_secret
     } else {
-        order_hash
+        order_hashlock
     }
 }
 
