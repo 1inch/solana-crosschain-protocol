@@ -214,7 +214,17 @@ pub mod cross_chain_escrow_src {
             public_cancellation_start,
             rescue_start: order.rescue_start,
             asset_is_native: order.asset_is_native,
-            dst_amount: get_dst_amount(order.dst_amount, &dutch_auction_data)?,
+            dst_amount: get_dst_amount(
+                U256(order.dst_amount)
+                    .checked_mul(U256::from(amount))
+                    .expect("Overflow during multiplication in dst_amount calculation")
+                    .checked_div(U256::from(order.amount))
+                    .expect(
+                        "Division by zero or overflow during division in dst_amount calculation",
+                    )
+                    .0,
+                &dutch_auction_data,
+            )?,
         });
 
         if !order.allow_multiple_fills || order.remaining_amount == amount {
