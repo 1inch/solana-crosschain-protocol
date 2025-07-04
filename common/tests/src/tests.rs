@@ -966,3 +966,117 @@ pub async fn test_escrow_creation_fails_if_token_is_not_native<
             EscrowError::InconsistentNativeTrait.into(),
         ));
 }
+
+#[cfg(test)]
+mod test {
+    use crate::helpers::*;
+    use crate::wrap_entry;
+    use common::escrow::{uni_transfer, UniTransferParams};
+    use solana_program_test::tokio;
+    use solana_sdk::{signature::Signer, transaction::Transaction};
+
+    use anchor_lang::{
+        accounts::{interface_account::InterfaceAccount, program::Program},
+        prelude::{AccountInfo, AccountMeta, Interface, Pubkey},
+    };
+    use anchor_spl::token::spl_token::{native_mint::ID as NATIVE_MINT, ID as spl_program_id};
+    use solana_program::instruction::Instruction;
+    use solana_program_test::{processor, BanksClient, ProgramTest, ProgramTestContext};
+    use solana_sdk::{entrypoint::ProgramResult, system_program::ID as system_program_id};
+
+    // Tries to transfer a zero amount via native transfer with non existent target account.
+    // Expect to not throw an error since we expect the `uni_transfer` to skip the transaction
+    // altogether since the amount is zero.
+    #[tokio::test]
+    async fn test_uni_transfer_zero_amount_for_native_transfer() {
+        let contract_id = Pubkey::new_unique();
+        let mut program_test: ProgramTest = ProgramTest::default();
+        fn contract<'a>(_: &Pubkey, accounts: &'a [AccountInfo<'a>], _: &[u8]) -> ProgramResult {
+            uni_transfer(
+                &UniTransferParams::NativeTransfer {
+                    from: accounts[1].clone(),
+                    to: accounts[2].clone(),
+                    amount: 0,
+                    program: Program::try_from(&accounts[3]).unwrap(),
+                },
+                None,
+            )?;
+
+            Ok(())
+        }
+        program_test.add_program("uni-transfer-test", contract_id, wrap_entry!(contract));
+        let context: ProgramTestContext = program_test.start_with_context().await;
+        let client: BanksClient = context.banks_client.clone();
+
+        let from = Pubkey::new_unique();
+        let to = Pubkey::new_unique();
+        let instruction: Instruction = Instruction {
+            program_id: contract_id,
+            accounts: vec![
+                AccountMeta::new(context.payer.pubkey(), true),
+                AccountMeta::new(from, false),
+                AccountMeta::new(to, false),
+                AccountMeta::new(system_program_id, false),
+            ],
+            data: vec![],
+        };
+        let transaction = Transaction::new_signed_with_payer(
+            &[instruction],
+            Some(&context.payer.pubkey()),
+            &[&context.payer],
+            context.last_blockhash,
+        );
+        client
+            .process_transaction(transaction)
+            .await
+            .expect_success();
+    }
+
+    // Same as above, but for token transfers.
+    #[tokio::test]
+    async fn test_uni_transfer_zero_amount_for_token_transfer() {
+        let contract_id = Pubkey::new_unique();
+        let mut program_test: ProgramTest = ProgramTest::default();
+        fn contract<'a>(_: &Pubkey, accounts: &'a [AccountInfo<'a>], _: &[u8]) -> ProgramResult {
+            uni_transfer(
+                &UniTransferParams::TokenTransfer {
+                    from: accounts[1].clone(),
+                    authority: accounts[1].clone(),
+                    to: accounts[2].clone(),
+                    mint: InterfaceAccount::try_from(&accounts[3]).unwrap(),
+                    amount: 0,
+                    program: Interface::try_from(&accounts[4]).unwrap(),
+                },
+                None,
+            )?;
+            Ok(())
+        }
+        program_test.add_program("uni-transfer-test", contract_id, wrap_entry!(contract));
+        let context: ProgramTestContext = program_test.start_with_context().await;
+        let client: BanksClient = context.banks_client.clone();
+
+        let from = Pubkey::new_unique();
+        let to = Pubkey::new_unique();
+        let instruction: Instruction = Instruction {
+            program_id: contract_id,
+            accounts: vec![
+                AccountMeta::new(context.payer.pubkey(), true),
+                AccountMeta::new(from, false),
+                AccountMeta::new(to, false),
+                AccountMeta::new(NATIVE_MINT, false),
+                AccountMeta::new(spl_program_id, false),
+            ],
+            data: vec![],
+        };
+        let transaction = Transaction::new_signed_with_payer(
+            &[instruction],
+            Some(&context.payer.pubkey()),
+            &[&context.payer],
+            context.last_blockhash,
+        );
+        client
+            .process_transaction(transaction)
+            .await
+            .expect_success();
+    }
+}
