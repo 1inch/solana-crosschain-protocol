@@ -143,8 +143,6 @@ run_for_tokens!(
             async fn test_order_creation_fails_if_fee_is_greater_than_lamport_balance(
                 test_state: &mut TestState,
             ) {
-                let (order, order_ata) = get_order_addresses(test_state);
-
                 let token_account_rent = get_min_rent_for_size(
                     &mut test_state.client,
                     <TestState as HasTokenVariant>::Token::get_token_account_size(),
@@ -152,6 +150,8 @@ run_for_tokens!(
                 .await;
 
                 test_state.test_arguments.max_cancellation_premium = token_account_rent + 1;
+                test_state.order_hash = common_tests::src_program::get_order_hash(test_state);
+                let (order, order_ata) = get_order_addresses(test_state);
 
                 let transaction = get_create_order_tx(test_state, &order, &order_ata);
 
