@@ -2,7 +2,6 @@ use crate::helpers::*;
 use crate::whitelist::get_whitelist_access_address;
 use crate::wrap_entry;
 use anchor_lang::prelude::AccountInfo;
-use anchor_lang::solana_program::hash::hashv;
 use anchor_lang::AnchorSerialize;
 use anchor_lang::InstructionData;
 use solana_program_runtime::invoke_context::BuiltinFunctionWithContext;
@@ -13,6 +12,7 @@ use anchor_spl::associated_token::{spl_associated_token_account, ID as spl_assoc
 
 use solana_program::{
     instruction::{AccountMeta, Instruction},
+    keccak::hashv,
     pubkey::Pubkey,
     system_program::ID as system_program_id,
     sysvar::rent::ID as rent_id,
