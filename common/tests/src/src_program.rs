@@ -368,7 +368,7 @@ pub fn get_create_order_tx<T: EscrowVariant<S>, S: TokenVariant>(
         public_withdrawal_duration: test_state.test_arguments.public_withdrawal_duration,
         withdrawal_duration: test_state.test_arguments.withdrawal_duration,
         rescue_start: test_state.test_arguments.rescue_start,
-        expiration_duration: test_state.test_arguments.expiration_duration,
+        expiration_time: test_state.test_arguments.expiration_time,
         asset_is_native: test_state.test_arguments.asset_is_native,
         dst_amount: test_state.test_arguments.dst_amount,
         dutch_auction_data_hash: hashv(&[&test_state

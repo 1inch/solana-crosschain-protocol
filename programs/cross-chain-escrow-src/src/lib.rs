@@ -37,7 +37,7 @@ pub mod cross_chain_escrow_src {
         public_withdrawal_duration: u32,
         cancellation_duration: u32,
         rescue_start: u32,
-        expiration_duration: u32,
+        expiration_time: u32,
         asset_is_native: bool,
         dst_amount: [u64; 4],
         dutch_auction_data_hash: [u8; 32],
@@ -46,8 +46,6 @@ pub mod cross_chain_escrow_src {
         allow_multiple_fills: bool,
         _dst_chain_params: DstChainParams,
     ) -> Result<()> {
-        require!(expiration_duration != 0, EscrowError::InvalidTime);
-
         require!(
             ctx.accounts.order_ata.to_account_info().lamports() >= max_cancellation_premium,
             EscrowError::InvalidCancellationFee
@@ -60,6 +58,8 @@ pub mod cross_chain_escrow_src {
         );
 
         let now = utils::get_current_timestamp()?;
+
+        require!(now < expiration_time, EscrowError::OrderHasExpired);
 
         common::escrow::create(
             EscrowSrc::INIT_SPACE + constants::DISCRIMINATOR_BYTES, // Needed to check the safety deposit amount validity
@@ -76,10 +76,6 @@ pub mod cross_chain_escrow_src {
             rescue_start,
             now,
         )?;
-
-        let expiration_time = now
-            .checked_add(expiration_duration)
-            .ok_or(ProgramError::ArithmeticOverflow)?;
 
         ctx.accounts.order.set_inner(Order {
             order_hash,
