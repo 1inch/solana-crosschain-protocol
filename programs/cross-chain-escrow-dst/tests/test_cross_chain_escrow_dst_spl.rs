@@ -119,7 +119,8 @@ run_for_tokens!(
             async fn test_escrow_creation_fails_when_rescue_start_is_equal_to_cancellation_start(
                 test_state: &mut TestState,
             ) {
-                test_state.test_arguments.public_withdrawal_duration = common::constants::RESCUE_DELAY;
+                test_state.test_arguments.public_withdrawal_duration =
+                    common::constants::RESCUE_DELAY;
                 test_state.test_arguments.src_cancellation_timestamp = u32::MAX;
                 let (_, _, transaction) = create_escrow_data(test_state);
 
