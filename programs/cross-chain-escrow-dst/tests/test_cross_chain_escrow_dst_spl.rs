@@ -116,7 +116,7 @@ run_for_tokens!(
 
             #[test_context(TestState)]
             #[tokio::test]
-            async fn test_escrow_creation_fails_when_rescue_start_is_less_than_cancellation_start(
+            async fn test_escrow_creation_fails_when_rescue_start_is_equal_to_cancellation_start(
                 test_state: &mut TestState,
             ) {
                 test_state.test_arguments.public_withdrawal_duration = common::constants::RESCUE_DELAY;
