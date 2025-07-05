@@ -579,7 +579,8 @@ mod test_escrow_wrapped_native {
     #[tokio::test]
     async fn test_cancel(test_state: &mut TestState) {
         test_state.token = NATIVE_MINT;
-        common_escrow_tests::test_cancel(test_state).await
+        let (escrow, escrow_ata) = create_escrow(test_state).await;
+        common_escrow_tests::test_cancel(test_state, &escrow, &escrow_ata).await
     }
 
     #[test_context(TestState)]
