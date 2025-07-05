@@ -29,6 +29,22 @@ run_for_tokens!(
 
             #[test_context(TestState)]
             #[tokio::test]
+            async fn test_escrow_creation_with_pre_existing_escrow_ata(test_state: &mut TestState) {
+                let (escrow_pda, _) =
+                    get_escrow_addresses(test_state, test_state.taker_wallet.keypair.pubkey());
+
+                let _escrow_ata =
+                    <TestState as HasTokenVariant>::Token::initialize_spl_associated_account(
+                        &mut test_state.context,
+                        &test_state.token,
+                        &escrow_pda,
+                    )
+                    .await;
+                common_escrow_tests::test_escrow_creation(test_state).await
+            }
+
+            #[test_context(TestState)]
+            #[tokio::test]
             async fn test_escrow_creation_fails_with_insufficient_funds(
                 test_state: &mut TestState,
             ) {
