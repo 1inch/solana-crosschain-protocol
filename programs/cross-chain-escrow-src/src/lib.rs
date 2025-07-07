@@ -1,5 +1,6 @@
+use crate::merkle_tree::MerkleProof;
 use anchor_lang::prelude::*;
-use anchor_lang::solana_program::{hash::hashv, keccak};
+use anchor_lang::solana_program::keccak;
 use anchor_spl::associated_token::{AssociatedToken, ID as ASSOCIATED_TOKEN_PROGRAM_ID};
 use anchor_spl::token::spl_token::native_mint;
 use anchor_spl::token_interface::{
@@ -11,8 +12,6 @@ use common::error::EscrowError;
 use common::escrow::{uni_transfer, EscrowBase, EscrowType, UniTransferParams};
 use common::utils;
 use primitive_types::U256;
-
-use crate::merkle_tree::MerkleProof;
 
 pub mod auction;
 pub mod merkle_tree;
@@ -151,7 +150,7 @@ pub mod cross_chain_escrow_src {
 
         require!(now < order.expiration_time, EscrowError::OrderHasExpired);
 
-        let calculated_hash = hashv(&[&dutch_auction_data.try_to_vec()?]).to_bytes();
+        let calculated_hash = keccak::hashv(&[&dutch_auction_data.try_to_vec()?]).to_bytes();
 
         require!(
             calculated_hash == order.dutch_auction_data_hash,

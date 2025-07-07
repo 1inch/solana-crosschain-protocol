@@ -2,7 +2,6 @@ use crate::helpers::*;
 use crate::whitelist::get_whitelist_access_address;
 use crate::wrap_entry;
 use anchor_lang::prelude::AccountInfo;
-use anchor_lang::solana_program::hash::hashv;
 use anchor_lang::AnchorSerialize;
 use anchor_lang::InstructionData;
 use solana_program_runtime::invoke_context::BuiltinFunctionWithContext;
@@ -284,7 +283,7 @@ pub fn get_rescue_funds_from_order_tx<S: TokenVariant>(
             expiration_duration: test_state.test_arguments.expiration_duration,
             asset_is_native: test_state.test_arguments.asset_is_native,
             dst_amount: test_state.test_arguments.dst_amount,
-            dutch_auction_data_hash: hashv(&[&test_state
+            dutch_auction_data_hash: keccak::hashv(&[&test_state
                 .test_arguments
                 .dutch_auction_data
                 .try_to_vec()
@@ -378,7 +377,7 @@ pub fn get_order_hash<T, S: TokenVariant>(test_state: &TestStateBase<T, S>) -> k
             .try_to_vec()
             .unwrap()
             .as_ref(),
-        hashv(&[&test_state
+        keccak::hashv(&[&test_state
             .test_arguments
             .dutch_auction_data
             .try_to_vec()
@@ -442,7 +441,7 @@ pub fn get_create_order_tx<T: EscrowVariant<S>, S: TokenVariant>(
         expiration_duration: test_state.test_arguments.expiration_duration,
         asset_is_native: test_state.test_arguments.asset_is_native,
         dst_amount: test_state.test_arguments.dst_amount,
-        dutch_auction_data_hash: hashv(&[&test_state
+        dutch_auction_data_hash: keccak::hashv(&[&test_state
             .test_arguments
             .dutch_auction_data
             .try_to_vec()
