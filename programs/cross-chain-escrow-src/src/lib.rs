@@ -227,7 +227,7 @@ pub mod cross_chain_escrow_src {
             maker: order.creator,
             taker: ctx.accounts.taker.key(),
             token: order.token,
-            amount: order.amount,
+            amount,
             safety_deposit: order.safety_deposit,
             withdrawal_start,
             public_withdrawal_start,
@@ -618,7 +618,7 @@ pub struct Create<'info> {
     order: Box<Account<'info, Order>>,
     /// Account to store escrowed tokens
     #[account(
-        init,
+        init_if_needed,
         payer = creator,
         associated_token::mint = mint,
         associated_token::authority = order,
@@ -699,7 +699,7 @@ pub struct CreateEscrow<'info> {
     escrow: Box<Account<'info, EscrowSrc>>,
     /// Account to store escrowed tokens
     #[account(
-        init,
+        init_if_needed,
         payer = taker,
         associated_token::mint = mint,
         associated_token::authority = escrow,
@@ -829,7 +829,7 @@ pub struct CancelEscrow<'info> {
             escrow.hashlock.as_ref(),
             escrow.maker.as_ref(),
             taker.key().as_ref(),
-            escrow.token.key().as_ref(),
+            mint.key().as_ref(),
             escrow.amount.to_be_bytes().as_ref(),
             escrow.safety_deposit.to_be_bytes().as_ref(),
             escrow.rescue_start.to_be_bytes().as_ref(),
@@ -887,7 +887,7 @@ pub struct PublicCancelEscrow<'info> {
             escrow.hashlock.as_ref(),
             escrow.maker.as_ref(),
             taker.key().as_ref(),
-            escrow.token.key().as_ref(),
+            mint.key().as_ref(),
             escrow.amount.to_be_bytes().as_ref(),
             escrow.safety_deposit.to_be_bytes().as_ref(),
             escrow.rescue_start.to_be_bytes().as_ref(),

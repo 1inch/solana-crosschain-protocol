@@ -93,7 +93,10 @@ mod test_native_src {
     async fn test_withdraw(test_state: &mut TestState) {
         test_state.token = NATIVE_MINT;
         test_state.test_arguments.asset_is_native = true;
-        helpers_src::test_withdraw_escrow(test_state).await;
+        create_order(test_state).await;
+        prepare_resolvers(test_state, &[test_state.taker_wallet.keypair.pubkey()]).await;
+        let (escrow, escrow_ata) = create_escrow(test_state).await;
+        helpers_src::test_withdraw_escrow(test_state, &escrow, &escrow_ata).await;
     }
 
     #[test_context(TestState)]
@@ -523,7 +526,10 @@ mod test_wrapped_native {
     #[tokio::test]
     async fn test_withdraw(test_state: &mut TestState) {
         test_state.token = NATIVE_MINT;
-        helpers_src::test_withdraw_escrow(test_state).await;
+        create_order(test_state).await;
+        prepare_resolvers(test_state, &[test_state.taker_wallet.keypair.pubkey()]).await;
+        let (escrow, escrow_ata) = create_escrow(test_state).await;
+        helpers_src::test_withdraw_escrow(test_state, &escrow, &escrow_ata).await;
     }
 
     #[test_context(TestState)]
@@ -770,7 +776,8 @@ mod test_wrapped_native {
         test_state.token = NATIVE_MINT;
         create_order(test_state).await;
         prepare_resolvers(test_state, &[test_state.taker_wallet.keypair.pubkey()]).await;
-        common_escrow_tests::test_cancel(test_state).await
+        let (escrow, escrow_ata) = create_escrow(test_state).await;
+        common_escrow_tests::test_cancel(test_state, &escrow, &escrow_ata).await
     }
 
     #[test_context(TestState)]

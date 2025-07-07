@@ -8,7 +8,9 @@ use anchor_lang::error::ErrorCode;
 use anchor_spl::token::spl_token::{error::TokenError, native_mint::ID as NATIVE_MINT};
 use common::{constants::RESCUE_DELAY, error::EscrowError};
 use solana_program::{keccak::hash, program_error::ProgramError};
-use solana_sdk::{signature::Signer, system_instruction::SystemError, transaction::Transaction};
+use solana_sdk::{
+    pubkey::Pubkey, signature::Signer, system_instruction::SystemError, transaction::Transaction,
+};
 
 pub async fn test_escrow_creation_tx_cost<T: EscrowVariant<S>, S: TokenVariant>(
     test_state: &mut TestStateBase<T, S>,
@@ -483,9 +485,10 @@ pub async fn test_public_withdraw_fails_after_cancellation_start<
 
 pub async fn test_cancel<T: EscrowVariant<S> + 'static, S: TokenVariant>(
     test_state: &mut TestStateBase<T, S>,
+    escrow: &Pubkey,
+    escrow_ata: &Pubkey,
 ) {
-    let (escrow, escrow_ata) = create_escrow(test_state).await;
-    let transaction = T::get_cancel_tx(test_state, &escrow, &escrow_ata);
+    let transaction = T::get_cancel_tx(test_state, escrow, escrow_ata);
 
     set_time(
         &mut test_state.context,
@@ -510,8 +513,8 @@ pub async fn test_cancel<T: EscrowVariant<S> + 'static, S: TokenVariant>(
             &[
                 native_change(rent_recipient, escrow_rent + token_account_rent),
                 token_change(maker_ata, test_state.test_arguments.escrow_amount),
-                account_closure(escrow_ata, true),
-                account_closure(escrow, true),
+                account_closure(*escrow_ata, true),
+                account_closure(*escrow, true),
             ],
         )
         .await;
