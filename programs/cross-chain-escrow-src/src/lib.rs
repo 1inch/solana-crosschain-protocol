@@ -650,6 +650,9 @@ pub struct CreateEscrow<'info> {
     )]
     /// CHECK: this account is used only to receive rent for order and order_ata accounts
     maker: AccountInfo<'info>,
+    #[account(
+        constraint = mint.key() == order.token @ EscrowError::InvalidMint
+    )]
     /// CHECK: check is not necessary as token is only used as a constraint to creator_ata and order
     mint: Box<InterfaceAccount<'info, Mint>>,
 
@@ -914,8 +917,14 @@ pub struct PublicCancelEscrow<'info> {
 #[derive(Accounts)]
 pub struct CancelOrder<'info> {
     /// Account that created the order
-    #[account(mut)]
+    #[account(
+        mut,
+        constraint = creator.key() == order.creator @ EscrowError::InvalidAccount
+    )]
     creator: Signer<'info>,
+    #[account(
+        constraint = mint.key() == order.token @ EscrowError::InvalidMint
+    )]
     mint: Box<InterfaceAccount<'info, Mint>>,
     #[account(
         mut,
@@ -962,6 +971,9 @@ pub struct CancelOrderbyResolver<'info> {
         constraint = creator.key() == order.creator @ EscrowError::InvalidAccount
     )]
     creator: AccountInfo<'info>,
+    #[account(
+        constraint = mint.key() == order.token @ EscrowError::InvalidMint
+    )]
     mint: Box<InterfaceAccount<'info, Mint>>,
     #[account(
         mut,
