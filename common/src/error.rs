@@ -20,6 +20,8 @@ pub enum EscrowError {
     InvalidTime,
     #[msg("Invalid rescue start")]
     InvalidRescueStart,
+    #[msg("Invalid mint")]
+    InvalidMint,
     #[msg("Missing creator ata")]
     MissingCreatorAta,
     #[msg("Missing recipient ata")]

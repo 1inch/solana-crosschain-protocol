@@ -158,8 +158,6 @@ run_for_tokens!(
             async fn test_order_creation_fails_if_fee_is_greater_than_lamport_balance(
                 test_state: &mut TestState,
             ) {
-                let (order, order_ata) = get_order_addresses(test_state);
-
                 let token_account_rent = get_min_rent_for_size(
                     &mut test_state.client,
                     <TestState as HasTokenVariant>::Token::get_token_account_size(),
@@ -167,6 +165,8 @@ run_for_tokens!(
                 .await;
 
                 test_state.test_arguments.max_cancellation_premium = token_account_rent + 1;
+                test_state.order_hash = common_tests::src_program::get_order_hash(test_state);
+                let (order, order_ata) = get_order_addresses(test_state);
 
                 let transaction = get_create_order_tx(test_state, &order, &order_ata);
 
@@ -1174,7 +1174,7 @@ run_for_tokens!(
                     .client
                     .process_transaction(transaction)
                     .await
-                    .expect_error(ProgramError::Custom(ErrorCode::ConstraintSeeds.into()));
+                    .expect_error(ProgramError::Custom(EscrowError::InvalidMint.into()));
             }
         }
 
@@ -1321,7 +1321,7 @@ run_for_tokens!(
                     .client
                     .process_transaction(transaction)
                     .await
-                    .expect_error(ProgramError::Custom(ErrorCode::ConstraintSeeds.into()));
+                    .expect_error(ProgramError::Custom(EscrowError::InvalidMint.into()));
             }
         }
 
@@ -1559,6 +1559,60 @@ run_for_tokens!(
                     .process_transaction(transaction)
                     .await
                     .expect_error(ProgramError::Custom(ErrorCode::ConstraintTokenOwner.into()))
+            }
+
+            #[test_context(TestState)]
+            #[tokio::test]
+            async fn test_cannot_rescue_funds_with_wrong_hash_order(test_state: &mut TestState) {
+                type S = <TestState as HasTokenVariant>::Token;
+
+                prepare_resolvers(test_state, &[test_state.taker_wallet.keypair.pubkey()]).await;
+                let (order, _) = create_order(test_state).await;
+
+                let token_to_rescue = S::deploy_spl_token(&mut test_state.context).await.pubkey();
+                let order_ata = S::initialize_spl_associated_account(
+                    &mut test_state.context,
+                    &token_to_rescue,
+                    &order,
+                )
+                .await;
+
+                S::mint_spl_tokens(
+                    &mut test_state.context,
+                    &token_to_rescue,
+                    &order_ata,
+                    &test_state.payer_kp.pubkey(),
+                    &test_state.payer_kp,
+                    test_state.test_arguments.rescue_amount,
+                )
+                .await;
+
+                let taker_ata = S::initialize_spl_associated_account(
+                    &mut test_state.context,
+                    &token_to_rescue,
+                    &test_state.taker_wallet.keypair.pubkey(),
+                )
+                .await;
+
+                test_state.test_arguments.order_amount += 1; // Change order amount to make hash different
+                let transaction = get_rescue_funds_from_order_tx(
+                    test_state,
+                    &order,
+                    &order_ata,
+                    &token_to_rescue,
+                    &taker_ata,
+                );
+
+                set_time(
+                    &mut test_state.context,
+                    test_state.init_timestamp + common::constants::RESCUE_DELAY + 100,
+                );
+
+                test_state
+                    .client
+                    .process_transaction(transaction)
+                    .await
+                    .expect_error(ProgramError::Custom(ErrorCode::ConstraintSeeds.into()))
             }
 
             #[test_context(TestState)]

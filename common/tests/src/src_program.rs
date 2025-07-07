@@ -12,7 +12,7 @@ use anchor_spl::associated_token::{spl_associated_token_account, ID as spl_assoc
 
 use solana_program::{
     instruction::{AccountMeta, Instruction},
-    keccak::hashv,
+    keccak,
     pubkey::Pubkey,
     system_program::ID as system_program_id,
     sysvar::rent::ID as rent_id,
@@ -270,12 +270,28 @@ pub fn get_rescue_funds_from_order_tx<S: TokenVariant>(
     let instruction_data =
         InstructionData::data(&cross_chain_escrow_src::instruction::RescueFundsForOrder {
             hashlock: test_state.hashlock.to_bytes(),
-            order_hash: test_state.order_hash.to_bytes(),
-            order_creator: test_state.maker_wallet.keypair.pubkey(),
-            order_mint: test_state.token,
+            maker: test_state.maker_wallet.keypair.pubkey(),
+            token: test_state.token,
             order_amount: test_state.test_arguments.order_amount,
+            parts_amount: test_state.test_arguments.order_parts_amount,
             safety_deposit: test_state.test_arguments.safety_deposit,
+            cancellation_duration: test_state.test_arguments.cancellation_duration,
+            finality_duration: test_state.test_arguments.finality_duration,
+            public_withdrawal_duration: test_state.test_arguments.public_withdrawal_duration,
+            withdrawal_duration: test_state.test_arguments.withdrawal_duration,
             rescue_start: test_state.test_arguments.rescue_start,
+            expiration_duration: test_state.test_arguments.expiration_duration,
+            asset_is_native: test_state.test_arguments.asset_is_native,
+            dst_amount: test_state.test_arguments.dst_amount,
+            dutch_auction_data_hash: keccak::hashv(&[&test_state
+                .test_arguments
+                .dutch_auction_data
+                .try_to_vec()
+                .unwrap()])
+            .to_bytes(),
+            max_cancellation_premium: test_state.test_arguments.max_cancellation_premium,
+            cancellation_auction_duration: test_state.test_arguments.cancellation_auction_duration,
+            allow_multiple_fills: test_state.test_arguments.allow_multiple_fills,
             rescue_amount: test_state.test_arguments.rescue_amount,
         });
 
@@ -304,36 +320,90 @@ pub fn get_rescue_funds_from_order_tx<S: TokenVariant>(
         test_state.context.last_blockhash,
     )
 }
+pub fn get_order_hash<T, S: TokenVariant>(test_state: &TestStateBase<T, S>) -> keccak::Hash {
+    keccak::hashv(&[
+        &test_state.hashlock.to_bytes(),
+        test_state.maker_wallet.keypair.pubkey().as_ref(),
+        test_state.token.as_ref(),
+        test_state
+            .test_arguments
+            .order_amount
+            .to_be_bytes()
+            .as_ref(),
+        test_state
+            .test_arguments
+            .order_parts_amount
+            .to_be_bytes()
+            .as_ref(),
+        test_state
+            .test_arguments
+            .safety_deposit
+            .to_be_bytes()
+            .as_ref(),
+        test_state
+            .test_arguments
+            .finality_duration
+            .to_be_bytes()
+            .as_ref(),
+        test_state
+            .test_arguments
+            .withdrawal_duration
+            .to_be_bytes()
+            .as_ref(),
+        test_state
+            .test_arguments
+            .public_withdrawal_duration
+            .to_be_bytes()
+            .as_ref(),
+        test_state
+            .test_arguments
+            .cancellation_duration
+            .to_be_bytes()
+            .as_ref(),
+        test_state
+            .test_arguments
+            .rescue_start
+            .to_be_bytes()
+            .as_ref(),
+        test_state
+            .test_arguments
+            .expiration_duration
+            .to_be_bytes()
+            .as_ref(),
+        &[test_state.test_arguments.asset_is_native as u8],
+        test_state
+            .test_arguments
+            .dst_amount
+            .try_to_vec()
+            .unwrap()
+            .as_ref(),
+        keccak::hashv(&[&test_state
+            .test_arguments
+            .dutch_auction_data
+            .try_to_vec()
+            .unwrap()])
+        .to_bytes()
+        .as_ref(),
+        test_state
+            .test_arguments
+            .max_cancellation_premium
+            .to_be_bytes()
+            .as_ref(),
+        test_state
+            .test_arguments
+            .cancellation_auction_duration
+            .to_be_bytes()
+            .as_ref(),
+        &[test_state.test_arguments.allow_multiple_fills as u8],
+    ])
+}
 
 pub fn get_order_addresses<S: TokenVariant>(
     test_state: &TestStateBase<SrcProgram, S>,
 ) -> (Pubkey, Pubkey) {
     let (program_id, _) = <SrcProgram as EscrowVariant<S>>::get_program_spec();
-    let (order_pda, _) = Pubkey::find_program_address(
-        &[
-            b"order",
-            test_state.order_hash.as_ref(),
-            test_state.hashlock.as_ref(),
-            test_state.maker_wallet.keypair.pubkey().as_ref(),
-            test_state.token.as_ref(),
-            test_state
-                .test_arguments
-                .order_amount
-                .to_be_bytes()
-                .as_ref(),
-            test_state
-                .test_arguments
-                .safety_deposit
-                .to_be_bytes()
-                .as_ref(),
-            test_state
-                .test_arguments
-                .rescue_start
-                .to_be_bytes()
-                .as_ref(),
-        ],
-        &program_id,
-    );
+    let (order_pda, _) =
+        Pubkey::find_program_address(&[b"order", test_state.order_hash.as_ref()], &program_id);
     let order_ata = spl_associated_token_account::get_associated_token_address_with_program_id(
         &order_pda,
         &test_state.token,
@@ -344,8 +414,9 @@ pub fn get_order_addresses<S: TokenVariant>(
 }
 
 pub fn create_order_data<S: TokenVariant>(
-    test_state: &TestStateBase<SrcProgram, S>,
+    test_state: &mut TestStateBase<SrcProgram, S>,
 ) -> (Pubkey, Pubkey, Transaction) {
+    test_state.order_hash = get_order_hash(test_state);
     let (order_pda, order_ata) = get_order_addresses(test_state);
     let transaction: Transaction = get_create_order_tx(test_state, &order_pda, &order_ata);
 
@@ -360,7 +431,6 @@ pub fn get_create_order_tx<T: EscrowVariant<S>, S: TokenVariant>(
     let instruction_data = InstructionData::data(&cross_chain_escrow_src::instruction::Create {
         amount: test_state.test_arguments.order_amount,
         parts_amount: test_state.test_arguments.order_parts_amount,
-        order_hash: test_state.order_hash.to_bytes(),
         hashlock: test_state.hashlock.to_bytes(),
         safety_deposit: test_state.test_arguments.safety_deposit,
         cancellation_duration: test_state.test_arguments.cancellation_duration,
@@ -371,7 +441,7 @@ pub fn get_create_order_tx<T: EscrowVariant<S>, S: TokenVariant>(
         expiration_duration: test_state.test_arguments.expiration_duration,
         asset_is_native: test_state.test_arguments.asset_is_native,
         dst_amount: test_state.test_arguments.dst_amount,
-        dutch_auction_data_hash: hashv(&[&test_state
+        dutch_auction_data_hash: keccak::hashv(&[&test_state
             .test_arguments
             .dutch_auction_data
             .try_to_vec()
@@ -491,8 +561,9 @@ pub fn get_cancel_order_by_resolver_tx<T: EscrowVariant<S>, S: TokenVariant>(
 }
 
 pub async fn create_order<S: TokenVariant>(
-    test_state: &TestStateBase<SrcProgram, S>,
+    test_state: &mut TestStateBase<SrcProgram, S>,
 ) -> (Pubkey, Pubkey) {
+    test_state.order_hash = get_order_hash(test_state);
     let (order_pda, order_ata) = get_order_addresses(test_state);
     let transaction: Transaction = get_create_order_tx(test_state, &order_pda, &order_ata);
 

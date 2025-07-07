@@ -624,7 +624,7 @@ pub async fn test_cancel_by_resolver_at_different_points<S: TokenVariant>(
             }
             test_state.test_arguments.asset_is_native = asset_is_native;
 
-            let (order, order_ata) = create_order(&test_state).await;
+            let (order, order_ata) = create_order(&mut test_state).await;
             let transaction =
                 get_cancel_order_by_resolver_tx(&test_state, &order, &order_ata, None);
 

@@ -1,6 +1,9 @@
 use std::any::TypeId;
 
-use crate::{helpers::*, src_program::SrcProgram};
+use crate::{
+    helpers::*,
+    src_program::{get_order_hash, SrcProgram},
+};
 use anchor_lang::error::ErrorCode;
 use anchor_spl::token::spl_token::{error::TokenError, native_mint::ID as NATIVE_MINT};
 use common::{constants::RESCUE_DELAY, error::EscrowError};
@@ -307,6 +310,7 @@ pub async fn test_withdraw_does_not_work_with_wrong_escrow_ata<
 
     test_state.test_arguments.escrow_amount = new_escrow_amount;
     test_state.test_arguments.order_amount = new_escrow_amount;
+    test_state.order_hash = get_order_hash(test_state);
     let (_, escrow_ata_2) = create_escrow(test_state).await;
 
     let transaction = T::get_withdraw_tx(test_state, &escrow, &escrow_ata_2);
@@ -418,6 +422,7 @@ pub async fn test_public_withdraw_fails_with_wrong_escrow_ata<
 
     test_state.test_arguments.escrow_amount = new_escrow_amount;
     test_state.test_arguments.order_amount = new_escrow_amount;
+    test_state.order_hash = get_order_hash(test_state);
     let (_, escrow_ata_2) = create_escrow(test_state).await;
 
     let transaction = T::get_public_withdraw_tx(test_state, &escrow, &escrow_ata_2, &withdrawer);
