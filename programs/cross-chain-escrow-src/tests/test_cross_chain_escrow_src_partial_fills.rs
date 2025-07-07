@@ -10,6 +10,7 @@ use solana_program_test::tokio;
 use solana_sdk::{signature::Signer, signer::keypair::Keypair};
 use test_context::test_context;
 
+use primitive_types::U256;
 pub mod helpers_src;
 use helpers_src::*;
 
@@ -140,6 +141,36 @@ run_for_tokens!(
 
                 let acc_lookup_result = test_state.client.get_account(order_ata).await.unwrap();
                 assert!(acc_lookup_result.is_none());
+            }
+
+            #[test_context(TestState)]
+            #[tokio::test]
+            async fn test_dst_amount_calculation_for_partial_fill(test_state: &mut TestState) {
+                create_order_for_partial_fill(test_state).await;
+
+                let escrow_amount = DEFAULT_ESCROW_AMOUNT / DEFAULT_PARTS_AMOUNT_FOR_MULTIPLE * 3;
+                prepare_resolvers(test_state, &[test_state.taker_wallet.keypair.pubkey()]).await;
+                let (escrow, _) =
+                    test_escrow_creation_for_partial_fill(test_state, escrow_amount).await;
+
+                let escrow_account_data = test_state
+                    .client
+                    .get_account(escrow)
+                    .await
+                    .unwrap()
+                    .unwrap()
+                    .data;
+
+                let dst_amount = helpers_src::get_dst_amount(&escrow_account_data)
+                    .expect("Failed to read dst_amount from escrow account data");
+
+                let expected = U256(test_state.test_arguments.dst_amount)
+                    .checked_mul(U256::from(escrow_amount))
+                    .unwrap()
+                    .checked_div(U256::from(test_state.test_arguments.order_amount))
+                    .unwrap();
+
+                assert_eq!(U256(dst_amount), expected);
             }
 
             #[test_context(TestState)]
