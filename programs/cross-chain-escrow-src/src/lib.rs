@@ -1,5 +1,4 @@
 use anchor_lang::prelude::*;
-use anchor_lang::solana_program::hash::hashv;
 use anchor_spl::associated_token::{AssociatedToken, ID as ASSOCIATED_TOKEN_PROGRAM_ID};
 use anchor_spl::token::spl_token::native_mint;
 use anchor_spl::token_interface::{
@@ -11,6 +10,7 @@ use common::error::EscrowError;
 use common::escrow::{uni_transfer, EscrowBase, EscrowType, UniTransferParams};
 use common::utils;
 use primitive_types::U256;
+use solana_program::keccak::hashv;
 
 use crate::merkle_tree::MerkleProof;
 
