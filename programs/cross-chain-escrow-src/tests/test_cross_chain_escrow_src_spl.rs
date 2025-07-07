@@ -224,6 +224,21 @@ run_for_tokens!(
                     .await
                     .expect_error(ProgramError::Custom(EscrowError::InvalidPartsAmount.into()));
             }
+
+            #[test_context(TestState)]
+            #[tokio::test]
+            async fn test_order_creation_fails_when_rescue_start_is_equal_to_expiration_time(
+                test_state: &mut TestState,
+            ) {
+                test_state.test_arguments.expiration_duration = common::constants::RESCUE_DELAY;
+                let (_, _, transaction) = create_order_data(test_state);
+
+                test_state
+                    .client
+                    .process_transaction(transaction)
+                    .await
+                    .expect_error(ProgramError::Custom(EscrowError::InvalidRescueStart.into()));
+            }
         }
 
         mod test_escrow_creation {
@@ -549,6 +564,31 @@ run_for_tokens!(
                     .expect_error(ProgramError::Custom(
                         ErrorCode::AccountNotInitialized.into(),
                     ));
+            }
+
+            #[test_context(TestState)]
+            #[tokio::test]
+            async fn test_escrow_creation_fails_when_rescue_start_is_less_than_public_cancellation_time(
+                test_state: &mut TestState,
+            ) {
+                // set expiration_duration to be less than rescue_start for skip require in create_order
+                test_state.test_arguments.expiration_duration = common::constants::RESCUE_DELAY - 1;
+                create_order(test_state).await;
+                prepare_resolvers(test_state, &[test_state.taker_wallet.keypair.pubkey()]).await;
+
+                // create escrow just before rescue_start
+                set_time(
+                    &mut test_state.context,
+                    test_state.init_timestamp + test_state.test_arguments.expiration_duration - 1,
+                );
+
+                let (_, _, transaction) = create_escrow_data(test_state);
+
+                test_state
+                    .client
+                    .process_transaction(transaction)
+                    .await
+                    .expect_error(ProgramError::Custom(EscrowError::InvalidRescueStart.into()));
             }
         }
 
@@ -997,7 +1037,8 @@ run_for_tokens!(
             async fn test_cancel(test_state: &mut TestState) {
                 create_order(test_state).await;
                 prepare_resolvers(test_state, &[test_state.taker_wallet.keypair.pubkey()]).await;
-                common_escrow_tests::test_cancel(test_state).await
+                let (escrow, escrow_ata) = create_escrow(test_state).await;
+                common_escrow_tests::test_cancel(test_state, &escrow, &escrow_ata).await
             }
 
             #[test_context(TestState)]

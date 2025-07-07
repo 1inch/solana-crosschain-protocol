@@ -117,7 +117,7 @@ pub fn get_default_testargs(nowsecs: u32) -> TestArgs {
         cancellation_duration: DEFAULT_PERIOD_DURATION,
         src_cancellation_timestamp: nowsecs + 10000,
         init_timestamp: nowsecs,
-        rescue_start: nowsecs + RESCUE_DELAY + 100,
+        rescue_start: nowsecs + RESCUE_DELAY,
         rescue_amount: DEFAULT_RESCUE_AMOUNT,
         expiration_duration: DEFAULT_PERIOD_DURATION,
         asset_is_native: false, // This is set to false by default, will be changed for native tests.
@@ -706,18 +706,23 @@ pub async fn get_token_balance(ctx: &mut ProgramTestContext, account: &Pubkey) -
 }
 
 #[derive(Clone)]
-pub enum StateChange {
+pub enum BalanceChange {
     Token(Pubkey, i128),
     Native(Pubkey, i128),
+}
+
+#[derive(Clone)]
+pub enum StateChange {
+    Balance(BalanceChange),
     ClosedAccount(Pubkey, bool),
 }
 
 pub fn native_change(k: Pubkey, d: u64) -> StateChange {
-    StateChange::Native(k, d as i128)
+    StateChange::Balance(BalanceChange::Native(k, d as i128))
 }
 
 pub fn token_change(k: Pubkey, d: u64) -> StateChange {
-    StateChange::Token(k, d as i128)
+    StateChange::Balance(BalanceChange::Token(k, d as i128))
 }
 
 pub fn account_closure(k: Pubkey, d: bool) -> StateChange {
@@ -726,19 +731,16 @@ pub fn account_closure(k: Pubkey, d: bool) -> StateChange {
 
 async fn get_balances<T, S>(
     test_state: &mut TestStateBase<T, S>,
-    balance_query: &[StateChange],
+    balance_query: &[BalanceChange],
 ) -> Vec<u64> {
-    let mut result: Vec<u64> = vec![];
+    let mut result = Vec::with_capacity(balance_query.len());
     for b in balance_query {
         match b {
-            StateChange::Token(k, _) => {
+            BalanceChange::Token(k, _) => {
                 result.push(get_token_balance(&mut test_state.context, k).await)
             }
-            StateChange::Native(k, _) => {
+            BalanceChange::Native(k, _) => {
                 result.push(test_state.client.get_balance(*k).await.unwrap())
-            }
-            StateChange::ClosedAccount(_, _) => {
-                // Skip collecting a balance for closed accounts
             }
         }
     }
@@ -747,11 +749,15 @@ async fn get_balances<T, S>(
 
 impl<T, S> TestStateBase<T, S> {
     pub async fn expect_state_change(&mut self, tx: Transaction, diff: &[StateChange]) {
-        // Split state changes into balances and closures
-        let (balance_changes, closure_checks): (Vec<_>, Vec<_>) =
-            diff.iter().cloned().partition(|change| {
-                matches!(change, StateChange::Token(_, _) | StateChange::Native(_, _))
-            });
+        let mut balance_changes = Vec::new();
+        let mut closure_checks = Vec::new();
+
+        for change in diff {
+            match change {
+                StateChange::Balance(b) => balance_changes.push(b.clone()),
+                StateChange::ClosedAccount(p, b) => closure_checks.push((p, b)),
+            }
+        }
 
         // Get balances before tx
         let balances_before = get_balances(self, &balance_changes).await;
@@ -767,53 +773,40 @@ impl<T, S> TestStateBase<T, S> {
             .zip(balances_after.iter())
             .zip(balance_changes.iter())
         {
+            let real_diff = *after as i128 - *before as i128;
             match exp {
-                StateChange::Token(k, token_expected_diff) => {
-                    let real_diff: i128 = *after as i128 - *before as i128;
+                BalanceChange::Token(k, expected) => {
                     assert_eq!(
-                        real_diff,
-                        *token_expected_diff,
+                        real_diff, *expected,
                         "Token balance changed unexpectedly for {}, real = {}, expected = {}, diff = {}",
-                        k,
-                        real_diff,
-                        token_expected_diff,
-                        token_expected_diff - real_diff
+                        k, real_diff, expected, expected - real_diff
                     );
                 }
-                StateChange::Native(k, token_expected_diff) => {
-                    let real_diff: i128 = *after as i128 - *before as i128;
+                BalanceChange::Native(k, expected) => {
                     assert_eq!(
-                        real_diff,
-                        *token_expected_diff,
+                        real_diff, *expected,
                         "SOL balance changed unexpectedly for {}, real = {}, expected = {}, diff = {}",
-                        k,
-                        real_diff,
-                        token_expected_diff,
-                        token_expected_diff - real_diff
+                        k, real_diff, expected, expected - real_diff
                     );
                 }
-                _ => (),
             }
         }
 
-        // Assert account closures/existence
-        for exp in closure_checks {
-            if let StateChange::ClosedAccount(account, should_be_closed) = exp {
-                let acc = self.client.get_account(account).await.unwrap();
-
-                if should_be_closed {
-                    assert!(
-                        acc.is_none(),
-                        "Expected account {} to be closed, but it still exists",
-                        account
-                    );
-                } else {
-                    assert!(
-                        acc.is_some(),
-                        "Expected account {} to exist, but it was closed",
-                        account
-                    );
-                }
+        // Assert account closures
+        for (account, should_be_closed) in closure_checks {
+            let acc = self.client.get_account(*account).await.unwrap();
+            if *should_be_closed {
+                assert!(
+                    acc.is_none(),
+                    "Expected account {} to be closed, but it still exists",
+                    account
+                );
+            } else {
+                assert!(
+                    acc.is_some(),
+                    "Expected account {} to exist, but it was closed",
+                    account
+                );
             }
         }
     }

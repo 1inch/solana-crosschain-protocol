@@ -4,6 +4,7 @@ use common_tests::helpers::*;
 use common_tests::run_for_tokens;
 use common_tests::src_program::create_public_escrow_cancel_tx;
 use common_tests::src_program::{create_order, SrcProgram};
+use common_tests::tests as common_escrow_tests;
 use common_tests::whitelist::prepare_resolvers;
 use solana_program_test::tokio;
 use solana_sdk::{signature::Signer, signer::keypair::Keypair};
@@ -586,7 +587,7 @@ run_for_tokens!(
                 let (escrow, escrow_ata) =
                     test_escrow_creation_for_partial_fill(test_state, escrow_amount).await;
 
-                test_cancel_escrow_partial(test_state, &escrow, &escrow_ata).await;
+                common_escrow_tests::test_cancel(test_state, &escrow, &escrow_ata).await
             }
 
             #[test_context(TestState)]
@@ -603,8 +604,8 @@ run_for_tokens!(
                 let (escrow_2, escrow_ata_2) =
                     test_escrow_creation_for_partial_fill(test_state, escrow_amount).await;
 
-                test_cancel_escrow_partial(test_state, &escrow, &escrow_ata).await;
-                test_cancel_escrow_partial(test_state, &escrow_2, &escrow_ata_2).await;
+                common_escrow_tests::test_cancel(test_state, &escrow, &escrow_ata).await;
+                common_escrow_tests::test_cancel(test_state, &escrow_2, &escrow_ata_2).await;
             }
 
             #[test_context(TestState)]
