@@ -531,10 +531,48 @@ pub mod cross_chain_escrow_src {
 
     pub fn rescue_funds_for_order(
         ctx: Context<RescueFundsForOrder>,
-        order_hash: [u8; 32],
+        hashlock: [u8; 32],
+        maker_pda: Pubkey,
+        token: Pubkey,
+        order_amount: u64,
+        parts_amount: u64,
+        safety_deposit: u64,
+        finality_duration: u32,
+        withdrawal_duration: u32,
+        public_withdrawal_duration: u32,
+        cancellation_duration: u32,
         rescue_start: u32,
+        expiration_duration: u32,
+        asset_is_native: bool,
+        dst_amount: [u64; 4],
+        dutch_auction_data_hash: [u8; 32],
+        max_cancellation_premium: u64,
+        cancellation_auction_duration: u32,
+        allow_multiple_fills: bool,
         rescue_amount: u64,
     ) -> Result<()> {
+        let order_hash = keccak::hashv(&[
+            &hashlock,
+            maker_pda.as_ref(),
+            token.as_ref(),
+            &order_amount.to_be_bytes(),
+            &parts_amount.to_be_bytes(),
+            &safety_deposit.to_be_bytes(),
+            &finality_duration.to_be_bytes(),
+            &withdrawal_duration.to_be_bytes(),
+            &public_withdrawal_duration.to_be_bytes(),
+            &cancellation_duration.to_be_bytes(),
+            &rescue_start.to_be_bytes(),
+            &expiration_duration.to_be_bytes(),
+            &[asset_is_native as u8],
+            &dst_amount.try_to_vec()?,
+            dutch_auction_data_hash.as_ref(),
+            &max_cancellation_premium.to_be_bytes(),
+            &cancellation_auction_duration.to_be_bytes(),
+            &[allow_multiple_fills as u8],
+        ])
+        .to_bytes();
+
         let seeds = ["order".as_bytes(), order_hash.as_ref(), &[ctx.bumps.order]];
 
         common::escrow::rescue_funds(
@@ -1046,7 +1084,26 @@ pub struct RescueFundsForEscrow<'info> {
 }
 
 #[derive(Accounts)]
-#[instruction(order_hash: [u8; 32])]
+#[instruction(
+        hashlock: [u8; 32],
+        maker_pda: Pubkey,
+        token: Pubkey,
+        order_amount: u64,
+        parts_amount: u64,
+        safety_deposit: u64,
+        finality_duration: u32,
+        withdrawal_duration: u32,
+        public_withdrawal_duration: u32,
+        cancellation_duration: u32,
+        rescue_start: u32,
+        expiration_duration: u32,
+        asset_is_native: bool,
+        dst_amount: [u64; 4],
+        dutch_auction_data_hash: [u8; 32],
+        max_cancellation_premium: u64,
+        cancellation_auction_duration: u32,
+        allow_multiple_fills: bool,
+)]
 pub struct RescueFundsForOrder<'info> {
     #[account(
         mut, // Needed because this account receives lamports from closed token account.
@@ -1063,7 +1120,27 @@ pub struct RescueFundsForOrder<'info> {
     #[account(
         seeds = [
             "order".as_bytes(),
-            order_hash.as_ref(),
+            &keccak::hashv(&[
+                &hashlock,
+                maker_pda.as_ref(),
+                token.as_ref(),
+                &order_amount.to_be_bytes(),
+                &parts_amount.to_be_bytes(),
+                &safety_deposit.to_be_bytes(),
+                &finality_duration.to_be_bytes(),
+                &withdrawal_duration.to_be_bytes(),
+                &public_withdrawal_duration.to_be_bytes(),
+                &cancellation_duration.to_be_bytes(),
+                &rescue_start.to_be_bytes(),
+                &expiration_duration.to_be_bytes(),
+                &[asset_is_native as u8],
+                &dst_amount.try_to_vec()?,
+                dutch_auction_data_hash.as_ref(),
+                &max_cancellation_premium.to_be_bytes(),
+                &cancellation_auction_duration.to_be_bytes(),
+                &[allow_multiple_fills as u8],
+            ])
+            .to_bytes(),
         ],
         bump,
     )]

@@ -270,8 +270,29 @@ pub fn get_rescue_funds_from_order_tx<S: TokenVariant>(
 ) -> Transaction {
     let instruction_data =
         InstructionData::data(&cross_chain_escrow_src::instruction::RescueFundsForOrder {
-            order_hash: test_state.order_hash.to_bytes(),
+            hashlock: test_state.hashlock.to_bytes(),
+            maker_pda: test_state.maker_wallet.keypair.pubkey(),
+            token: test_state.token,
+            order_amount: test_state.test_arguments.order_amount,
+            parts_amount: test_state.test_arguments.order_parts_amount,
+            safety_deposit: test_state.test_arguments.safety_deposit,
+            cancellation_duration: test_state.test_arguments.cancellation_duration,
+            finality_duration: test_state.test_arguments.finality_duration,
+            public_withdrawal_duration: test_state.test_arguments.public_withdrawal_duration,
+            withdrawal_duration: test_state.test_arguments.withdrawal_duration,
             rescue_start: test_state.test_arguments.rescue_start,
+            expiration_duration: test_state.test_arguments.expiration_duration,
+            asset_is_native: test_state.test_arguments.asset_is_native,
+            dst_amount: test_state.test_arguments.dst_amount,
+            dutch_auction_data_hash: hashv(&[&test_state
+                .test_arguments
+                .dutch_auction_data
+                .try_to_vec()
+                .unwrap()])
+            .to_bytes(),
+            max_cancellation_premium: test_state.test_arguments.max_cancellation_premium,
+            cancellation_auction_duration: test_state.test_arguments.cancellation_auction_duration,
+            allow_multiple_fills: test_state.test_arguments.allow_multiple_fills,
             rescue_amount: test_state.test_arguments.rescue_amount,
         });
 
