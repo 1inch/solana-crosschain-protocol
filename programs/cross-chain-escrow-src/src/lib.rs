@@ -529,6 +529,7 @@ pub mod cross_chain_escrow_src {
         )
     }
 
+    #[allow(clippy::too_many_arguments)]
     pub fn rescue_funds_for_order(
         ctx: Context<RescueFundsForOrder>,
         hashlock: [u8; 32],
