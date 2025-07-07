@@ -533,7 +533,7 @@ pub mod cross_chain_escrow_src {
     pub fn rescue_funds_for_order(
         ctx: Context<RescueFundsForOrder>,
         hashlock: [u8; 32],
-        maker_pda: Pubkey,
+        maker: Pubkey,
         token: Pubkey,
         order_amount: u64,
         parts_amount: u64,
@@ -554,7 +554,7 @@ pub mod cross_chain_escrow_src {
     ) -> Result<()> {
         let order_hash = keccak::hashv(&[
             &hashlock,
-            maker_pda.as_ref(),
+            maker.as_ref(),
             token.as_ref(),
             &order_amount.to_be_bytes(),
             &parts_amount.to_be_bytes(),
@@ -1087,7 +1087,7 @@ pub struct RescueFundsForEscrow<'info> {
 #[derive(Accounts)]
 #[instruction(
         hashlock: [u8; 32],
-        maker_pda: Pubkey,
+        maker: Pubkey,
         token: Pubkey,
         order_amount: u64,
         parts_amount: u64,
@@ -1123,7 +1123,7 @@ pub struct RescueFundsForOrder<'info> {
             "order".as_bytes(),
             &keccak::hashv(&[
                 &hashlock,
-                maker_pda.as_ref(),
+                maker.as_ref(),
                 token.as_ref(),
                 &order_amount.to_be_bytes(),
                 &parts_amount.to_be_bytes(),

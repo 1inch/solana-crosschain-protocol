@@ -271,7 +271,7 @@ pub fn get_rescue_funds_from_order_tx<S: TokenVariant>(
     let instruction_data =
         InstructionData::data(&cross_chain_escrow_src::instruction::RescueFundsForOrder {
             hashlock: test_state.hashlock.to_bytes(),
-            maker_pda: test_state.maker_wallet.keypair.pubkey(),
+            maker: test_state.maker_wallet.keypair.pubkey(),
             token: test_state.token,
             order_amount: test_state.test_arguments.order_amount,
             parts_amount: test_state.test_arguments.order_parts_amount,
