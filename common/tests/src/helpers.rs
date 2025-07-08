@@ -101,6 +101,7 @@ pub struct TestArgs {
     pub merkle_root: Hash,
     pub allow_multiple_fills: bool,
     pub dst_chain_params: DstChainParams,
+    pub partial_secrets: Vec<[u8; 32]>,
 }
 
 pub fn get_default_testargs(nowsecs: u32) -> TestArgs {
@@ -139,6 +140,7 @@ pub fn get_default_testargs(nowsecs: u32) -> TestArgs {
             token: [0u8; 32],
             safety_deposit: DEFAULT_SAFETY_DEPOSIT as u128,
         },
+        partial_secrets: Vec::new(),
     }
 }
 

@@ -29,6 +29,22 @@ run_for_tokens!(
 
             #[test_context(TestState)]
             #[tokio::test]
+            async fn test_escrow_creation_with_pre_existing_escrow_ata(test_state: &mut TestState) {
+                let (escrow_pda, _) =
+                    get_escrow_addresses(test_state, test_state.taker_wallet.keypair.pubkey());
+
+                let _escrow_ata =
+                    <TestState as HasTokenVariant>::Token::initialize_spl_associated_account(
+                        &mut test_state.context,
+                        &test_state.token,
+                        &escrow_pda,
+                    )
+                    .await;
+                common_escrow_tests::test_escrow_creation(test_state).await
+            }
+
+            #[test_context(TestState)]
+            #[tokio::test]
             async fn test_escrow_creation_fails_with_insufficient_funds(
                 test_state: &mut TestState,
             ) {
@@ -279,6 +295,24 @@ run_for_tokens!(
                 )
                 .await
             }
+
+            #[test_context(TestState)]
+            #[tokio::test]
+            async fn test_withdraw_fails_with_incorrect_token(test_state: &mut TestState) {
+                let (escrow, escrow_ata) = create_escrow(test_state).await;
+                test_state.token = <TestState as HasTokenVariant>::Token::deploy_spl_token(
+                    &mut test_state.context,
+                )
+                .await
+                .pubkey();
+
+                let transaction = DstProgram::get_withdraw_tx(test_state, &escrow, &escrow_ata);
+                test_state
+                    .client
+                    .process_transaction(transaction)
+                    .await
+                    .expect_error(ProgramError::Custom(ErrorCode::ConstraintSeeds.into()));
+            }
         }
 
         mod test_escrow_public_withdraw {
@@ -526,6 +560,29 @@ run_for_tokens!(
                         ErrorCode::AccountNotInitialized.into(),
                     ));
             }
+
+            #[test_context(TestState)]
+            #[tokio::test]
+            async fn test_public_withdraw_fails_with_incorrect_token(test_state: &mut TestState) {
+                let (escrow, escrow_ata) = create_escrow(test_state).await;
+                prepare_resolvers(test_state, &[test_state.taker_wallet.keypair.pubkey()]).await;
+
+                test_state.token = <TestState as HasTokenVariant>::Token::deploy_spl_token(
+                    &mut test_state.context,
+                )
+                .await
+                .pubkey();
+                let taker_kp = test_state.taker_wallet.keypair.insecure_clone();
+
+                let transaction =
+                    DstProgram::get_public_withdraw_tx(test_state, &escrow, &escrow_ata, &taker_kp);
+
+                test_state
+                    .client
+                    .process_transaction(transaction)
+                    .await
+                    .expect_error(ProgramError::Custom(ErrorCode::ConstraintSeeds.into()));
+            }
         }
 
         mod test_escrow_cancel {
@@ -534,7 +591,8 @@ run_for_tokens!(
             #[test_context(TestState)]
             #[tokio::test]
             async fn test_cancel(test_state: &mut TestState) {
-                common_escrow_tests::test_cancel(test_state).await
+                let (escrow, escrow_ata) = create_escrow(test_state).await;
+                common_escrow_tests::test_cancel(test_state, &escrow, &escrow_ata).await
             }
 
             #[test_context(TestState)]
@@ -592,6 +650,26 @@ run_for_tokens!(
             #[tokio::test]
             async fn test_cannot_cancel_before_cancellation_start(test_state: &mut TestState) {
                 common_escrow_tests::test_cannot_cancel_before_cancellation_start(test_state).await
+            }
+
+            #[test_context(TestState)]
+            #[tokio::test]
+            async fn test_cancel_fails_with_incorrect_token(test_state: &mut TestState) {
+                let (escrow, escrow_ata) = create_escrow(test_state).await;
+
+                test_state.token = <TestState as HasTokenVariant>::Token::deploy_spl_token(
+                    &mut test_state.context,
+                )
+                .await
+                .pubkey();
+
+                let transaction = DstProgram::get_cancel_tx(test_state, &escrow, &escrow_ata);
+
+                test_state
+                    .client
+                    .process_transaction(transaction)
+                    .await
+                    .expect_error(ProgramError::Custom(ErrorCode::ConstraintSeeds.into()));
             }
         }
         mod test_escrow_rescue_funds {

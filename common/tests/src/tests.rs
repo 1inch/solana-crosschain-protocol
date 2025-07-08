@@ -1,11 +1,16 @@
 use std::any::TypeId;
 
-use crate::{helpers::*, src_program::SrcProgram};
+use crate::{
+    helpers::*,
+    src_program::{get_order_hash, SrcProgram},
+};
 use anchor_lang::error::ErrorCode;
 use anchor_spl::token::spl_token::{error::TokenError, native_mint::ID as NATIVE_MINT};
 use common::{constants::RESCUE_DELAY, error::EscrowError};
 use solana_program::{keccak::hash, program_error::ProgramError};
-use solana_sdk::{signature::Signer, system_instruction::SystemError, transaction::Transaction};
+use solana_sdk::{
+    pubkey::Pubkey, signature::Signer, system_instruction::SystemError, transaction::Transaction,
+};
 
 pub async fn test_escrow_creation_tx_cost<T: EscrowVariant<S>, S: TokenVariant>(
     test_state: &mut TestStateBase<T, S>,
@@ -305,6 +310,7 @@ pub async fn test_withdraw_does_not_work_with_wrong_escrow_ata<
 
     test_state.test_arguments.escrow_amount = new_escrow_amount;
     test_state.test_arguments.order_amount = new_escrow_amount;
+    test_state.order_hash = get_order_hash(test_state);
     let (_, escrow_ata_2) = create_escrow(test_state).await;
 
     let transaction = T::get_withdraw_tx(test_state, &escrow, &escrow_ata_2);
@@ -416,6 +422,7 @@ pub async fn test_public_withdraw_fails_with_wrong_escrow_ata<
 
     test_state.test_arguments.escrow_amount = new_escrow_amount;
     test_state.test_arguments.order_amount = new_escrow_amount;
+    test_state.order_hash = get_order_hash(test_state);
     let (_, escrow_ata_2) = create_escrow(test_state).await;
 
     let transaction = T::get_public_withdraw_tx(test_state, &escrow, &escrow_ata_2, &withdrawer);
@@ -478,9 +485,10 @@ pub async fn test_public_withdraw_fails_after_cancellation_start<
 
 pub async fn test_cancel<T: EscrowVariant<S> + 'static, S: TokenVariant>(
     test_state: &mut TestStateBase<T, S>,
+    escrow: &Pubkey,
+    escrow_ata: &Pubkey,
 ) {
-    let (escrow, escrow_ata) = create_escrow(test_state).await;
-    let transaction = T::get_cancel_tx(test_state, &escrow, &escrow_ata);
+    let transaction = T::get_cancel_tx(test_state, escrow, escrow_ata);
 
     set_time(
         &mut test_state.context,
@@ -505,8 +513,8 @@ pub async fn test_cancel<T: EscrowVariant<S> + 'static, S: TokenVariant>(
             &[
                 native_change(rent_recipient, escrow_rent + token_account_rent),
                 token_change(maker_ata, test_state.test_arguments.escrow_amount),
-                account_closure(escrow_ata, true),
-                account_closure(escrow, true),
+                account_closure(*escrow_ata, true),
+                account_closure(*escrow, true),
             ],
         )
         .await;
@@ -965,4 +973,118 @@ pub async fn test_escrow_creation_fails_if_token_is_not_native<
         .expect_error(ProgramError::Custom(
             EscrowError::InconsistentNativeTrait.into(),
         ));
+}
+
+#[cfg(test)]
+mod test {
+    use crate::helpers::*;
+    use crate::wrap_entry;
+    use common::escrow::{uni_transfer, UniTransferParams};
+    use solana_program_test::tokio;
+    use solana_sdk::{signature::Signer, transaction::Transaction};
+
+    use anchor_lang::{
+        accounts::{interface_account::InterfaceAccount, program::Program},
+        prelude::{AccountInfo, AccountMeta, Interface, Pubkey},
+    };
+    use anchor_spl::token::spl_token::{native_mint::ID as NATIVE_MINT, ID as spl_program_id};
+    use solana_program::instruction::Instruction;
+    use solana_program_test::{processor, BanksClient, ProgramTest, ProgramTestContext};
+    use solana_sdk::{entrypoint::ProgramResult, system_program::ID as system_program_id};
+
+    // Tries to transfer a zero amount via native transfer with non existent target account.
+    // Expect to not throw an error since we expect the `uni_transfer` to skip the transaction
+    // altogether since the amount is zero.
+    #[tokio::test]
+    async fn test_uni_transfer_zero_amount_for_native_transfer() {
+        let contract_id = Pubkey::new_unique();
+        let mut program_test: ProgramTest = ProgramTest::default();
+        fn contract<'a>(_: &Pubkey, accounts: &'a [AccountInfo<'a>], _: &[u8]) -> ProgramResult {
+            uni_transfer(
+                &UniTransferParams::NativeTransfer {
+                    from: accounts[1].clone(),
+                    to: accounts[2].clone(),
+                    amount: 0,
+                    program: Program::try_from(&accounts[3]).unwrap(),
+                },
+                None,
+            )?;
+
+            Ok(())
+        }
+        program_test.add_program("uni-transfer-test", contract_id, wrap_entry!(contract));
+        let context: ProgramTestContext = program_test.start_with_context().await;
+        let client: BanksClient = context.banks_client.clone();
+
+        let from = Pubkey::new_unique();
+        let to = Pubkey::new_unique();
+        let instruction: Instruction = Instruction {
+            program_id: contract_id,
+            accounts: vec![
+                AccountMeta::new(context.payer.pubkey(), true),
+                AccountMeta::new(from, false),
+                AccountMeta::new(to, false),
+                AccountMeta::new(system_program_id, false),
+            ],
+            data: vec![],
+        };
+        let transaction = Transaction::new_signed_with_payer(
+            &[instruction],
+            Some(&context.payer.pubkey()),
+            &[&context.payer],
+            context.last_blockhash,
+        );
+        client
+            .process_transaction(transaction)
+            .await
+            .expect_success();
+    }
+
+    // Same as above, but for token transfers.
+    #[tokio::test]
+    async fn test_uni_transfer_zero_amount_for_token_transfer() {
+        let contract_id = Pubkey::new_unique();
+        let mut program_test: ProgramTest = ProgramTest::default();
+        fn contract<'a>(_: &Pubkey, accounts: &'a [AccountInfo<'a>], _: &[u8]) -> ProgramResult {
+            uni_transfer(
+                &UniTransferParams::TokenTransfer {
+                    from: accounts[1].clone(),
+                    authority: accounts[1].clone(),
+                    to: accounts[2].clone(),
+                    mint: InterfaceAccount::try_from(&accounts[3]).unwrap(),
+                    amount: 0,
+                    program: Interface::try_from(&accounts[4]).unwrap(),
+                },
+                None,
+            )?;
+            Ok(())
+        }
+        program_test.add_program("uni-transfer-test", contract_id, wrap_entry!(contract));
+        let context: ProgramTestContext = program_test.start_with_context().await;
+        let client: BanksClient = context.banks_client.clone();
+
+        let from = Pubkey::new_unique();
+        let to = Pubkey::new_unique();
+        let instruction: Instruction = Instruction {
+            program_id: contract_id,
+            accounts: vec![
+                AccountMeta::new(context.payer.pubkey(), true),
+                AccountMeta::new(from, false),
+                AccountMeta::new(to, false),
+                AccountMeta::new(NATIVE_MINT, false),
+                AccountMeta::new(spl_program_id, false),
+            ],
+            data: vec![],
+        };
+        let transaction = Transaction::new_signed_with_payer(
+            &[instruction],
+            Some(&context.payer.pubkey()),
+            &[&context.payer],
+            context.last_blockhash,
+        );
+        client
+            .process_transaction(transaction)
+            .await
+            .expect_success();
+    }
 }

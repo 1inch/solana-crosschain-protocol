@@ -231,7 +231,7 @@ pub struct Create<'info> {
     escrow: Box<Account<'info, EscrowDst>>,
     /// Account to store escrowed tokens
     #[account(
-        init,
+        init_if_needed,
         payer = creator,
         associated_token::mint = mint,
         associated_token::authority = escrow,

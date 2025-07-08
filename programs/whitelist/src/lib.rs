@@ -101,7 +101,7 @@ pub struct Deregister<'info> {
         mut,
         close = authority,
         seeds = [RESOLVER_ACCESS_SEED, user.key().as_ref()],
-        bump,
+        bump = resolver_access.bump,
     )]
     pub resolver_access: Account<'info, ResolverAccess>,
 

@@ -1,5 +1,6 @@
+use crate::merkle_tree::MerkleProof;
 use anchor_lang::prelude::*;
-use anchor_lang::solana_program::hash::hashv;
+use anchor_lang::solana_program::keccak;
 use anchor_spl::associated_token::{AssociatedToken, ID as ASSOCIATED_TOKEN_PROGRAM_ID};
 use anchor_spl::token::spl_token::native_mint;
 use anchor_spl::token_interface::{
@@ -11,8 +12,6 @@ use common::error::EscrowError;
 use common::escrow::{uni_transfer, EscrowBase, EscrowType, UniTransferParams};
 use common::utils;
 use primitive_types::U256;
-
-use crate::merkle_tree::MerkleProof;
 
 pub mod auction;
 pub mod merkle_tree;
@@ -27,7 +26,6 @@ pub mod cross_chain_escrow_src {
     #[allow(clippy::too_many_arguments)]
     pub fn create(
         ctx: Context<Create>,
-        order_hash: [u8; 32],
         hashlock: [u8; 32], // Root of merkle tree if partially filled
         amount: u64,
         parts_amount: u64,
@@ -60,6 +58,28 @@ pub mod cross_chain_escrow_src {
         let now = utils::get_current_timestamp()?;
 
         require!(now < expiration_time, EscrowError::OrderHasExpired);
+
+        let order_hash = keccak::hashv(&[
+            &hashlock,
+            ctx.accounts.creator.key().as_ref(),
+            ctx.accounts.mint.key().as_ref(),
+            &amount.to_be_bytes(),
+            &parts_amount.to_be_bytes(),
+            &safety_deposit.to_be_bytes(),
+            &finality_duration.to_be_bytes(),
+            &withdrawal_duration.to_be_bytes(),
+            &public_withdrawal_duration.to_be_bytes(),
+            &cancellation_duration.to_be_bytes(),
+            &rescue_start.to_be_bytes(),
+            &expiration_time.to_be_bytes(),
+            &[asset_is_native as u8],
+            &dst_amount.try_to_vec()?,
+            dutch_auction_data_hash.as_ref(),
+            &max_cancellation_premium.to_be_bytes(),
+            &cancellation_auction_duration.to_be_bytes(),
+            &[allow_multiple_fills as u8],
+        ])
+        .to_bytes();
 
         common::escrow::create(
             EscrowSrc::INIT_SPACE + constants::DISCRIMINATOR_BYTES, // Needed to check the safety deposit amount validity
@@ -126,7 +146,7 @@ pub mod cross_chain_escrow_src {
 
         require!(now < order.expiration_time, EscrowError::OrderHasExpired);
 
-        let calculated_hash = hashv(&[&dutch_auction_data.try_to_vec()?]).to_bytes();
+        let calculated_hash = keccak::hashv(&[&dutch_auction_data.try_to_vec()?]).to_bytes();
 
         require!(
             calculated_hash == order.dutch_auction_data_hash,
@@ -176,17 +196,7 @@ pub mod cross_chain_escrow_src {
             EscrowError::InvalidRescueStart
         );
 
-        let order_seeds = [
-            "order".as_bytes(),
-            &order.order_hash,
-            &order.hashlock,
-            order.creator.as_ref(),
-            order.token.as_ref(),
-            &order.amount.to_be_bytes(),
-            &order.safety_deposit.to_be_bytes(),
-            &order.rescue_start.to_be_bytes(),
-            &[ctx.bumps.order],
-        ];
+        let order_seeds = ["order".as_bytes(), &order.order_hash, &[ctx.bumps.order]];
 
         let mut amount_to_transfer = amount;
         if order.remaining_amount == amount {
@@ -212,7 +222,7 @@ pub mod cross_chain_escrow_src {
             maker: order.creator,
             taker: ctx.accounts.taker.key(),
             token: order.token,
-            amount: order.amount,
+            amount,
             safety_deposit: order.safety_deposit,
             withdrawal_start,
             public_withdrawal_start,
@@ -220,7 +230,17 @@ pub mod cross_chain_escrow_src {
             public_cancellation_start,
             rescue_start: order.rescue_start,
             asset_is_native: order.asset_is_native,
-            dst_amount: get_dst_amount(order.dst_amount, &dutch_auction_data)?,
+            dst_amount: get_dst_amount(
+                U256(order.dst_amount)
+                    .checked_mul(U256::from(amount))
+                    .expect("Overflow during multiplication in dst_amount calculation")
+                    .checked_div(U256::from(order.amount))
+                    .expect(
+                        "Division by zero or overflow during division in dst_amount calculation",
+                    )
+                    .0,
+                &dutch_auction_data,
+            )?,
         });
 
         if !order.allow_multiple_fills || order.remaining_amount == amount {
@@ -359,17 +379,7 @@ pub mod cross_chain_escrow_src {
             EscrowError::InconsistentNativeTrait
         );
 
-        let seeds = [
-            "order".as_bytes(),
-            &order.order_hash,
-            &order.hashlock,
-            order.creator.as_ref(),
-            order.token.as_ref(),
-            &order.amount.to_be_bytes(),
-            &order.safety_deposit.to_be_bytes(),
-            &order.rescue_start.to_be_bytes(),
-            &[ctx.bumps.order],
-        ];
+        let seeds = ["order".as_bytes(), &order.order_hash, &[ctx.bumps.order]];
 
         // In an order cancel, the maker receives the entire rent amount, including the safety deposit,
         // because they initially covered the entire rent during order creation, while also
@@ -426,17 +436,7 @@ pub mod cross_chain_escrow_src {
             EscrowError::InconsistentNativeTrait
         );
 
-        let seeds = [
-            "order".as_bytes(),
-            &order.order_hash,
-            &order.hashlock,
-            order.creator.as_ref(),
-            order.token.as_ref(),
-            &order.amount.to_be_bytes(),
-            &order.safety_deposit.to_be_bytes(),
-            &order.rescue_start.to_be_bytes(),
-            &[ctx.bumps.order],
-        ];
+        let seeds = ["order".as_bytes(), &order.order_hash, &[ctx.bumps.order]];
 
         // Order creator receives the amount of tokens back to their initial ATA
         if !order.asset_is_native {
@@ -534,28 +534,52 @@ pub mod cross_chain_escrow_src {
         )
     }
 
+    #[allow(clippy::too_many_arguments)]
     pub fn rescue_funds_for_order(
         ctx: Context<RescueFundsForOrder>,
-        order_hash: [u8; 32],
         hashlock: [u8; 32],
-        order_creator: Pubkey,
-        order_mint: Pubkey,
+        maker: Pubkey,
+        token: Pubkey,
         order_amount: u64,
+        parts_amount: u64,
         safety_deposit: u64,
+        finality_duration: u32,
+        withdrawal_duration: u32,
+        public_withdrawal_duration: u32,
+        cancellation_duration: u32,
         rescue_start: u32,
+        expiration_time: u32,
+        asset_is_native: bool,
+        dst_amount: [u64; 4],
+        dutch_auction_data_hash: [u8; 32],
+        max_cancellation_premium: u64,
+        cancellation_auction_duration: u32,
+        allow_multiple_fills: bool,
         rescue_amount: u64,
     ) -> Result<()> {
-        let seeds = [
-            "order".as_bytes(),
-            order_hash.as_ref(),
-            hashlock.as_ref(),
-            order_creator.as_ref(),
-            order_mint.as_ref(),
+        let order_hash = keccak::hashv(&[
+            &hashlock,
+            maker.as_ref(),
+            token.as_ref(),
             &order_amount.to_be_bytes(),
+            &parts_amount.to_be_bytes(),
             &safety_deposit.to_be_bytes(),
+            &finality_duration.to_be_bytes(),
+            &withdrawal_duration.to_be_bytes(),
+            &public_withdrawal_duration.to_be_bytes(),
+            &cancellation_duration.to_be_bytes(),
             &rescue_start.to_be_bytes(),
-            &[ctx.bumps.order],
-        ];
+            &expiration_time.to_be_bytes(),
+            &[asset_is_native as u8],
+            &dst_amount.try_to_vec()?,
+            dutch_auction_data_hash.as_ref(),
+            &max_cancellation_premium.to_be_bytes(),
+            &cancellation_auction_duration.to_be_bytes(),
+            &[allow_multiple_fills as u8],
+        ])
+        .to_bytes();
+
+        let seeds = ["order".as_bytes(), order_hash.as_ref(), &[ctx.bumps.order]];
 
         common::escrow::rescue_funds(
             &ctx.accounts.order,
@@ -572,7 +596,23 @@ pub mod cross_chain_escrow_src {
 }
 
 #[derive(Accounts)]
-#[instruction(order_hash: [u8; 32], hashlock: [u8; 32], amount: u64, parts_amount: u64, safety_deposit: u64, finality_duration: u32, withdrawal_duration: u32, public_withdrawal_duration: u32, cancellation_duration: u32, rescue_start: u32)]
+#[instruction(hashlock: [u8; 32],
+              amount: u64,
+              parts_amount: u64,
+              safety_deposit: u64,
+              finality_duration: u32,
+              withdrawal_duration: u32,
+              public_withdrawal_duration: u32,
+              cancellation_duration: u32,
+              rescue_start: u32,
+              expiration_time: u32,
+              asset_is_native: bool,
+              dst_amount: [u64; 4],
+              dutch_auction_data_hash: [u8; 32],
+              max_cancellation_premium: u64,
+              cancellation_auction_duration: u32,
+              allow_multiple_fills: bool
+            )]
 pub struct Create<'info> {
     #[account(
         mut, // Needed because this account transfers lamports if the token is native and to pay for the order creation
@@ -595,20 +635,34 @@ pub struct Create<'info> {
         space = constants::DISCRIMINATOR_BYTES + Order::INIT_SPACE,
         seeds = [
             "order".as_bytes(),
-            order_hash.as_ref(),
-            hashlock.as_ref(),
-            creator.key().as_ref(),
-            mint.key().as_ref(),
-            amount.to_be_bytes().as_ref(),
-            safety_deposit.to_be_bytes().as_ref(),
-            rescue_start.to_be_bytes().as_ref(),
+            &keccak::hashv(&[
+                &hashlock,
+                creator.key().as_ref(),
+                mint.key().as_ref(),
+                &amount.to_be_bytes(),
+                &parts_amount.to_be_bytes(),
+                &safety_deposit.to_be_bytes(),
+                &finality_duration.to_be_bytes(),
+                &withdrawal_duration.to_be_bytes(),
+                &public_withdrawal_duration.to_be_bytes(),
+                &cancellation_duration.to_be_bytes(),
+                &rescue_start.to_be_bytes(),
+                &expiration_time.to_be_bytes(),
+                &[asset_is_native as u8],
+                &dst_amount.try_to_vec()?,
+                dutch_auction_data_hash.as_ref(),
+                &max_cancellation_premium.to_be_bytes(),
+                &cancellation_auction_duration.to_be_bytes(),
+                &[allow_multiple_fills as u8],
+            ])
+            .to_bytes(),
             ],
         bump,
     )]
     order: Box<Account<'info, Order>>,
     /// Account to store escrowed tokens
     #[account(
-        init,
+        init_if_needed,
         payer = creator,
         associated_token::mint = mint,
         associated_token::authority = order,
@@ -640,6 +694,9 @@ pub struct CreateEscrow<'info> {
     )]
     /// CHECK: this account is used only to receive rent for order and order_ata accounts
     maker: AccountInfo<'info>,
+    #[account(
+        constraint = mint.key() == order.token @ EscrowError::InvalidMint
+    )]
     /// CHECK: check is not necessary as token is only used as a constraint to creator_ata and order
     mint: Box<InterfaceAccount<'info, Mint>>,
 
@@ -649,12 +706,6 @@ pub struct CreateEscrow<'info> {
         seeds = [
             "order".as_bytes(),
             order.order_hash.as_ref(),
-            order.hashlock.as_ref(),
-            order.creator.as_ref(),
-            order.token.key().as_ref(),
-            order.amount.to_be_bytes().as_ref(),
-            order.safety_deposit.to_be_bytes().as_ref(),
-            order.rescue_start.to_be_bytes().as_ref(),
         ],
         bump,
     )]
@@ -692,7 +743,7 @@ pub struct CreateEscrow<'info> {
     escrow: Box<Account<'info, EscrowSrc>>,
     /// Account to store escrowed tokens
     #[account(
-        init,
+        init_if_needed,
         payer = taker,
         associated_token::mint = mint,
         associated_token::authority = escrow,
@@ -822,7 +873,7 @@ pub struct CancelEscrow<'info> {
             escrow.hashlock.as_ref(),
             escrow.maker.as_ref(),
             taker.key().as_ref(),
-            escrow.token.key().as_ref(),
+            mint.key().as_ref(),
             escrow.amount.to_be_bytes().as_ref(),
             escrow.safety_deposit.to_be_bytes().as_ref(),
             escrow.rescue_start.to_be_bytes().as_ref(),
@@ -880,7 +931,7 @@ pub struct PublicCancelEscrow<'info> {
             escrow.hashlock.as_ref(),
             escrow.maker.as_ref(),
             taker.key().as_ref(),
-            escrow.token.key().as_ref(),
+            mint.key().as_ref(),
             escrow.amount.to_be_bytes().as_ref(),
             escrow.safety_deposit.to_be_bytes().as_ref(),
             escrow.rescue_start.to_be_bytes().as_ref(),
@@ -910,20 +961,20 @@ pub struct PublicCancelEscrow<'info> {
 #[derive(Accounts)]
 pub struct CancelOrder<'info> {
     /// Account that created the order
-    #[account(mut)]
+    #[account(
+        mut,
+        constraint = creator.key() == order.creator @ EscrowError::InvalidAccount
+    )]
     creator: Signer<'info>,
+    #[account(
+        constraint = mint.key() == order.token @ EscrowError::InvalidMint
+    )]
     mint: Box<InterfaceAccount<'info, Mint>>,
     #[account(
         mut,
         seeds = [
             "order".as_bytes(),
             order.order_hash.as_ref(),
-            order.hashlock.as_ref(),
-            creator.key().as_ref(),
-            mint.key().as_ref(),
-            order.amount.to_be_bytes().as_ref(),
-            order.safety_deposit.to_be_bytes().as_ref(),
-            order.rescue_start.to_be_bytes().as_ref(),
         ],
         bump,
     )]
@@ -964,18 +1015,15 @@ pub struct CancelOrderbyResolver<'info> {
         constraint = creator.key() == order.creator @ EscrowError::InvalidAccount
     )]
     creator: AccountInfo<'info>,
+    #[account(
+        constraint = mint.key() == order.token @ EscrowError::InvalidMint
+    )]
     mint: Box<InterfaceAccount<'info, Mint>>,
     #[account(
         mut,
         seeds = [
             "order".as_bytes(),
             order.order_hash.as_ref(),
-            order.hashlock.as_ref(),
-            order.creator.as_ref(),
-            order.token.key().as_ref(),
-            order.amount.to_be_bytes().as_ref(),
-            order.safety_deposit.to_be_bytes().as_ref(),
-            order.rescue_start.to_be_bytes().as_ref(),
         ],
         bump,
     )]
@@ -1042,7 +1090,26 @@ pub struct RescueFundsForEscrow<'info> {
 }
 
 #[derive(Accounts)]
-#[instruction(order_hash: [u8; 32], hashlock: [u8; 32], order_creator: Pubkey, order_mint: Pubkey, order_amount: u64, safety_deposit: u64, rescue_start: u32)]
+#[instruction(
+        hashlock: [u8; 32],
+        maker: Pubkey,
+        token: Pubkey,
+        order_amount: u64,
+        parts_amount: u64,
+        safety_deposit: u64,
+        finality_duration: u32,
+        withdrawal_duration: u32,
+        public_withdrawal_duration: u32,
+        cancellation_duration: u32,
+        rescue_start: u32,
+        expiration_time: u32,
+        asset_is_native: bool,
+        dst_amount: [u64; 4],
+        dutch_auction_data_hash: [u8; 32],
+        max_cancellation_premium: u64,
+        cancellation_auction_duration: u32,
+        allow_multiple_fills: bool,
+)]
 pub struct RescueFundsForOrder<'info> {
     #[account(
         mut, // Needed because this account receives lamports from closed token account.
@@ -1059,13 +1126,27 @@ pub struct RescueFundsForOrder<'info> {
     #[account(
         seeds = [
             "order".as_bytes(),
-            order_hash.as_ref(),
-            hashlock.as_ref(),
-            order_creator.as_ref(),
-            order_mint.as_ref(),
-            order_amount.to_be_bytes().as_ref(),
-            safety_deposit.to_be_bytes().as_ref(),
-            rescue_start.to_be_bytes().as_ref(),
+            &keccak::hashv(&[
+                &hashlock,
+                maker.as_ref(),
+                token.as_ref(),
+                &order_amount.to_be_bytes(),
+                &parts_amount.to_be_bytes(),
+                &safety_deposit.to_be_bytes(),
+                &finality_duration.to_be_bytes(),
+                &withdrawal_duration.to_be_bytes(),
+                &public_withdrawal_duration.to_be_bytes(),
+                &cancellation_duration.to_be_bytes(),
+                &rescue_start.to_be_bytes(),
+                &expiration_time.to_be_bytes(),
+                &[asset_is_native as u8],
+                &dst_amount.try_to_vec()?,
+                dutch_auction_data_hash.as_ref(),
+                &max_cancellation_premium.to_be_bytes(),
+                &cancellation_auction_duration.to_be_bytes(),
+                &[allow_multiple_fills as u8],
+            ])
+            .to_bytes(),
         ],
         bump,
     )]
@@ -1228,11 +1309,14 @@ fn is_valid_partial_fill(
     calculated_index == validated_index
 }
 
-pub fn get_escrow_hashlock(order_hash: [u8; 32], merkle_proof: Option<MerkleProof>) -> [u8; 32] {
+pub fn get_escrow_hashlock(
+    order_hashlock: [u8; 32],
+    merkle_proof: Option<MerkleProof>,
+) -> [u8; 32] {
     if let Some(merkle_proof) = merkle_proof {
         merkle_proof.hashed_secret
     } else {
-        order_hash
+        order_hashlock
     }
 }
 
