@@ -549,7 +549,10 @@ pub async fn test_cancel_by_resolver_with_zero_maker_amount<S: TokenVariant>(
 
     set_time(
         &mut test_state.context,
-        test_state.init_timestamp + test_state.test_arguments.expiration_duration + 101,
+        test_state.init_timestamp
+            + test_state.test_arguments.expiration_duration
+            + test_state.test_arguments.cancellation_auction_duration
+            + 1,
     );
 
     let result = test_state
