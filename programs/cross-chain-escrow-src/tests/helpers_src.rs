@@ -538,7 +538,8 @@ pub async fn test_cancel_by_resolver_with_zero_maker_amount<S: TokenVariant>(
         get_min_rent_for_size(&mut test_state.client, S::get_token_account_size()).await;
 
     // By setting these two test arguments below to token_account_rent and current time to
-    // test_state.init_timestamp + test_state.test_arguments.expiration_duration + 101,
+    // more than (test_state.init_timestamp + test_state.test_arguments.expiration_duration +
+    // auction_duration)
     // we ensure that the make_amount will evaluate to zero.
     test_state.test_arguments.max_cancellation_premium = token_account_rent;
     test_state.test_arguments.reward_limit = token_account_rent;
