@@ -1223,6 +1223,13 @@ run_for_tokens!(
 
             #[test_context(TestState)]
             #[tokio::test]
+            async fn test_cancel_by_resolver_with_zero_maker_amount(test_state: &mut TestState) {
+                prepare_resolvers(test_state, &[test_state.taker_wallet.keypair.pubkey()]).await;
+                helpers_src::test_cancel_by_resolver_with_zero_maker_amount(test_state).await;
+            }
+
+            #[test_context(TestState)]
+            #[tokio::test]
             async fn test_cancel_by_resolver_for_free_at_the_auction_start_with_excess_tokens(
                 test_state: &mut TestState,
             ) {
