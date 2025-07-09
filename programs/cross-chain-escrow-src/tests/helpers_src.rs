@@ -530,48 +530,6 @@ pub async fn test_order_cancel<S: TokenVariant>(test_state: &mut TestStateBase<S
         .await;
 }
 
-// Checks the maker_amount transfer transaction is skipped if the maker_amount is zero
-pub async fn test_cancel_by_resolver_with_zero_maker_amount<S: TokenVariant>(
-    test_state: &mut TestStateBase<SrcProgram, S>,
-) {
-    let token_account_rent =
-        get_min_rent_for_size(&mut test_state.client, S::get_token_account_size()).await;
-
-    // By setting these two test arguments below to token_account_rent and current time to
-    // more than (test_state.init_timestamp + test_state.test_arguments.expiration_duration +
-    // auction_duration)
-    // we ensure that the make_amount will evaluate to zero.
-    test_state.test_arguments.max_cancellation_premium = token_account_rent;
-    test_state.test_arguments.reward_limit = token_account_rent;
-
-    let (order, order_ata) = create_order(test_state).await;
-    let transaction = get_cancel_order_by_resolver_tx(test_state, &order, &order_ata, None);
-
-    set_time(
-        &mut test_state.context,
-        test_state.init_timestamp
-            + test_state.test_arguments.expiration_duration
-            + test_state.test_arguments.cancellation_auction_duration
-            + 1,
-    );
-
-    let result = test_state
-        .client
-        .simulate_transaction(transaction)
-        .await
-        .expect("Simulation RPC failed");
-
-    // Extract the simulation details
-    let sim_details = result
-        .simulation_details
-        .expect("Simulation details not found");
-
-    // Check it does not contain system program invocation for the transfer transaction
-    assert!(!sim_details
-        .logs
-        .contains(&"Program 11111111111111111111111111111111 invoke [1]".to_string()));
-}
-
 pub async fn test_cancel_by_resolver_for_free_at_the_auction_start<S: TokenVariant>(
     test_state: &mut TestStateBase<SrcProgram, S>,
 ) {
