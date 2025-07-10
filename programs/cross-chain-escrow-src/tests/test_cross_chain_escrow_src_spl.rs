@@ -133,17 +133,15 @@ run_for_tokens!(
 
             #[test_context(TestState)]
             #[tokio::test]
-            async fn test_order_creation_fails_with_zero_expiration_duration(
-                test_state: &mut TestState,
-            ) {
-                test_state.test_arguments.expiration_duration = 0;
+            async fn test_order_creation_fails_if_after_expiration(test_state: &mut TestState) {
+                test_state.test_arguments.expiration_time = test_state.init_timestamp - 1;
                 let (order, order_ata, tx) = create_order_data(test_state);
 
                 test_state
                     .client
                     .process_transaction(tx)
                     .await
-                    .expect_error(ProgramError::Custom(EscrowError::InvalidTime.into()));
+                    .expect_error(ProgramError::Custom(EscrowError::OrderHasExpired.into()));
 
                 // Check that the order accounts have not been created.
                 let acc_lookup_result = test_state.client.get_account(order).await.unwrap();
@@ -230,7 +228,8 @@ run_for_tokens!(
             async fn test_order_creation_fails_when_rescue_start_is_equal_to_expiration_time(
                 test_state: &mut TestState,
             ) {
-                test_state.test_arguments.expiration_duration = common::constants::RESCUE_DELAY;
+                test_state.test_arguments.expiration_time =
+                    test_state.init_timestamp + common::constants::RESCUE_DELAY;
                 let (_, _, transaction) = create_order_data(test_state);
 
                 test_state
@@ -501,7 +500,7 @@ run_for_tokens!(
                 prepare_resolvers(test_state, &[test_state.taker_wallet.keypair.pubkey()]).await;
                 set_time(
                     &mut test_state.context,
-                    test_state.init_timestamp + test_state.test_arguments.expiration_duration + 1,
+                    test_state.test_arguments.expiration_time + 1,
                 );
 
                 let (_, _, transaction) = create_escrow_data(test_state);
@@ -571,15 +570,16 @@ run_for_tokens!(
             async fn test_escrow_creation_fails_when_rescue_start_is_less_than_public_cancellation_time(
                 test_state: &mut TestState,
             ) {
-                // set expiration_duration to be less than rescue_start for skip require in create_order
-                test_state.test_arguments.expiration_duration = common::constants::RESCUE_DELAY - 1;
+                // set expiration_time to be less than rescue_start for skip require in create_order
+                test_state.test_arguments.expiration_time =
+                    test_state.test_arguments.rescue_start - 1;
                 create_order(test_state).await;
                 prepare_resolvers(test_state, &[test_state.taker_wallet.keypair.pubkey()]).await;
 
                 // create escrow just before rescue_start
                 set_time(
                     &mut test_state.context,
-                    test_state.init_timestamp + test_state.test_arguments.expiration_duration - 1,
+                    test_state.test_arguments.expiration_time - 1,
                 );
 
                 let (_, _, transaction) = create_escrow_data(test_state);
@@ -1281,7 +1281,7 @@ run_for_tokens!(
 
                 set_time(
                     &mut test_state.context,
-                    test_state.init_timestamp + test_state.test_arguments.expiration_duration,
+                    test_state.test_arguments.expiration_time,
                 );
 
                 let (maker_ata, _) = find_user_ata(test_state);
