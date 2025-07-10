@@ -6,7 +6,7 @@ use crate::{
 };
 use anchor_lang::error::ErrorCode;
 use anchor_spl::token::spl_token::{error::TokenError, native_mint::ID as NATIVE_MINT};
-use common::{constants::RESCUE_DELAY, error::EscrowError};
+use common::{constants::RESCUE_DELAY, error::EscrowError, timelocks::Stage};
 use solana_program::{keccak::hash, program_error::ProgramError};
 use solana_sdk::{
     pubkey::Pubkey, signature::Signer, system_instruction::SystemError, transaction::Transaction,
@@ -233,7 +233,11 @@ pub async fn test_withdraw_does_not_work_with_wrong_secret<T: EscrowVariant<S>, 
 
     set_time(
         &mut test_state.context,
-        test_state.init_timestamp + DEFAULT_PERIOD_DURATION * PeriodType::Withdrawal as u32,
+        test_state
+            .test_arguments
+            .src_timelocks
+            .get(Stage::SrcWithdrawal)
+            .unwrap(),
     );
 
     test_state
@@ -332,10 +336,7 @@ pub async fn test_withdraw_does_not_work_before_withdrawal_start<
 
     let transaction = T::get_withdraw_tx(test_state, &escrow, &escrow_ata);
 
-    set_time(
-        &mut test_state.context,
-        test_state.init_timestamp + DEFAULT_PERIOD_DURATION * PeriodType::Finality as u32,
-    );
+    set_time(&mut test_state.context, test_state.init_timestamp);
     test_state
         .client
         .process_transaction(transaction)
@@ -354,7 +355,11 @@ pub async fn test_withdraw_does_not_work_after_cancellation_start<
     let transaction = T::get_withdraw_tx(test_state, &escrow, &escrow_ata);
     set_time(
         &mut test_state.context,
-        test_state.init_timestamp + DEFAULT_PERIOD_DURATION * PeriodType::Cancellation as u32,
+        test_state
+            .test_arguments
+            .src_timelocks
+            .get(Stage::SrcCancellation)
+            .unwrap(),
     );
     test_state
         .client
@@ -374,7 +379,11 @@ pub async fn test_public_withdraw_fails_with_wrong_secret<T: EscrowVariant<S>, S
 
     set_time(
         &mut test_state.context,
-        test_state.init_timestamp + DEFAULT_PERIOD_DURATION * PeriodType::PublicWithdrawal as u32,
+        test_state
+            .test_arguments
+            .src_timelocks
+            .get(Stage::SrcPublicWithdrawal)
+            .unwrap(),
     );
 
     test_state
@@ -399,7 +408,11 @@ pub async fn test_public_withdraw_fails_with_wrong_taker_ata<
 
     set_time(
         &mut test_state.context,
-        test_state.init_timestamp + DEFAULT_PERIOD_DURATION * PeriodType::PublicWithdrawal as u32,
+        test_state
+            .test_arguments
+            .src_timelocks
+            .get(Stage::SrcPublicWithdrawal)
+            .unwrap(),
     );
 
     test_state
@@ -429,7 +442,11 @@ pub async fn test_public_withdraw_fails_with_wrong_escrow_ata<
 
     set_time(
         &mut test_state.context,
-        test_state.init_timestamp + DEFAULT_PERIOD_DURATION * PeriodType::PublicWithdrawal as u32,
+        test_state
+            .test_arguments
+            .src_timelocks
+            .get(Stage::SrcPublicWithdrawal)
+            .unwrap(),
     );
 
     test_state
@@ -451,7 +468,11 @@ pub async fn test_public_withdraw_fails_before_start_of_public_withdraw<
 
     set_time(
         &mut test_state.context,
-        test_state.init_timestamp + DEFAULT_PERIOD_DURATION * PeriodType::Withdrawal as u32,
+        test_state
+            .test_arguments
+            .src_timelocks
+            .get(Stage::SrcWithdrawal)
+            .unwrap(),
     );
 
     test_state
@@ -473,7 +494,11 @@ pub async fn test_public_withdraw_fails_after_cancellation_start<
 
     set_time(
         &mut test_state.context,
-        test_state.init_timestamp + DEFAULT_PERIOD_DURATION * PeriodType::Cancellation as u32,
+        test_state
+            .test_arguments
+            .src_timelocks
+            .get(Stage::SrcCancellation)
+            .unwrap(),
     );
 
     test_state
@@ -492,7 +517,11 @@ pub async fn test_cancel<T: EscrowVariant<S> + 'static, S: TokenVariant>(
 
     set_time(
         &mut test_state.context,
-        test_state.init_timestamp + DEFAULT_PERIOD_DURATION * PeriodType::Cancellation as u32,
+        test_state
+            .test_arguments
+            .src_timelocks
+            .get(Stage::SrcCancellation)
+            .unwrap(),
     );
 
     let token_account_rent =
@@ -579,58 +608,18 @@ pub async fn test_cannot_cancel_before_cancellation_start<T: EscrowVariant<S>, S
 
     set_time(
         &mut test_state.context,
-        test_state.init_timestamp + DEFAULT_PERIOD_DURATION * PeriodType::Withdrawal as u32,
+        test_state
+            .test_arguments
+            .src_timelocks
+            .get(Stage::SrcWithdrawal)
+            .unwrap(),
     );
+
     test_state
         .client
         .process_transaction(transaction)
         .await
         .expect_error(ProgramError::Custom(EscrowError::InvalidTime.into()))
-}
-
-pub async fn test_escrow_creation_fails_if_finality_duration_overflows<
-    T: EscrowVariant<S>,
-    S: TokenVariant,
->(
-    test_state: &mut TestStateBase<T, S>,
-) {
-    test_state.test_arguments.finality_duration = u32::MAX;
-    let (_, _, transaction) = create_escrow_data(test_state);
-    test_state
-        .client
-        .process_transaction(transaction)
-        .await
-        .expect_error(ProgramError::ArithmeticOverflow);
-}
-
-pub async fn test_escrow_creation_fails_if_withdrawal_duration_overflows<
-    T: EscrowVariant<S>,
-    S: TokenVariant,
->(
-    test_state: &mut TestStateBase<T, S>,
-) {
-    test_state.test_arguments.withdrawal_duration = u32::MAX;
-    let (_, _, transaction) = create_escrow_data(test_state);
-    test_state
-        .client
-        .process_transaction(transaction)
-        .await
-        .expect_error(ProgramError::ArithmeticOverflow);
-}
-
-pub async fn test_escrow_creation_fails_if_public_withdrawal_duration_overflows<
-    T: EscrowVariant<S>,
-    S: TokenVariant,
->(
-    test_state: &mut TestStateBase<T, S>,
-) {
-    test_state.test_arguments.public_withdrawal_duration = u32::MAX;
-    let (_, _, transaction) = create_escrow_data(test_state);
-    test_state
-        .client
-        .process_transaction(transaction)
-        .await
-        .expect_error(ProgramError::ArithmeticOverflow);
 }
 
 pub async fn test_rescue_all_tokens_and_close_ata<

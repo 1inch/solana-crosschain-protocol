@@ -2,9 +2,13 @@ use anchor_lang::prelude::*;
 use anchor_spl::associated_token::{AssociatedToken, ID as ASSOCIATED_TOKEN_PROGRAM_ID};
 use anchor_spl::token_interface::{Mint, TokenAccount, TokenInterface};
 pub use common::constants;
-use common::error::EscrowError;
-use common::escrow::{EscrowBase, EscrowType};
-use common::utils;
+use common::{
+    error::EscrowError,
+    escrow::{EscrowBase, EscrowType},
+    timelocks::{Stage, Timelocks},
+    utils,
+};
+use primitive_types::U256;
 
 declare_id!("B9SnVJbXNd6RFNxHqPkTvdr46YPT17xunemTQfDsCNzR");
 
@@ -20,24 +24,14 @@ pub mod cross_chain_escrow_dst {
         amount: u64,
         safety_deposit: u64,
         recipient: Pubkey,
-        finality_duration: u32,
-        withdrawal_duration: u32,
-        public_withdrawal_duration: u32,
+        timelocks: [u64; 4],
         src_cancellation_timestamp: u32,
         rescue_start: u32,
         asset_is_native: bool,
     ) -> Result<()> {
         let now = utils::get_current_timestamp()?;
-
-        let withdrawal_start = now
-            .checked_add(finality_duration)
-            .ok_or(ProgramError::ArithmeticOverflow)?;
-        let public_withdrawal_start = withdrawal_start
-            .checked_add(withdrawal_duration)
-            .ok_or(ProgramError::ArithmeticOverflow)?;
-        let cancellation_start = public_withdrawal_start
-            .checked_add(public_withdrawal_duration)
-            .ok_or(ProgramError::ArithmeticOverflow)?;
+        let updated_timelocks = Timelocks(U256(timelocks)).set_deployed_at(now);
+        let cancellation_start = updated_timelocks.get(Stage::DstCancellation)?;
 
         require!(
             cancellation_start <= src_cancellation_timestamp,
@@ -73,9 +67,7 @@ pub mod cross_chain_escrow_dst {
             token: ctx.accounts.mint.key(),
             amount,
             safety_deposit,
-            withdrawal_start,
-            public_withdrawal_start,
-            cancellation_start,
+            timelocks: updated_timelocks.0 .0,
             rescue_start,
             asset_is_native,
         });
@@ -86,8 +78,13 @@ pub mod cross_chain_escrow_dst {
     pub fn withdraw(ctx: Context<Withdraw>, secret: [u8; 32]) -> Result<()> {
         let now = utils::get_current_timestamp()?;
         require!(
-            now >= ctx.accounts.escrow.withdrawal_start
-                && now < ctx.accounts.escrow.cancellation_start,
+            now >= ctx.accounts.escrow.timelocks().get(Stage::DstWithdrawal)?
+                && now
+                    < ctx
+                        .accounts
+                        .escrow
+                        .timelocks()
+                        .get(Stage::DstCancellation)?,
             EscrowError::InvalidTime
         );
 
@@ -111,8 +108,17 @@ pub mod cross_chain_escrow_dst {
     pub fn public_withdraw(ctx: Context<PublicWithdraw>, secret: [u8; 32]) -> Result<()> {
         let now = utils::get_current_timestamp()?;
         require!(
-            now >= ctx.accounts.escrow.public_withdrawal_start
-                && now < ctx.accounts.escrow.cancellation_start,
+            now >= ctx
+                .accounts
+                .escrow
+                .timelocks()
+                .get(Stage::DstPublicWithdrawal)?
+                && now
+                    < ctx
+                        .accounts
+                        .escrow
+                        .timelocks()
+                        .get(Stage::DstCancellation)?,
             EscrowError::InvalidTime
         );
 
@@ -136,7 +142,11 @@ pub mod cross_chain_escrow_dst {
     pub fn cancel(ctx: Context<Cancel>) -> Result<()> {
         let now = utils::get_current_timestamp()?;
         require!(
-            now >= ctx.accounts.escrow.cancellation_start,
+            now >= ctx
+                .accounts
+                .escrow
+                .timelocks()
+                .get(Stage::DstCancellation)?,
             EscrowError::InvalidTime
         );
 
@@ -193,7 +203,7 @@ pub mod cross_chain_escrow_dst {
 }
 
 #[derive(Accounts)]
-#[instruction(order_hash: [u8; 32], hashlock: [u8; 32], amount: u64, safety_deposit: u64, recipient: Pubkey, finality_duration: u32, withdrawal_duration: u32, public_withdrawal_duration: u32, src_cancellation_timestamp: u32, rescue_start: u32)]
+#[instruction(order_hash: [u8; 32], hashlock: [u8; 32], amount: u64, safety_deposit: u64, recipient: Pubkey, timelocks: [u64; 4], src_cancellation_timestamp: u32, rescue_start: u32)]
 pub struct Create<'info> {
     /// Puts tokens into escrow
     #[account(
@@ -448,9 +458,7 @@ pub struct EscrowDst {
     asset_is_native: bool,
     amount: u64,
     safety_deposit: u64,
-    withdrawal_start: u32,
-    public_withdrawal_start: u32,
-    cancellation_start: u32,
+    timelocks: [u64; 4],
     rescue_start: u32,
 }
 
@@ -483,16 +491,8 @@ impl EscrowBase for EscrowDst {
         self.safety_deposit
     }
 
-    fn withdrawal_start(&self) -> u32 {
-        self.withdrawal_start
-    }
-
-    fn public_withdrawal_start(&self) -> u32 {
-        self.public_withdrawal_start
-    }
-
-    fn cancellation_start(&self) -> u32 {
-        self.cancellation_start
+    fn timelocks(&self) -> Timelocks {
+        Timelocks(U256(self.timelocks))
     }
 
     fn rescue_start(&self) -> u32 {

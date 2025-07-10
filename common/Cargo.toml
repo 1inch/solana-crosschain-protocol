@@ -6,3 +6,4 @@ edition = "2021"
 [dependencies]
 anchor-lang = "0.31.1"
 anchor-spl = "0.31.1"
+primitive-types = "0.13.1"
