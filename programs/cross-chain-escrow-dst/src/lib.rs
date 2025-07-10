@@ -78,6 +78,7 @@ pub mod cross_chain_escrow_dst {
             cancellation_start,
             rescue_start,
             asset_is_native,
+            bump: ctx.bumps.escrow,
         });
 
         Ok(())
@@ -96,7 +97,7 @@ pub mod cross_chain_escrow_dst {
 
         common::escrow::withdraw(
             &ctx.accounts.escrow,
-            ctx.bumps.escrow,
+            ctx.accounts.escrow.bump,
             &ctx.accounts.escrow_ata,
             &ctx.accounts.recipient,
             ctx.accounts.recipient_ata.as_deref(),
@@ -121,7 +122,7 @@ pub mod cross_chain_escrow_dst {
 
         common::escrow::withdraw(
             &ctx.accounts.escrow,
-            ctx.bumps.escrow,
+            ctx.accounts.escrow.bump,
             &ctx.accounts.escrow_ata,
             &ctx.accounts.recipient,
             ctx.accounts.recipient_ata.as_deref(),
@@ -142,7 +143,7 @@ pub mod cross_chain_escrow_dst {
 
         common::escrow::cancel(
             &ctx.accounts.escrow,
-            ctx.bumps.escrow,
+            ctx.accounts.escrow.bump,
             &ctx.accounts.escrow_ata,
             ctx.accounts.creator_ata.as_deref(),
             &ctx.accounts.mint,
@@ -272,7 +273,7 @@ pub struct Withdraw<'info> {
             escrow.safety_deposit.to_be_bytes().as_ref(),
             escrow.rescue_start.to_be_bytes().as_ref(),
         ],
-        bump,
+        bump = escrow.bump,
     )]
     escrow: Box<Account<'info, EscrowDst>>,
     #[account(
@@ -329,7 +330,7 @@ pub struct PublicWithdraw<'info> {
             escrow.safety_deposit.to_be_bytes().as_ref(),
             escrow.rescue_start.to_be_bytes().as_ref(),
         ],
-        bump,
+        bump = escrow.bump,
     )]
     escrow: Box<Account<'info, EscrowDst>>,
     #[account(
@@ -372,7 +373,7 @@ pub struct Cancel<'info> {
             escrow.safety_deposit.to_be_bytes().as_ref(),
             escrow.rescue_start.to_be_bytes().as_ref(),
         ],
-        bump,
+        bump = escrow.bump,
     )]
     escrow: Box<Account<'info, EscrowDst>>,
     #[account(
@@ -452,6 +453,7 @@ pub struct EscrowDst {
     public_withdrawal_start: u32,
     cancellation_start: u32,
     rescue_start: u32,
+    bump: u8,
 }
 
 impl EscrowBase for EscrowDst {
