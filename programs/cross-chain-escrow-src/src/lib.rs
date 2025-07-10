@@ -127,6 +127,7 @@ pub mod cross_chain_escrow_src {
             max_cancellation_premium,
             cancellation_auction_duration,
             allow_multiple_fills,
+            bump: ctx.bumps.order,
         });
 
         Ok(())
@@ -200,7 +201,7 @@ pub mod cross_chain_escrow_src {
             EscrowError::InvalidRescueStart
         );
 
-        let order_seeds = ["order".as_bytes(), &order.order_hash, &[ctx.bumps.order]];
+        let order_seeds = ["order".as_bytes(), &order.order_hash, &[order.bump]];
 
         let mut amount_to_transfer = amount;
         if order.remaining_amount == amount {
@@ -245,6 +246,7 @@ pub mod cross_chain_escrow_src {
                     .0,
                 &dutch_auction_data,
             )?,
+            bump: ctx.bumps.escrow,
         });
 
         if !order.allow_multiple_fills || order.remaining_amount == amount {
@@ -282,7 +284,7 @@ pub mod cross_chain_escrow_src {
 
         common::escrow::withdraw(
             &ctx.accounts.escrow,
-            ctx.bumps.escrow,
+            ctx.accounts.escrow.bump,
             &ctx.accounts.escrow_ata,
             &ctx.accounts.taker,           // recipient
             Some(&ctx.accounts.taker_ata), // recipient ATA
@@ -308,7 +310,7 @@ pub mod cross_chain_escrow_src {
 
         common::escrow::withdraw(
             &ctx.accounts.escrow,
-            ctx.bumps.escrow,
+            ctx.accounts.escrow.bump,
             &ctx.accounts.escrow_ata,
             &ctx.accounts.taker,           // recipient
             Some(&ctx.accounts.taker_ata), // recipient ATA
@@ -334,7 +336,7 @@ pub mod cross_chain_escrow_src {
 
         common::escrow::cancel(
             &ctx.accounts.escrow,
-            ctx.bumps.escrow,
+            ctx.accounts.escrow.bump,
             &ctx.accounts.escrow_ata,
             ctx.accounts.maker_ata.as_deref(), // order creator ATA
             &ctx.accounts.mint,
@@ -359,7 +361,7 @@ pub mod cross_chain_escrow_src {
 
         common::escrow::cancel(
             &ctx.accounts.escrow,
-            ctx.bumps.escrow,
+            ctx.accounts.escrow.bump,
             &ctx.accounts.escrow_ata,
             ctx.accounts.maker_ata.as_deref(), // order creator ATA
             &ctx.accounts.mint,
@@ -383,7 +385,7 @@ pub mod cross_chain_escrow_src {
             EscrowError::InconsistentNativeTrait
         );
 
-        let seeds = ["order".as_bytes(), &order.order_hash, &[ctx.bumps.order]];
+        let seeds = ["order".as_bytes(), &order.order_hash, &[order.bump]];
 
         // In an order cancel, the maker receives the entire rent amount, including the safety deposit,
         // because they initially covered the entire rent during order creation, while also
@@ -440,7 +442,7 @@ pub mod cross_chain_escrow_src {
             EscrowError::InconsistentNativeTrait
         );
 
-        let seeds = ["order".as_bytes(), &order.order_hash, &[ctx.bumps.order]];
+        let seeds = ["order".as_bytes(), &order.order_hash, &[order.bump]];
 
         // Order creator receives the amount of tokens back to their initial ATA
         if !order.asset_is_native {
@@ -711,7 +713,7 @@ pub struct CreateEscrow<'info> {
             "order".as_bytes(),
             order.order_hash.as_ref(),
         ],
-        bump,
+        bump = order.bump,
     )]
     order: Box<Account<'info, Order>>,
     /// Account to store orders tokens
@@ -783,7 +785,7 @@ pub struct Withdraw<'info> {
             escrow.safety_deposit.to_be_bytes().as_ref(),
             escrow.rescue_start.to_be_bytes().as_ref(),
         ],
-        bump,
+        bump = escrow.bump,
     )]
     escrow: Box<Account<'info, EscrowSrc>>,
     #[account(
@@ -834,7 +836,7 @@ pub struct PublicWithdraw<'info> {
             escrow.safety_deposit.to_be_bytes().as_ref(),
             escrow.rescue_start.to_be_bytes().as_ref(),
         ],
-        bump,
+        bump = escrow.bump,
     )]
     escrow: Box<Account<'info, EscrowSrc>>,
     #[account(
@@ -882,7 +884,7 @@ pub struct CancelEscrow<'info> {
             escrow.safety_deposit.to_be_bytes().as_ref(),
             escrow.rescue_start.to_be_bytes().as_ref(),
         ],
-        bump,
+        bump = escrow.bump,
     )]
     escrow: Box<Account<'info, EscrowSrc>>,
     #[account(
@@ -940,7 +942,7 @@ pub struct PublicCancelEscrow<'info> {
             escrow.safety_deposit.to_be_bytes().as_ref(),
             escrow.rescue_start.to_be_bytes().as_ref(),
         ],
-        bump,
+        bump = escrow.bump,
     )]
     escrow: Box<Account<'info, EscrowSrc>>,
     #[account(
@@ -980,7 +982,7 @@ pub struct CancelOrder<'info> {
             "order".as_bytes(),
             order.order_hash.as_ref(),
         ],
-        bump,
+        bump = order.bump,
     )]
     order: Box<Account<'info, Order>>,
     #[account(
@@ -1029,7 +1031,7 @@ pub struct CancelOrderbyResolver<'info> {
             "order".as_bytes(),
             order.order_hash.as_ref(),
         ],
-        bump,
+        bump = order.bump,
     )]
     order: Box<Account<'info, Order>>,
     #[account(
@@ -1196,6 +1198,7 @@ pub struct Order {
     max_cancellation_premium: u64,
     cancellation_auction_duration: u32,
     allow_multiple_fills: bool,
+    bump: u8,
 }
 
 #[account]
@@ -1215,6 +1218,7 @@ pub struct EscrowSrc {
     rescue_start: u32,
     asset_is_native: bool,
     dst_amount: [u64; 4],
+    bump: u8,
 }
 
 impl EscrowBase for EscrowSrc {
