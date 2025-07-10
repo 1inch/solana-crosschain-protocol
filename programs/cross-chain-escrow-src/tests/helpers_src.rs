@@ -559,7 +559,7 @@ pub async fn test_cancel_by_resolver_for_free_at_the_auction_start<S: TokenVaria
 
     set_time(
         &mut test_state.context,
-        test_state.init_timestamp + test_state.test_arguments.expiration_duration,
+        test_state.test_arguments.expiration_time,
     );
 
     let token_account_rent =
@@ -609,7 +609,7 @@ pub async fn test_cancel_by_resolver_at_different_points<S: TokenVariant>(
     let cancellation_points: Vec<u32> = vec![10, 25, 50, 100]
         .into_iter()
         .map(|percentage| {
-            (init_test_state.test_arguments.expiration_duration + init_test_state.init_timestamp)
+            init_test_state.test_arguments.expiration_time
                 + (init_test_state.test_arguments.cancellation_auction_duration
                     * (percentage * 100))
                     / (100 * 100)
@@ -651,9 +651,6 @@ pub async fn test_cancel_by_resolver_at_different_points<S: TokenVariant>(
 
             set_time(&mut test_state.context, cancellation_point);
 
-            let expiratione_time =
-                test_state.test_arguments.expiration_duration + test_state.init_timestamp;
-
             let order_rent =
                 get_min_rent_for_size(&mut test_state.client, DEFAULT_ORDER_SIZE).await;
 
@@ -665,7 +662,7 @@ pub async fn test_cancel_by_resolver_at_different_points<S: TokenVariant>(
 
             let resolver_premium = calculate_premium(
                 clock.unix_timestamp as u32,
-                expiratione_time,
+                test_state.test_arguments.expiration_time,
                 test_state.test_arguments.cancellation_auction_duration,
                 max_cancellation_premium as u64,
             );
@@ -712,12 +709,11 @@ pub async fn test_cancel_by_resolver_after_auction<S: TokenVariant>(
 
     let transaction = get_cancel_order_by_resolver_tx(test_state, &order, &order_ata, None);
 
-    let expiratione_time =
-        test_state.test_arguments.expiration_duration + test_state.init_timestamp;
-
     set_time(
         &mut test_state.context,
-        expiratione_time + test_state.test_arguments.cancellation_auction_duration + 1,
+        test_state.test_arguments.expiration_time
+            + test_state.test_arguments.cancellation_auction_duration
+            + 1,
     );
 
     let resolver_premium = test_state.test_arguments.max_cancellation_premium;
@@ -765,12 +761,11 @@ pub async fn test_cancel_by_resolver_reward_less_then_auction_calculated<S: Toke
 
     let transaction = get_cancel_order_by_resolver_tx(test_state, &order, &order_ata, None);
 
-    let expiratione_time =
-        test_state.test_arguments.expiration_duration + test_state.init_timestamp;
-
     set_time(
         &mut test_state.context,
-        expiratione_time + test_state.test_arguments.cancellation_auction_duration + 1,
+        test_state.test_arguments.expiration_time
+            + test_state.test_arguments.cancellation_auction_duration
+            + 1,
     );
 
     let token_account_rent =

@@ -277,7 +277,7 @@ pub fn get_rescue_funds_from_order_tx<S: TokenVariant>(
             safety_deposit: test_state.test_arguments.safety_deposit,
             timelocks: test_state.test_arguments.src_timelocks.0 .0,
             rescue_start: test_state.test_arguments.rescue_start,
-            expiration_duration: test_state.test_arguments.expiration_duration,
+            expiration_time: test_state.test_arguments.expiration_time,
             asset_is_native: test_state.test_arguments.asset_is_native,
             dst_amount: test_state.test_arguments.dst_amount,
             dutch_auction_data_hash: keccak::hashv(&[&test_state
@@ -348,7 +348,7 @@ pub fn get_order_hash<T, S: TokenVariant>(test_state: &TestStateBase<T, S>) -> k
             .as_ref(),
         test_state
             .test_arguments
-            .expiration_duration
+            .expiration_time
             .to_be_bytes()
             .as_ref(),
         &[test_state.test_arguments.asset_is_native as u8],
@@ -416,7 +416,7 @@ pub fn get_create_order_tx<T: EscrowVariant<S>, S: TokenVariant>(
         safety_deposit: test_state.test_arguments.safety_deposit,
         timelocks: test_state.test_arguments.src_timelocks.0 .0,
         rescue_start: test_state.test_arguments.rescue_start,
-        expiration_duration: test_state.test_arguments.expiration_duration,
+        expiration_time: test_state.test_arguments.expiration_time,
         asset_is_native: test_state.test_arguments.asset_is_native,
         dst_amount: test_state.test_arguments.dst_amount,
         dutch_auction_data_hash: keccak::hashv(&[&test_state

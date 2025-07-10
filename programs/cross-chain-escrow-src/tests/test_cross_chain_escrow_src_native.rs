@@ -339,7 +339,7 @@ mod test_native_src {
         prepare_resolvers(test_state, &[test_state.taker_wallet.keypair.pubkey()]).await;
         set_time(
             &mut test_state.context,
-            test_state.init_timestamp + test_state.test_arguments.expiration_duration,
+            test_state.test_arguments.expiration_time,
         );
 
         let transaction = get_cancel_order_by_resolver_tx(
@@ -778,7 +778,7 @@ mod test_wrapped_native {
         prepare_resolvers(test_state, &[test_state.taker_wallet.keypair.pubkey()]).await;
         set_time(
             &mut test_state.context,
-            test_state.init_timestamp + test_state.test_arguments.expiration_duration,
+            test_state.test_arguments.expiration_time,
         );
 
         let transaction = get_cancel_order_by_resolver_tx(

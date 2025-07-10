@@ -133,17 +133,15 @@ run_for_tokens!(
 
             #[test_context(TestState)]
             #[tokio::test]
-            async fn test_order_creation_fails_with_zero_expiration_duration(
-                test_state: &mut TestState,
-            ) {
-                test_state.test_arguments.expiration_duration = 0;
+            async fn test_order_creation_fails_if_after_expiration(test_state: &mut TestState) {
+                test_state.test_arguments.expiration_time = test_state.init_timestamp - 1;
                 let (order, order_ata, tx) = create_order_data(test_state);
 
                 test_state
                     .client
                     .process_transaction(tx)
                     .await
-                    .expect_error(ProgramError::Custom(EscrowError::InvalidTime.into()));
+                    .expect_error(ProgramError::Custom(EscrowError::OrderHasExpired.into()));
 
                 // Check that the order accounts have not been created.
                 let acc_lookup_result = test_state.client.get_account(order).await.unwrap();
@@ -230,7 +228,8 @@ run_for_tokens!(
             async fn test_order_creation_fails_when_rescue_start_is_equal_to_expiration_time(
                 test_state: &mut TestState,
             ) {
-                test_state.test_arguments.expiration_duration = common::constants::RESCUE_DELAY;
+                test_state.test_arguments.expiration_time =
+                    test_state.init_timestamp + common::constants::RESCUE_DELAY;
                 let (_, _, transaction) = create_order_data(test_state);
 
                 test_state
@@ -443,7 +442,7 @@ run_for_tokens!(
                 prepare_resolvers(test_state, &[test_state.taker_wallet.keypair.pubkey()]).await;
                 set_time(
                     &mut test_state.context,
-                    test_state.init_timestamp + test_state.test_arguments.expiration_duration + 1,
+                    test_state.test_arguments.expiration_time + 1,
                 );
 
                 let (_, _, transaction) = create_escrow_data(test_state);
@@ -513,15 +512,16 @@ run_for_tokens!(
             async fn test_escrow_creation_fails_when_rescue_start_is_less_than_public_cancellation_time(
                 test_state: &mut TestState,
             ) {
-                // set expiration_duration to be less than rescue_start for skip require in create_order
-                test_state.test_arguments.expiration_duration = common::constants::RESCUE_DELAY - 1;
+                // set expiration_time to be less than rescue_start for skip require in create_order
+                test_state.test_arguments.expiration_time =
+                    test_state.test_arguments.rescue_start - 1;
                 create_order(test_state).await;
                 prepare_resolvers(test_state, &[test_state.taker_wallet.keypair.pubkey()]).await;
 
                 // create escrow just before rescue_start
                 set_time(
                     &mut test_state.context,
-                    test_state.init_timestamp + test_state.test_arguments.expiration_duration - 1,
+                    test_state.test_arguments.expiration_time - 1,
                 );
 
                 let (_, _, transaction) = create_escrow_data(test_state);
@@ -1218,6 +1218,54 @@ run_for_tokens!(
                     .await;
             }
 
+            // Checks the maker_amount transfer transaction is skipped if the maker_amount is zero
+            #[test_context(TestState)]
+            #[tokio::test]
+            async fn test_cancel_by_resolver_with_zero_maker_amount(test_state: &mut TestState) {
+                prepare_resolvers(test_state, &[test_state.taker_wallet.keypair.pubkey()]).await;
+
+                let token_account_rent = get_min_rent_for_size(
+                    &mut test_state.client,
+                    <TestState as HasTokenVariant>::Token::get_token_account_size(),
+                )
+                .await;
+
+                // By setting these two test arguments below to token_account_rent and current time to
+                // more than (test_state.init_timestamp + test_state.test_arguments.expiration_duration +
+                // auction_duration)
+                // we ensure that the make_amount will evaluate to zero.
+                test_state.test_arguments.max_cancellation_premium = token_account_rent;
+                test_state.test_arguments.reward_limit = token_account_rent;
+
+                let (order, order_ata) = create_order(test_state).await;
+                let transaction =
+                    get_cancel_order_by_resolver_tx(test_state, &order, &order_ata, None);
+
+                set_time(
+                    &mut test_state.context,
+                    test_state.init_timestamp
+                        + test_state.test_arguments.expiration_duration
+                        + test_state.test_arguments.cancellation_auction_duration
+                        + 1,
+                );
+
+                let result = test_state
+                    .client
+                    .simulate_transaction(transaction)
+                    .await
+                    .expect("Simulation RPC failed");
+
+                // Extract the simulation details
+                let sim_details = result
+                    .simulation_details
+                    .expect("Simulation details not found");
+
+                // Check it does not contain system program invocation for the transfer transaction
+                assert!(!sim_details
+                    .logs
+                    .contains(&"Program 11111111111111111111111111111111 invoke [1]".to_string()));
+            }
+
             #[test_context(TestState)]
             #[tokio::test]
             async fn test_cancel_by_resolver_for_free_at_the_auction_start_with_excess_tokens(
@@ -1230,7 +1278,7 @@ run_for_tokens!(
 
                 set_time(
                     &mut test_state.context,
-                    test_state.init_timestamp + test_state.test_arguments.expiration_duration,
+                    test_state.test_arguments.expiration_time,
                 );
 
                 let (maker_ata, _) = find_user_ata(test_state);
