@@ -782,10 +782,9 @@ pub async fn test_cancel_by_resolver_reward_less_then_auction_calculated<S: Toke
 pub async fn create_order_for_partial_fill<S: TokenVariant>(
     test_state: &mut TestStateBase<SrcProgram, S>,
 ) -> (Pubkey, Pubkey) {
-    test_state.test_arguments.order_parts_amount = DEFAULT_PARTS_AMOUNT_FOR_MULTIPLE;
-    let merkle_hashes = compute_merkle_leaves(test_state);
+    let merkle_hashes = compute_merkle_leaves();
     let root = get_root(merkle_hashes.leaves.clone());
-    test_state.hashlock = Hash::new_from_array(root);
+    test_state.hashlock = assembly_hashlock_for_root(root, DEFAULT_PARTS_AMOUNT_FOR_MULTIPLE);
     test_state.test_arguments.allow_multiple_fills = true;
     create_order(test_state).await
 }
@@ -794,7 +793,7 @@ pub async fn test_escrow_creation_for_partial_fill_data<S: TokenVariant>(
     test_state: &mut TestStateBase<SrcProgram, S>,
     escrow_amount: u64,
 ) -> (Pubkey, Pubkey, Transaction) {
-    let merkle_hashes = compute_merkle_leaves(test_state);
+    let merkle_hashes = compute_merkle_leaves();
     let index_to_validate = get_index_for_escrow_amount(test_state, escrow_amount);
     test_state.test_arguments.escrow_amount = escrow_amount;
 
@@ -863,10 +862,14 @@ pub struct MerkleHashes {
     pub secrets: Vec<[u8; 32]>,
 }
 
-pub fn compute_merkle_leaves<T: EscrowVariant<S>, S: TokenVariant>(
-    test_state: &TestStateBase<T, S>,
-) -> MerkleHashes {
-    let secret_amount = (test_state.test_arguments.order_parts_amount + 1) as usize;
+pub fn assembly_hashlock_for_root(root: [u8; 32], parts_amount: u64) -> Hash {
+    let mut hashlock = root;
+    hashlock[0..2].copy_from_slice(&parts_amount.to_be_bytes()[6..8]);
+    Hash::new_from_array(hashlock)
+}
+
+pub fn compute_merkle_leaves() -> MerkleHashes {
+    let secret_amount = (DEFAULT_PARTS_AMOUNT_FOR_MULTIPLE + 1) as usize;
     let mut hashed_leaves = Vec::with_capacity(secret_amount);
     let mut hashed_secrets = Vec::with_capacity(secret_amount);
     let mut secrets = Vec::with_capacity(secret_amount);
@@ -895,12 +898,12 @@ pub fn get_index_for_escrow_amount<T: EscrowVariant<S>, S: TokenVariant>(
     escrow_amount: u64,
 ) -> usize {
     if escrow_amount == test_state.test_arguments.order_remaining_amount {
-        return test_state.test_arguments.order_parts_amount as usize;
+        return DEFAULT_PARTS_AMOUNT_FOR_MULTIPLE as usize;
     }
     ((test_state.test_arguments.order_amount - test_state.test_arguments.order_remaining_amount
         + escrow_amount
         - 1)
-        * test_state.test_arguments.order_parts_amount
+        * DEFAULT_PARTS_AMOUNT_FOR_MULTIPLE
         / test_state.test_arguments.order_amount) as usize
 }
 
