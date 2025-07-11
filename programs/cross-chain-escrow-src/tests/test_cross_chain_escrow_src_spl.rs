@@ -1246,8 +1246,7 @@ run_for_tokens!(
 
                 set_time(
                     &mut test_state.context,
-                    test_state.init_timestamp
-                        + test_state.test_arguments.expiration_duration
+                    test_state.test_arguments.expiration_time
                         + test_state.test_arguments.cancellation_auction_duration
                         + 1,
                 );
