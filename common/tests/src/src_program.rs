@@ -275,10 +275,7 @@ pub fn get_rescue_funds_from_order_tx<S: TokenVariant>(
             order_amount: test_state.test_arguments.order_amount,
             parts_amount: test_state.test_arguments.order_parts_amount,
             safety_deposit: test_state.test_arguments.safety_deposit,
-            cancellation_duration: test_state.test_arguments.cancellation_duration,
-            finality_duration: test_state.test_arguments.finality_duration,
-            public_withdrawal_duration: test_state.test_arguments.public_withdrawal_duration,
-            withdrawal_duration: test_state.test_arguments.withdrawal_duration,
+            timelocks: test_state.test_arguments.src_timelocks.get_timelocks(),
             rescue_start: test_state.test_arguments.rescue_start,
             expiration_time: test_state.test_arguments.expiration_time,
             asset_is_native: test_state.test_arguments.asset_is_native,
@@ -340,26 +337,10 @@ pub fn get_order_hash<T, S: TokenVariant>(test_state: &TestStateBase<T, S>) -> k
             .safety_deposit
             .to_be_bytes()
             .as_ref(),
-        test_state
-            .test_arguments
-            .finality_duration
-            .to_be_bytes()
-            .as_ref(),
-        test_state
-            .test_arguments
-            .withdrawal_duration
-            .to_be_bytes()
-            .as_ref(),
-        test_state
-            .test_arguments
-            .public_withdrawal_duration
-            .to_be_bytes()
-            .as_ref(),
-        test_state
-            .test_arguments
-            .cancellation_duration
-            .to_be_bytes()
-            .as_ref(),
+        &(test_state.test_arguments.src_timelocks.get_timelocks())
+            .iter()
+            .flat_map(|x| x.to_le_bytes())
+            .collect::<Vec<u8>>(),
         test_state
             .test_arguments
             .rescue_start
@@ -433,10 +414,7 @@ pub fn get_create_order_tx<T: EscrowVariant<S>, S: TokenVariant>(
         parts_amount: test_state.test_arguments.order_parts_amount,
         hashlock: test_state.hashlock.to_bytes(),
         safety_deposit: test_state.test_arguments.safety_deposit,
-        cancellation_duration: test_state.test_arguments.cancellation_duration,
-        finality_duration: test_state.test_arguments.finality_duration,
-        public_withdrawal_duration: test_state.test_arguments.public_withdrawal_duration,
-        withdrawal_duration: test_state.test_arguments.withdrawal_duration,
+        timelocks: test_state.test_arguments.src_timelocks.get_timelocks(),
         rescue_start: test_state.test_arguments.rescue_start,
         expiration_time: test_state.test_arguments.expiration_time,
         asset_is_native: test_state.test_arguments.asset_is_native,

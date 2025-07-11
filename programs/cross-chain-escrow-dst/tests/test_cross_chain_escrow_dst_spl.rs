@@ -1,5 +1,6 @@
 use anchor_lang::error::ErrorCode;
-use common::error::EscrowError;
+use common::constants::RESCUE_DELAY;
+use common::{error::EscrowError, timelocks::Stage};
 use common_tests::dst_program::DstProgram;
 use common_tests::helpers::*;
 use common_tests::run_for_tokens;
@@ -23,7 +24,7 @@ run_for_tokens!(
 
             #[test_context(TestState)]
             #[tokio::test]
-            async fn test_escrow_creation_only(test_state: &mut TestState) {
+            async fn test_escrow_creation(test_state: &mut TestState) {
                 common_escrow_tests::test_escrow_creation(test_state).await
             }
 
@@ -81,39 +82,6 @@ run_for_tokens!(
 
             #[test_context(TestState)]
             #[tokio::test]
-            async fn test_escrow_creation_fails_if_finality_duration_overflows(
-                test_state: &mut TestState,
-            ) {
-                common_escrow_tests::test_escrow_creation_fails_if_finality_duration_overflows(
-                    test_state,
-                )
-                .await
-            }
-
-            #[test_context(TestState)]
-            #[tokio::test]
-            async fn test_escrow_creation_fails_if_withdrawal_duration_overflows(
-                test_state: &mut TestState,
-            ) {
-                common_escrow_tests::test_escrow_creation_fails_if_withdrawal_duration_overflows(
-                    test_state,
-                )
-                .await;
-            }
-
-            #[test_context(TestState)]
-            #[tokio::test]
-            async fn test_escrow_creation_fails_if_public_withdrawal_duration_overflows(
-                test_state: &mut TestState,
-            ) {
-                prepare_resolvers(test_state, &[test_state.taker_wallet.keypair.pubkey()]).await;
-                common_escrow_tests::test_escrow_creation_fails_if_public_withdrawal_duration_overflows(
-                    test_state,
-                ).await;
-            }
-
-            #[test_context(TestState)]
-            #[tokio::test]
             async fn test_escrow_creation_fails_when_cancellation_start_gt_src_cancellation_timestamp(
                 test_state: &mut TestState,
             ) {
@@ -135,9 +103,10 @@ run_for_tokens!(
             async fn test_escrow_creation_fails_when_rescue_start_is_equal_to_cancellation_start(
                 test_state: &mut TestState,
             ) {
-                test_state.test_arguments.public_withdrawal_duration =
-                    common::constants::RESCUE_DELAY;
-                test_state.test_arguments.src_cancellation_timestamp = u32::MAX;
+                test_state.test_arguments.dst_timelocks =
+                    init_timelocks(0, 0, 0, 0, 0, 0, RESCUE_DELAY, 0);
+                test_state.test_arguments.src_cancellation_timestamp =
+                    test_state.test_arguments.rescue_start;
                 let (_, _, transaction) = create_escrow_data(test_state);
 
                 test_state
@@ -168,8 +137,11 @@ run_for_tokens!(
 
                 set_time(
                     &mut test_state.context,
-                    test_state.init_timestamp
-                        + DEFAULT_PERIOD_DURATION * PeriodType::Withdrawal as u32,
+                    test_state
+                        .test_arguments
+                        .dst_timelocks
+                        .get(Stage::DstWithdrawal)
+                        .unwrap(),
                 );
 
                 let (_, taker_ata) = find_user_ata(test_state);
@@ -209,8 +181,11 @@ run_for_tokens!(
 
                 set_time(
                     &mut test_state.context,
-                    test_state.init_timestamp
-                        + DEFAULT_PERIOD_DURATION * PeriodType::Withdrawal as u32,
+                    test_state
+                        .test_arguments
+                        .dst_timelocks
+                        .get(Stage::DstWithdrawal)
+                        .unwrap(),
                 );
 
                 let (_, taker_ata) = find_user_ata(test_state);
@@ -313,6 +288,24 @@ run_for_tokens!(
                     .await
                     .expect_error(ProgramError::Custom(ErrorCode::ConstraintSeeds.into()));
             }
+
+            #[test_context(TestState)]
+            #[tokio::test]
+            async fn test_withdraw_fails_if_withdrawal_duration_overflows(
+                test_state: &mut TestState,
+            ) {
+                test_state.test_arguments.dst_timelocks =
+                    init_timelocks(0, 0, 0, 0, u32::MAX, 0, 0, 0);
+                let (escrow, escrow_ata) = create_escrow(test_state).await;
+
+                let transaction = DstProgram::get_withdraw_tx(test_state, &escrow, &escrow_ata);
+
+                test_state
+                    .client
+                    .process_transaction(transaction)
+                    .await
+                    .expect_error(ProgramError::ArithmeticOverflow);
+            }
         }
 
         mod test_escrow_public_withdraw {
@@ -355,8 +348,11 @@ run_for_tokens!(
 
                 set_time(
                     &mut test_state.context,
-                    test_state.init_timestamp
-                        + DEFAULT_PERIOD_DURATION * PeriodType::PublicWithdrawal as u32,
+                    test_state
+                        .test_arguments
+                        .dst_timelocks
+                        .get(Stage::DstPublicWithdrawal)
+                        .unwrap(),
                 );
 
                 let escrow_data_len = DEFAULT_DST_ESCROW_SIZE;
@@ -432,8 +428,11 @@ run_for_tokens!(
 
                 set_time(
                     &mut test_state.context,
-                    test_state.init_timestamp
-                        + DEFAULT_PERIOD_DURATION * PeriodType::PublicWithdrawal as u32,
+                    test_state
+                        .test_arguments
+                        .dst_timelocks
+                        .get(Stage::DstPublicWithdrawal)
+                        .unwrap(),
                 );
 
                 // Check that the escrow balance is correct
@@ -497,6 +496,30 @@ run_for_tokens!(
 
             #[test_context(TestState)]
             #[tokio::test]
+            async fn test_public_withdraw_fails_if_public_withdrawal_duration_overflows(
+                test_state: &mut TestState,
+            ) {
+                prepare_resolvers(test_state, &[test_state.maker_wallet.keypair.pubkey()]).await;
+                test_state.test_arguments.dst_timelocks =
+                    init_timelocks(0, 0, 0, 0, 0, u32::MAX, 0, 0);
+                let (escrow, escrow_ata) = create_escrow(test_state).await;
+
+                let transaction = DstProgram::get_public_withdraw_tx(
+                    test_state,
+                    &escrow,
+                    &escrow_ata,
+                    &test_state.maker_wallet.keypair,
+                );
+
+                test_state
+                    .client
+                    .process_transaction(transaction)
+                    .await
+                    .expect_error(ProgramError::ArithmeticOverflow);
+            }
+
+            #[test_context(TestState)]
+            #[tokio::test]
             async fn test_public_withdraw_fails_with_wrong_secret(test_state: &mut TestState) {
                 prepare_resolvers(test_state, &[test_state.context.payer.pubkey()]).await;
                 common_escrow_tests::test_public_withdraw_fails_with_wrong_secret(test_state).await
@@ -548,8 +571,11 @@ run_for_tokens!(
 
                 set_time(
                     &mut test_state.context,
-                    test_state.init_timestamp
-                        + DEFAULT_PERIOD_DURATION * PeriodType::PublicWithdrawal as u32,
+                    test_state
+                        .test_arguments
+                        .dst_timelocks
+                        .get(Stage::DstPublicWithdrawal)
+                        .unwrap(),
                 );
 
                 test_state
@@ -603,8 +629,11 @@ run_for_tokens!(
 
                 set_time(
                     &mut test_state.context,
-                    test_state.init_timestamp
-                        + DEFAULT_PERIOD_DURATION * PeriodType::Cancellation as u32,
+                    test_state
+                        .test_arguments
+                        .dst_timelocks
+                        .get(Stage::DstCancellation)
+                        .unwrap(),
                 );
 
                 let (maker_ata, _) = find_user_ata(test_state);
