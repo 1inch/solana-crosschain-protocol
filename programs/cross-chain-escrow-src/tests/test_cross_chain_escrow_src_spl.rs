@@ -222,22 +222,6 @@ run_for_tokens!(
                     .await
                     .expect_error(ProgramError::Custom(EscrowError::InvalidPartsAmount.into()));
             }
-
-            #[test_context(TestState)]
-            #[tokio::test]
-            async fn test_order_creation_fails_when_rescue_start_is_equal_to_expiration_time(
-                test_state: &mut TestState,
-            ) {
-                test_state.test_arguments.expiration_time =
-                    test_state.init_timestamp + common::constants::RESCUE_DELAY;
-                let (_, _, transaction) = create_order_data(test_state);
-
-                test_state
-                    .client
-                    .process_transaction(transaction)
-                    .await
-                    .expect_error(ProgramError::Custom(EscrowError::InvalidRescueStart.into()));
-            }
         }
 
         mod test_escrow_creation {
@@ -505,32 +489,6 @@ run_for_tokens!(
                     .expect_error(ProgramError::Custom(
                         ErrorCode::AccountNotInitialized.into(),
                     ));
-            }
-
-            #[test_context(TestState)]
-            #[tokio::test]
-            async fn test_escrow_creation_fails_when_rescue_start_is_less_than_public_cancellation_time(
-                test_state: &mut TestState,
-            ) {
-                // set expiration_time to be less than rescue_start for skip require in create_order
-                test_state.test_arguments.expiration_time =
-                    test_state.test_arguments.rescue_start - 1;
-                create_order(test_state).await;
-                prepare_resolvers(test_state, &[test_state.taker_wallet.keypair.pubkey()]).await;
-
-                // create escrow just before rescue_start
-                set_time(
-                    &mut test_state.context,
-                    test_state.test_arguments.expiration_time - 1,
-                );
-
-                let (_, _, transaction) = create_escrow_data(test_state);
-
-                test_state
-                    .client
-                    .process_transaction(transaction)
-                    .await
-                    .expect_error(ProgramError::Custom(EscrowError::InvalidRescueStart.into()));
             }
         }
 
@@ -1155,6 +1113,13 @@ run_for_tokens!(
 
             #[test_context(TestState)]
             #[tokio::test]
+            async fn test_rescue_tokens_when_escrow_is_deleted(test_state: &mut TestState) {
+                prepare_resolvers(test_state, &[test_state.taker_wallet.keypair.pubkey()]).await;
+                helpers_src::test_rescue_tokens_when_escrow_is_deleted(test_state).await;
+            }
+
+            #[test_context(TestState)]
+            #[tokio::test]
             async fn test_order_cancel_fails_with_incorrect_token(test_state: &mut TestState) {
                 let (order, order_ata) = create_order(test_state).await;
                 prepare_resolvers(test_state, &[test_state.taker_wallet.keypair.pubkey()]).await;
@@ -1172,6 +1137,13 @@ run_for_tokens!(
                     .process_transaction(transaction)
                     .await
                     .expect_error(ProgramError::Custom(EscrowError::InvalidMint.into()));
+            }
+
+            #[test_context(TestState)]
+            #[tokio::test]
+            async fn test_cannot_rescue_funds_with_wrong_rescue_start(test_state: &mut TestState) {
+                prepare_resolvers(test_state, &[test_state.taker_wallet.keypair.pubkey()]).await;
+                helpers_src::test_cannot_rescue_funds_with_wrong_rescue_start(test_state).await;
             }
         }
 
@@ -1737,6 +1709,21 @@ run_for_tokens!(
 
             #[test_context(TestState)]
             #[tokio::test]
+            async fn test_rescue_tokens_when_escrow_is_deleted(test_state: &mut TestState) {
+                create_order(test_state).await;
+                prepare_resolvers(
+                    test_state,
+                    &[
+                        test_state.taker_wallet.keypair.pubkey(),
+                        test_state.maker_wallet.keypair.pubkey(),
+                    ],
+                )
+                .await;
+                common_escrow_tests::test_rescue_tokens_when_escrow_is_deleted(test_state).await;
+            }
+
+            #[test_context(TestState)]
+            #[tokio::test]
             async fn test_cannot_rescue_funds_before_rescue_delay_pass(test_state: &mut TestState) {
                 create_order(test_state).await;
                 prepare_resolvers(
@@ -1795,6 +1782,22 @@ run_for_tokens!(
                 .await;
                 common_escrow_tests::test_cannot_rescue_funds_with_wrong_escrow_ata(test_state)
                     .await
+            }
+
+            #[test_context(TestState)]
+            #[tokio::test]
+            async fn test_cannot_rescue_funds_with_wrong_rescue_start(test_state: &mut TestState) {
+                create_order(test_state).await;
+                prepare_resolvers(
+                    test_state,
+                    &[
+                        test_state.taker_wallet.keypair.pubkey(),
+                        test_state.maker_wallet.keypair.pubkey(),
+                    ],
+                )
+                .await;
+                common_escrow_tests::test_cannot_rescue_funds_with_wrong_rescue_start(test_state)
+                    .await;
             }
         }
 

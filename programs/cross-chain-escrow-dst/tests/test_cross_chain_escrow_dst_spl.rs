@@ -1,5 +1,4 @@
 use anchor_lang::error::ErrorCode;
-use common::constants::RESCUE_DELAY;
 use common::{error::EscrowError, timelocks::Stage};
 use common_tests::dst_program::DstProgram;
 use common_tests::helpers::*;
@@ -96,24 +95,6 @@ run_for_tokens!(
                     .expect_error(ProgramError::Custom(
                         EscrowError::InvalidCreationTime.into(),
                     ))
-            }
-
-            #[test_context(TestState)]
-            #[tokio::test]
-            async fn test_escrow_creation_fails_when_rescue_start_is_equal_to_cancellation_start(
-                test_state: &mut TestState,
-            ) {
-                test_state.test_arguments.dst_timelocks =
-                    init_timelocks(0, 0, 0, 0, 0, 0, RESCUE_DELAY, 0);
-                test_state.test_arguments.src_cancellation_timestamp =
-                    test_state.test_arguments.rescue_start;
-                let (_, _, transaction) = create_escrow_data(test_state);
-
-                test_state
-                    .client
-                    .process_transaction(transaction)
-                    .await
-                    .expect_error(ProgramError::Custom(EscrowError::InvalidRescueStart.into()))
             }
         }
         mod test_escrow_withdraw {
@@ -720,6 +701,13 @@ run_for_tokens!(
 
             #[test_context(TestState)]
             #[tokio::test]
+            async fn test_rescue_tokens_when_escrow_is_deleted(test_state: &mut TestState) {
+                prepare_resolvers(test_state, &[test_state.taker_wallet.keypair.pubkey()]).await;
+                common_escrow_tests::test_rescue_tokens_when_escrow_is_deleted(test_state).await;
+            }
+
+            #[test_context(TestState)]
+            #[tokio::test]
             async fn test_cannot_rescue_funds_before_rescue_delay_pass(test_state: &mut TestState) {
                 prepare_resolvers(test_state, &[test_state.taker_wallet.keypair.pubkey()]).await;
                 common_escrow_tests::test_cannot_rescue_funds_before_rescue_delay_pass(test_state)
@@ -747,6 +735,14 @@ run_for_tokens!(
                 prepare_resolvers(test_state, &[test_state.taker_wallet.keypair.pubkey()]).await;
                 common_escrow_tests::test_cannot_rescue_funds_with_wrong_escrow_ata(test_state)
                     .await
+            }
+
+            #[test_context(TestState)]
+            #[tokio::test]
+            async fn test_cannot_rescue_funds_with_wrong_rescue_start(test_state: &mut TestState) {
+                prepare_resolvers(test_state, &[test_state.taker_wallet.keypair.pubkey()]).await;
+                common_escrow_tests::test_cannot_rescue_funds_with_wrong_rescue_start(test_state)
+                    .await;
             }
         }
     }
