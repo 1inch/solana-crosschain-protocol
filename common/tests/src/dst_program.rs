@@ -146,7 +146,7 @@ impl<S: TokenVariant> EscrowVariant<S> for DstProgram {
                 hashlock: test_state.hashlock.to_bytes(),
                 recipient: test_state.taker_wallet.keypair.pubkey(),
                 safety_deposit: test_state.test_arguments.safety_deposit,
-                timelocks: test_state.test_arguments.dst_timelocks.0 .0,
+                timelocks: test_state.test_arguments.dst_timelocks.get_timelocks(),
                 src_cancellation_timestamp: test_state.test_arguments.src_cancellation_timestamp,
                 rescue_start: test_state.test_arguments.rescue_start,
                 asset_is_native: test_state.test_arguments.asset_is_native,
