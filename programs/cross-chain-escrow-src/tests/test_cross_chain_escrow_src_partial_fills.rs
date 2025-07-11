@@ -7,7 +7,7 @@ use common_tests::src_program::{create_order, SrcProgram};
 use common_tests::tests as common_escrow_tests;
 use common_tests::whitelist::prepare_resolvers;
 use solana_program_test::tokio;
-use solana_sdk::{signature::Signer, signer::keypair::Keypair};
+use solana_sdk::{keccak::hashv, signature::Signer, signer::keypair::Keypair};
 use test_context::test_context;
 
 use primitive_types::U256;
@@ -26,7 +26,6 @@ run_for_tokens!(
 
             use super::*;
             use cross_chain_escrow_src::merkle_tree::MerkleProof;
-            use solana_sdk::keccak::{hashv, Hash};
 
             #[test_context(TestState)]
             #[tokio::test]
@@ -224,8 +223,7 @@ run_for_tokens!(
             async fn test_create_escrow_fails_with_incorrect_merkle_root(
                 test_state: &mut TestState,
             ) {
-                test_state.test_arguments.order_parts_amount = DEFAULT_PARTS_AMOUNT_FOR_MULTIPLE;
-                let merkle_hashes = compute_merkle_leaves(test_state);
+                let merkle_hashes = compute_merkle_leaves();
                 test_state.hashlock = hashv(&[b"incorrect_root"]);
                 test_state.test_arguments.allow_multiple_fills = true;
                 create_order(test_state).await;
@@ -261,7 +259,7 @@ run_for_tokens!(
             ) {
                 create_order_for_partial_fill(test_state).await;
 
-                let merkle_hashes = compute_merkle_leaves(test_state);
+                let merkle_hashes = compute_merkle_leaves();
                 test_state.test_arguments.escrow_amount =
                     DEFAULT_ESCROW_AMOUNT / DEFAULT_PARTS_AMOUNT_FOR_MULTIPLE * 2;
                 let index_to_validate = get_index_for_escrow_amount(
@@ -310,11 +308,10 @@ run_for_tokens!(
             async fn test_create_escrow_fails_if_multiple_fills_are_false_and_merkle_proof_is_provided(
                 test_state: &mut TestState,
             ) {
-                test_state.test_arguments.order_parts_amount = DEFAULT_PARTS_AMOUNT_FOR_MULTIPLE;
-                let merkle_hashes = compute_merkle_leaves(test_state);
-                test_state.test_arguments.order_parts_amount = DEFAULT_PARTS_AMOUNT;
+                let merkle_hashes = compute_merkle_leaves();
                 let root = get_root(merkle_hashes.leaves.clone());
-                test_state.hashlock = Hash::new_from_array(root);
+                test_state.hashlock =
+                    assembly_hashlock_for_root(root, DEFAULT_PARTS_AMOUNT_FOR_MULTIPLE);
                 // test_state.test_arguments.allow_multiple_fills is false;
                 create_order(test_state).await;
 

@@ -24,7 +24,7 @@ use cross_chain_escrow_src::{get_escrow_hashlock, merkle_tree::MerkleProof};
 use primitive_types::U256;
 use solana_program::{
     instruction::Instruction,
-    keccak::{hash, Hash},
+    keccak::{hashv, Hash},
     program_error::ProgramError,
     program_pack::Pack,
     pubkey::Pubkey,
@@ -54,7 +54,6 @@ pub const WALLET_DEFAULT_LAMPORTS: u64 = 10 * LAMPORTS_PER_SOL;
 pub const WALLET_DEFAULT_TOKENS: u64 = 1000000000;
 
 pub const DEFAULT_PERIOD_DURATION: u32 = 100;
-pub const DEFAULT_PARTS_AMOUNT: u64 = 1;
 pub const DEFAULT_PARTS_AMOUNT_FOR_MULTIPLE: u64 = 4;
 
 pub const DEFAULT_ESCROW_AMOUNT: u64 = 100000;
@@ -103,7 +102,6 @@ pub fn init_timelocks(
 
 pub struct TestArgs {
     pub order_amount: u64,
-    pub order_parts_amount: u64,
     pub order_remaining_amount: u64,
     pub escrow_amount: u64,
     pub safety_deposit: u64,
@@ -132,7 +130,6 @@ pub fn get_default_testargs(nowsecs: u32) -> TestArgs {
         order_amount: DEFAULT_ESCROW_AMOUNT,
         order_remaining_amount: DEFAULT_ESCROW_AMOUNT,
         escrow_amount: DEFAULT_ESCROW_AMOUNT,
-        order_parts_amount: DEFAULT_PARTS_AMOUNT,
         safety_deposit: DEFAULT_SAFETY_DEPOSIT,
         src_timelocks: init_timelocks(
             DEFAULT_PERIOD_DURATION,
@@ -509,7 +506,7 @@ where
             .unwrap();
         set_time(&mut context, timestamp);
         let token = S::deploy_spl_token(&mut context).await.pubkey();
-        let secret = hash(b"default_secret").to_bytes();
+        let secret = hashv(&[b"default_secret"]).to_bytes();
         let payer_kp = context.payer.insecure_clone();
         let authority_whitelist_kp = Keypair::new();
         transfer_lamports(
@@ -542,7 +539,7 @@ where
             client,
             secret,
             order_hash: Hash::new_unique(),
-            hashlock: hash(secret.as_ref()),
+            hashlock: hashv(&[secret.as_ref()]),
             token,
             payer_kp: payer_kp.insecure_clone(),
             authority_whitelist_kp,
