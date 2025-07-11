@@ -553,8 +553,8 @@ pub mod cross_chain_escrow_src {
         max_cancellation_premium: u64,
         cancellation_auction_duration: u32,
         allow_multiple_fills: bool,
-        rescue_start: u32,
         salt: u16,
+        rescue_start: u32,
         rescue_amount: u64,
     ) -> Result<()> {
         if !ctx.accounts.order.data_is_empty() {
