@@ -20,6 +20,10 @@ const STAGE_BIT_SIZE: usize = 32;
 const DEPLOYED_AT_MASK: U256 = U256([0, 0, 0, 0xffffffff00000000]);
 
 impl Timelocks {
+    pub fn get_timelocks(&self) -> [u64; 4] {
+        self.0 .0
+    }
+
     pub fn set_deployed_at(self, value: u32) -> Self {
         let cleared = self.0 & !DEPLOYED_AT_MASK;
         Self(cleared | (U256::from(value) << DEPLOYED_AT_OFFSET))

@@ -61,7 +61,7 @@ pub mod cross_chain_escrow_dst {
             token: ctx.accounts.mint.key(),
             amount,
             safety_deposit,
-            timelocks: updated_timelocks.0 .0,
+            timelocks: updated_timelocks.get_timelocks(),
             rescue_start,
             asset_is_native,
             bump: ctx.bumps.escrow,
