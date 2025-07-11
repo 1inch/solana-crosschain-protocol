@@ -288,6 +288,7 @@ pub fn get_rescue_funds_from_order_tx<S: TokenVariant>(
             cancellation_auction_duration: test_state.test_arguments.cancellation_auction_duration,
             allow_multiple_fills: test_state.test_arguments.allow_multiple_fills,
             rescue_start: test_state.test_arguments.rescue_start,
+            salt: test_state.test_arguments.salt,
             rescue_amount: test_state.test_arguments.rescue_amount,
         });
 
@@ -365,6 +366,7 @@ pub fn get_order_hash<T, S: TokenVariant>(test_state: &TestStateBase<T, S>) -> k
             .to_be_bytes()
             .as_ref(),
         &[test_state.test_arguments.allow_multiple_fills as u8],
+        test_state.test_arguments.salt.to_be_bytes().as_ref(),
     ])
 }
 
@@ -415,6 +417,7 @@ pub fn get_create_order_tx<T: EscrowVariant<S>, S: TokenVariant>(
         max_cancellation_premium: test_state.test_arguments.max_cancellation_premium,
         cancellation_auction_duration: test_state.test_arguments.cancellation_auction_duration,
         allow_multiple_fills: test_state.test_arguments.allow_multiple_fills,
+        salt: test_state.test_arguments.salt,
         _dst_chain_params: test_state.test_arguments.dst_chain_params.clone(),
     });
 

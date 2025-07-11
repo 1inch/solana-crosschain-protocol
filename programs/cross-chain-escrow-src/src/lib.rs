@@ -41,6 +41,7 @@ pub mod cross_chain_escrow_src {
         max_cancellation_premium: u64,
         cancellation_auction_duration: u32,
         allow_multiple_fills: bool,
+        salt: u16,
         _dst_chain_params: DstChainParams,
     ) -> Result<()> {
         require!(
@@ -72,6 +73,7 @@ pub mod cross_chain_escrow_src {
             &max_cancellation_premium.to_be_bytes(),
             &cancellation_auction_duration.to_be_bytes(),
             &[allow_multiple_fills as u8],
+            &salt.to_be_bytes(),
         ])
         .to_bytes();
 
@@ -552,6 +554,7 @@ pub mod cross_chain_escrow_src {
         cancellation_auction_duration: u32,
         allow_multiple_fills: bool,
         rescue_start: u32,
+        salt: u16,
         rescue_amount: u64,
     ) -> Result<()> {
         if !ctx.accounts.order.data_is_empty() {
@@ -576,6 +579,7 @@ pub mod cross_chain_escrow_src {
             &max_cancellation_premium.to_be_bytes(),
             &cancellation_auction_duration.to_be_bytes(),
             &[allow_multiple_fills as u8],
+            &salt.to_be_bytes(),
         ])
         .to_bytes();
 
@@ -606,7 +610,8 @@ pub mod cross_chain_escrow_src {
               dutch_auction_data_hash: [u8; 32],
               max_cancellation_premium: u64,
               cancellation_auction_duration: u32,
-              allow_multiple_fills: bool
+              allow_multiple_fills: bool,
+              salt: u16,
             )]
 pub struct Create<'info> {
     #[account(
@@ -644,6 +649,7 @@ pub struct Create<'info> {
                 &max_cancellation_premium.to_be_bytes(),
                 &cancellation_auction_duration.to_be_bytes(),
                 &[allow_multiple_fills as u8],
+                &salt.to_be_bytes(),
             ])
             .to_bytes(),
             ],
@@ -1088,6 +1094,7 @@ pub struct RescueFundsForEscrow<'info> {
         max_cancellation_premium: u64,
         cancellation_auction_duration: u32,
         allow_multiple_fills: bool,
+        salt: u16,
 )]
 pub struct RescueFundsForOrder<'info> {
     #[account(
@@ -1119,6 +1126,7 @@ pub struct RescueFundsForOrder<'info> {
                 &max_cancellation_premium.to_be_bytes(),
                 &cancellation_auction_duration.to_be_bytes(),
                 &[allow_multiple_fills as u8],
+                &salt.to_be_bytes(),
             ])
             .to_bytes(),
         ],
