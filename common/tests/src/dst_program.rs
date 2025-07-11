@@ -148,7 +148,6 @@ impl<S: TokenVariant> EscrowVariant<S> for DstProgram {
                 safety_deposit: test_state.test_arguments.safety_deposit,
                 timelocks: test_state.test_arguments.dst_timelocks.0 .0,
                 src_cancellation_timestamp: test_state.test_arguments.src_cancellation_timestamp,
-                rescue_start: test_state.test_arguments.rescue_start,
                 asset_is_native: test_state.test_arguments.asset_is_native,
             });
 

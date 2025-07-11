@@ -9,7 +9,6 @@ use anchor_spl::token_interface::{
     TransferChecked,
 };
 
-use crate::constants::RESCUE_DELAY;
 use crate::error::EscrowError;
 use crate::timelocks::Timelocks;
 use crate::utils;
@@ -53,14 +52,7 @@ pub fn create<'info>(
     sys_program: &Program<'info, System>,
     amount: u64,
     safety_deposit: u64,
-    rescue_start: u32,
-    now: u32,
 ) -> Result<()> {
-    require!(
-        rescue_start >= now + RESCUE_DELAY,
-        EscrowError::InvalidRescueStart
-    );
-
     // TODO: Verify that safety_deposit is enough to cover public_withdraw and public_cancel methods
     require!(
         amount != 0 && safety_deposit != 0,
@@ -150,7 +142,6 @@ where
         escrow.token().as_ref(),
         &escrow.amount().to_be_bytes(),
         &escrow.safety_deposit().to_be_bytes(),
-        &escrow.rescue_start().to_be_bytes(),
         &[escrow_bump],
     ];
 
@@ -201,7 +192,6 @@ where
         escrow.token().as_ref(),
         &escrow.amount().to_be_bytes(),
         &escrow.safety_deposit().to_be_bytes(),
-        &escrow.rescue_start().to_be_bytes(),
         &[escrow_bump],
     ];
 
@@ -378,7 +368,7 @@ fn close_and_withdraw_native_ata<'info, T>(
     escrow_ata: &InterfaceAccount<'info, TokenAccount>,
     recipient: &AccountInfo<'info>,
     token_program: &Interface<'info, TokenInterface>,
-    seeds: [&[u8]; 10],
+    seeds: [&[u8]; 9],
 ) -> Result<()>
 where
     T: EscrowBase + AccountSerialize + AccountDeserialize + Clone,

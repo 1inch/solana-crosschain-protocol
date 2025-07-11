@@ -276,7 +276,6 @@ pub fn get_rescue_funds_from_order_tx<S: TokenVariant>(
             parts_amount: test_state.test_arguments.order_parts_amount,
             safety_deposit: test_state.test_arguments.safety_deposit,
             timelocks: test_state.test_arguments.src_timelocks.0 .0,
-            rescue_start: test_state.test_arguments.rescue_start,
             expiration_time: test_state.test_arguments.expiration_time,
             asset_is_native: test_state.test_arguments.asset_is_native,
             dst_amount: test_state.test_arguments.dst_amount,
@@ -289,6 +288,7 @@ pub fn get_rescue_funds_from_order_tx<S: TokenVariant>(
             max_cancellation_premium: test_state.test_arguments.max_cancellation_premium,
             cancellation_auction_duration: test_state.test_arguments.cancellation_auction_duration,
             allow_multiple_fills: test_state.test_arguments.allow_multiple_fills,
+            rescue_start: test_state.test_arguments.rescue_start,
             rescue_amount: test_state.test_arguments.rescue_amount,
         });
 
@@ -341,11 +341,6 @@ pub fn get_order_hash<T, S: TokenVariant>(test_state: &TestStateBase<T, S>) -> k
             .iter()
             .flat_map(|x| x.to_le_bytes())
             .collect::<Vec<u8>>(),
-        test_state
-            .test_arguments
-            .rescue_start
-            .to_be_bytes()
-            .as_ref(),
         test_state
             .test_arguments
             .expiration_time
@@ -415,7 +410,6 @@ pub fn get_create_order_tx<T: EscrowVariant<S>, S: TokenVariant>(
         hashlock: test_state.hashlock.to_bytes(),
         safety_deposit: test_state.test_arguments.safety_deposit,
         timelocks: test_state.test_arguments.src_timelocks.0 .0,
-        rescue_start: test_state.test_arguments.rescue_start,
         expiration_time: test_state.test_arguments.expiration_time,
         asset_is_native: test_state.test_arguments.asset_is_native,
         dst_amount: test_state.test_arguments.dst_amount,

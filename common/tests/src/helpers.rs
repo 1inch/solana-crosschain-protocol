@@ -607,11 +607,6 @@ pub fn get_escrow_addresses<T: EscrowVariant<S>, S: TokenVariant>(
                 .safety_deposit
                 .to_be_bytes()
                 .as_ref(),
-            test_state
-                .test_arguments
-                .rescue_start
-                .to_be_bytes()
-                .as_ref(),
         ],
         &program_id,
     );

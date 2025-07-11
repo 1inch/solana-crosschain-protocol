@@ -35,7 +35,6 @@ pub mod cross_chain_escrow_src {
         parts_amount: u64,
         safety_deposit: u64,
         timelocks: [u64; 4],
-        rescue_start: u32,
         expiration_time: u32,
         asset_is_native: bool,
         dst_amount: [u64; 4],
@@ -68,7 +67,6 @@ pub mod cross_chain_escrow_src {
             &parts_amount.to_be_bytes(),
             &safety_deposit.to_be_bytes(),
             &timelocks.try_to_vec()?,
-            &rescue_start.to_be_bytes(),
             &expiration_time.to_be_bytes(),
             &[asset_is_native as u8],
             &dst_amount.try_to_vec()?,
@@ -91,14 +89,10 @@ pub mod cross_chain_escrow_src {
             &ctx.accounts.system_program,
             amount,
             safety_deposit,
-            rescue_start,
-            now,
         )?;
 
-        require!(
-            expiration_time < rescue_start,
-            EscrowError::InvalidRescueStart
-        );
+        let updated_timelocks = Timelocks(U256(timelocks)).set_deployed_at(now);
+        let rescue_start = updated_timelocks.rescue_start(constants::RESCUE_DELAY)?;
 
         ctx.accounts.order.set_inner(Order {
             order_hash,
@@ -109,7 +103,7 @@ pub mod cross_chain_escrow_src {
             remaining_amount: amount,
             parts_amount,
             safety_deposit,
-            timelocks,
+            timelocks: updated_timelocks.0 .0,
             rescue_start,
             expiration_time,
             asset_is_native,
@@ -174,13 +168,6 @@ pub mod cross_chain_escrow_src {
             order.hashlock
         };
 
-        let updated_timelocks = Timelocks(U256(order.timelocks)).set_deployed_at(now);
-
-        require!(
-            updated_timelocks.get(Stage::SrcPublicCancellation)? < order.rescue_start,
-            EscrowError::InvalidRescueStart
-        );
-
         let order_seeds = ["order".as_bytes(), &order.order_hash, &[order.bump]];
 
         let mut amount_to_transfer = amount;
@@ -201,6 +188,9 @@ pub mod cross_chain_escrow_src {
             Some(&[&order_seeds]),
         )?;
 
+        let updated_timelocks = Timelocks(U256(order.timelocks)).set_deployed_at(now);
+        let rescue_start = updated_timelocks.rescue_start(constants::RESCUE_DELAY)?;
+
         ctx.accounts.escrow.set_inner(EscrowSrc {
             order_hash: order.order_hash,
             hashlock,
@@ -210,7 +200,7 @@ pub mod cross_chain_escrow_src {
             amount,
             safety_deposit: order.safety_deposit,
             timelocks: updated_timelocks.0 .0,
-            rescue_start: order.rescue_start,
+            rescue_start,
             asset_is_native: order.asset_is_native,
             dst_amount: get_dst_amount(
                 U256(order.dst_amount)
@@ -512,6 +502,15 @@ pub mod cross_chain_escrow_src {
         rescue_start: u32,
         rescue_amount: u64,
     ) -> Result<()> {
+        if !ctx.accounts.escrow.data_is_empty() {
+            let escrow_data =
+                EscrowSrc::try_deserialize(&mut &ctx.accounts.escrow.data.borrow()[..])?;
+            require!(
+                rescue_start == escrow_data.rescue_start,
+                EscrowError::InvalidRescueStart
+            )
+        }
+
         let taker_pubkey = ctx.accounts.taker.key();
         let seeds = [
             "escrow".as_bytes(),
@@ -522,7 +521,6 @@ pub mod cross_chain_escrow_src {
             token.as_ref(),
             &amount.to_be_bytes(),
             &safety_deposit.to_be_bytes(),
-            &rescue_start.to_be_bytes(),
             &[ctx.bumps.escrow],
         ];
 
@@ -549,7 +547,6 @@ pub mod cross_chain_escrow_src {
         parts_amount: u64,
         safety_deposit: u64,
         timelocks: [u64; 4],
-        rescue_start: u32,
         expiration_time: u32,
         asset_is_native: bool,
         dst_amount: [u64; 4],
@@ -557,8 +554,17 @@ pub mod cross_chain_escrow_src {
         max_cancellation_premium: u64,
         cancellation_auction_duration: u32,
         allow_multiple_fills: bool,
+        rescue_start: u32,
         rescue_amount: u64,
     ) -> Result<()> {
+        if !ctx.accounts.order.data_is_empty() {
+            let order_data = Order::try_deserialize(&mut &ctx.accounts.order.data.borrow()[..])?;
+            require!(
+                rescue_start == order_data.rescue_start,
+                EscrowError::InvalidRescueStart
+            )
+        }
+
         let order_hash = keccak::hashv(&[
             &hashlock,
             maker.as_ref(),
@@ -567,7 +573,6 @@ pub mod cross_chain_escrow_src {
             &parts_amount.to_be_bytes(),
             &safety_deposit.to_be_bytes(),
             &timelocks.try_to_vec()?,
-            &rescue_start.to_be_bytes(),
             &expiration_time.to_be_bytes(),
             &[asset_is_native as u8],
             &dst_amount.try_to_vec()?,
@@ -600,7 +605,6 @@ pub mod cross_chain_escrow_src {
               parts_amount: u64,
               safety_deposit: u64,
               timelocks: [u64; 4],
-              rescue_start: u32,
               expiration_time: u32,
               asset_is_native: bool,
               dst_amount: [u64; 4],
@@ -639,7 +643,6 @@ pub struct Create<'info> {
                 &parts_amount.to_be_bytes(),
                 &safety_deposit.to_be_bytes(),
                 &timelocks.try_to_vec()?,
-                &rescue_start.to_be_bytes(),
                 &expiration_time.to_be_bytes(),
                 &[asset_is_native as u8],
                 &dst_amount.try_to_vec()?,
@@ -729,7 +732,6 @@ pub struct CreateEscrow<'info> {
             mint.key().as_ref(),
             amount.to_be_bytes().as_ref(),
             order.safety_deposit.to_be_bytes().as_ref(),
-            order.rescue_start.to_be_bytes().as_ref(),
         ],
         bump,
     )]
@@ -770,7 +772,6 @@ pub struct Withdraw<'info> {
             mint.key().as_ref(),
             escrow.amount.to_be_bytes().as_ref(),
             escrow.safety_deposit.to_be_bytes().as_ref(),
-            escrow.rescue_start.to_be_bytes().as_ref(),
         ],
         bump = escrow.bump,
     )]
@@ -821,7 +822,6 @@ pub struct PublicWithdraw<'info> {
             mint.key().as_ref(),
             escrow.amount.to_be_bytes().as_ref(),
             escrow.safety_deposit.to_be_bytes().as_ref(),
-            escrow.rescue_start.to_be_bytes().as_ref(),
         ],
         bump = escrow.bump,
     )]
@@ -869,7 +869,6 @@ pub struct CancelEscrow<'info> {
             mint.key().as_ref(),
             escrow.amount.to_be_bytes().as_ref(),
             escrow.safety_deposit.to_be_bytes().as_ref(),
-            escrow.rescue_start.to_be_bytes().as_ref(),
         ],
         bump = escrow.bump,
     )]
@@ -927,7 +926,6 @@ pub struct PublicCancelEscrow<'info> {
             mint.key().as_ref(),
             escrow.amount.to_be_bytes().as_ref(),
             escrow.safety_deposit.to_be_bytes().as_ref(),
-            escrow.rescue_start.to_be_bytes().as_ref(),
         ],
         bump = escrow.bump,
     )]
@@ -1041,7 +1039,7 @@ pub struct CancelOrderbyResolver<'info> {
 }
 
 #[derive(Accounts)]
-#[instruction(order_hash: [u8; 32], hashlock: [u8; 32], maker: Pubkey, token: Pubkey, amount: u64, safety_deposit: u64, rescue_start: u32)]
+#[instruction(order_hash: [u8; 32], hashlock: [u8; 32], maker: Pubkey, token: Pubkey, amount: u64, safety_deposit: u64)]
 pub struct RescueFundsForEscrow<'info> {
     #[account(
         mut, // Needed because this account receives lamports from closed token account.
@@ -1059,7 +1057,6 @@ pub struct RescueFundsForEscrow<'info> {
             token.as_ref(),
             amount.to_be_bytes().as_ref(),
             safety_deposit.to_be_bytes().as_ref(),
-            rescue_start.to_be_bytes().as_ref(),
         ],
         bump,
     )]
@@ -1091,7 +1088,6 @@ pub struct RescueFundsForEscrow<'info> {
         parts_amount: u64,
         safety_deposit: u64,
         timelocks: [u64; 4],
-        rescue_start: u32,
         expiration_time: u32,
         asset_is_native: bool,
         dst_amount: [u64; 4],
@@ -1124,7 +1120,6 @@ pub struct RescueFundsForOrder<'info> {
                 &parts_amount.to_be_bytes(),
                 &safety_deposit.to_be_bytes(),
                 &timelocks.try_to_vec()?,
-                &rescue_start.to_be_bytes(),
                 &expiration_time.to_be_bytes(),
                 &[asset_is_native as u8],
                 &dst_amount.try_to_vec()?,

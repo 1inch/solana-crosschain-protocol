@@ -26,11 +26,10 @@ pub mod cross_chain_escrow_dst {
         recipient: Pubkey,
         timelocks: [u64; 4],
         src_cancellation_timestamp: u32,
-        rescue_start: u32,
         asset_is_native: bool,
     ) -> Result<()> {
-        let now = utils::get_current_timestamp()?;
-        let updated_timelocks = Timelocks(U256(timelocks)).set_deployed_at(now);
+        let updated_timelocks =
+            Timelocks(U256(timelocks)).set_deployed_at(utils::get_current_timestamp()?);
         let cancellation_start = updated_timelocks.get(Stage::DstCancellation)?;
 
         require!(
@@ -38,10 +37,7 @@ pub mod cross_chain_escrow_dst {
             EscrowError::InvalidCreationTime
         );
 
-        require!(
-            cancellation_start < rescue_start,
-            EscrowError::InvalidRescueStart
-        );
+        let rescue_start = updated_timelocks.rescue_start(constants::RESCUE_DELAY)?;
 
         common::escrow::create(
             EscrowDst::INIT_SPACE + constants::DISCRIMINATOR_BYTES,
@@ -55,8 +51,6 @@ pub mod cross_chain_escrow_dst {
             &ctx.accounts.system_program,
             amount,
             safety_deposit,
-            rescue_start,
-            now,
         )?;
 
         ctx.accounts.escrow.set_inner(EscrowDst {
@@ -176,6 +170,16 @@ pub mod cross_chain_escrow_dst {
     ) -> Result<()> {
         let recipient_pubkey = ctx.accounts.recipient.key();
         let creator_pubkey = ctx.accounts.creator.key();
+
+        if !ctx.accounts.escrow.data_is_empty() {
+            let escrow_data =
+                EscrowDst::try_deserialize(&mut &ctx.accounts.escrow.data.borrow()[..])?;
+            require!(
+                rescue_start == escrow_data.rescue_start,
+                EscrowError::InvalidRescueStart
+            )
+        }
+
         let seeds = [
             "escrow".as_bytes(),
             order_hash.as_ref(),
@@ -185,7 +189,6 @@ pub mod cross_chain_escrow_dst {
             escrow_mint.as_ref(),
             &escrow_amount.to_be_bytes(),
             &safety_deposit.to_be_bytes(),
-            &rescue_start.to_be_bytes(),
             &[ctx.bumps.escrow],
         ];
 
@@ -204,7 +207,7 @@ pub mod cross_chain_escrow_dst {
 }
 
 #[derive(Accounts)]
-#[instruction(order_hash: [u8; 32], hashlock: [u8; 32], amount: u64, safety_deposit: u64, recipient: Pubkey, timelocks: [u64; 4], src_cancellation_timestamp: u32, rescue_start: u32)]
+#[instruction(order_hash: [u8; 32], hashlock: [u8; 32], amount: u64, safety_deposit: u64, recipient: Pubkey)]
 pub struct Create<'info> {
     /// Puts tokens into escrow
     #[account(
@@ -235,7 +238,6 @@ pub struct Create<'info> {
             mint.key().as_ref(),
             amount.to_be_bytes().as_ref(),
             safety_deposit.to_be_bytes().as_ref(),
-            rescue_start.to_be_bytes().as_ref(),
             ],
         bump,
     )]
@@ -281,7 +283,6 @@ pub struct Withdraw<'info> {
             mint.key().as_ref(),
             escrow.amount.to_be_bytes().as_ref(),
             escrow.safety_deposit.to_be_bytes().as_ref(),
-            escrow.rescue_start.to_be_bytes().as_ref(),
         ],
         bump = escrow.bump,
     )]
@@ -338,7 +339,6 @@ pub struct PublicWithdraw<'info> {
             mint.key().as_ref(),
             escrow.amount.to_be_bytes().as_ref(),
             escrow.safety_deposit.to_be_bytes().as_ref(),
-            escrow.rescue_start.to_be_bytes().as_ref(),
         ],
         bump = escrow.bump,
     )]
@@ -381,7 +381,6 @@ pub struct Cancel<'info> {
             mint.key().as_ref(),
             escrow.amount.to_be_bytes().as_ref(),
             escrow.safety_deposit.to_be_bytes().as_ref(),
-            escrow.rescue_start.to_be_bytes().as_ref(),
         ],
         bump = escrow.bump,
     )]
@@ -406,7 +405,7 @@ pub struct Cancel<'info> {
 }
 
 #[derive(Accounts)]
-#[instruction(order_hash: [u8; 32], hashlock: [u8; 32], escrow_mint: Pubkey, escrow_amount: u64, safety_deposit: u64, rescue_start: u32)]
+#[instruction(order_hash: [u8; 32], hashlock: [u8; 32], escrow_mint: Pubkey, escrow_amount: u64, safety_deposit: u64)]
 pub struct RescueFunds<'info> {
     #[account(
         mut, // Needed because this account receives lamports from closed token account.
@@ -425,7 +424,6 @@ pub struct RescueFunds<'info> {
             escrow_mint.as_ref(),
             escrow_amount.to_be_bytes().as_ref(),
             safety_deposit.to_be_bytes().as_ref(),
-            rescue_start.to_be_bytes().as_ref(),
         ],
         bump,
     )]
