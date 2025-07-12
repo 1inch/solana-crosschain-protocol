@@ -103,7 +103,7 @@ pub mod cross_chain_escrow_src {
             remaining_amount: amount,
             parts_amount,
             safety_deposit,
-            timelocks: updated_timelocks.0 .0,
+            timelocks: updated_timelocks.get_timelocks(),
             rescue_start,
             expiration_time,
             asset_is_native,
@@ -199,7 +199,7 @@ pub mod cross_chain_escrow_src {
             token: order.token,
             amount,
             safety_deposit: order.safety_deposit,
-            timelocks: updated_timelocks.0 .0,
+            timelocks: updated_timelocks.get_timelocks(),
             rescue_start,
             asset_is_native: order.asset_is_native,
             dst_amount: get_dst_amount(
