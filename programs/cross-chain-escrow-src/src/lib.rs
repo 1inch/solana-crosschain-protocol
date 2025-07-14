@@ -92,7 +92,6 @@ pub mod cross_chain_escrow_src {
         )?;
 
         let updated_timelocks = Timelocks(U256(timelocks)).set_deployed_at(now);
-        let rescue_start = updated_timelocks.rescue_start(constants::RESCUE_DELAY)?;
 
         ctx.accounts.order.set_inner(Order {
             order_hash,
@@ -104,7 +103,6 @@ pub mod cross_chain_escrow_src {
             parts_amount,
             safety_deposit,
             timelocks: updated_timelocks.get_timelocks(),
-            rescue_start,
             expiration_time,
             asset_is_native,
             dst_amount,
@@ -189,7 +187,6 @@ pub mod cross_chain_escrow_src {
         )?;
 
         let updated_timelocks = Timelocks(U256(order.timelocks)).set_deployed_at(now);
-        let rescue_start = updated_timelocks.rescue_start(constants::RESCUE_DELAY)?;
 
         ctx.accounts.escrow.set_inner(EscrowSrc {
             order_hash: order.order_hash,
@@ -200,7 +197,6 @@ pub mod cross_chain_escrow_src {
             amount,
             safety_deposit: order.safety_deposit,
             timelocks: updated_timelocks.get_timelocks(),
-            rescue_start,
             asset_is_native: order.asset_is_native,
             dst_amount: get_dst_amount(
                 U256(order.dst_amount)
@@ -506,7 +502,12 @@ pub mod cross_chain_escrow_src {
             let escrow_data =
                 EscrowSrc::try_deserialize(&mut &ctx.accounts.escrow.data.borrow()[..])?;
             require!(
-                rescue_start == escrow_data.rescue_start,
+                rescue_start
+                    == escrow_data
+                        .timelocks()
+                        .get_deployed_at()
+                        .checked_add(constants::RESCUE_DELAY)
+                        .ok_or(ProgramError::ArithmeticOverflow)?,
                 EscrowError::InvalidRescueStart
             )
         }
@@ -560,7 +561,11 @@ pub mod cross_chain_escrow_src {
         if !ctx.accounts.order.data_is_empty() {
             let order_data = Order::try_deserialize(&mut &ctx.accounts.order.data.borrow()[..])?;
             require!(
-                rescue_start == order_data.rescue_start,
+                rescue_start
+                    == Timelocks(U256(order_data.timelocks))
+                        .get_deployed_at()
+                        .checked_add(constants::RESCUE_DELAY)
+                        .ok_or(ProgramError::ArithmeticOverflow)?,
                 EscrowError::InvalidRescueStart
             )
         }
@@ -1163,7 +1168,6 @@ pub struct Order {
     parts_amount: u64,
     safety_deposit: u64,
     timelocks: [u64; 4],
-    rescue_start: u32,
     expiration_time: u32,
     asset_is_native: bool,
     dst_amount: [u64; 4],
@@ -1185,7 +1189,6 @@ pub struct EscrowSrc {
     amount: u64,
     safety_deposit: u64,
     timelocks: [u64; 4],
-    rescue_start: u32,
     asset_is_native: bool,
     dst_amount: [u64; 4],
     bump: u8,
@@ -1225,7 +1228,11 @@ impl EscrowBase for EscrowSrc {
     }
 
     fn rescue_start(&self) -> u32 {
-        self.rescue_start
+        Timelocks(U256(self.timelocks))
+            .get_deployed_at()
+            .checked_add(constants::RESCUE_DELAY)
+            .ok_or(ProgramError::ArithmeticOverflow)
+            .unwrap()
     }
 
     fn asset_is_native(&self) -> bool {

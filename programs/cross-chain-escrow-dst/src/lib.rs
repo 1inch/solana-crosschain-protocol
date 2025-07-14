@@ -37,8 +37,6 @@ pub mod cross_chain_escrow_dst {
             EscrowError::InvalidCreationTime
         );
 
-        let rescue_start = updated_timelocks.rescue_start(constants::RESCUE_DELAY)?;
-
         common::escrow::create(
             EscrowDst::INIT_SPACE + constants::DISCRIMINATOR_BYTES,
             EscrowType::Dst,
@@ -62,7 +60,6 @@ pub mod cross_chain_escrow_dst {
             amount,
             safety_deposit,
             timelocks: updated_timelocks.get_timelocks(),
-            rescue_start,
             asset_is_native,
             bump: ctx.bumps.escrow,
         });
@@ -175,7 +172,12 @@ pub mod cross_chain_escrow_dst {
             let escrow_data =
                 EscrowDst::try_deserialize(&mut &ctx.accounts.escrow.data.borrow()[..])?;
             require!(
-                rescue_start == escrow_data.rescue_start,
+                rescue_start
+                    == escrow_data
+                        .timelocks()
+                        .get_deployed_at()
+                        .checked_add(constants::RESCUE_DELAY)
+                        .ok_or(ProgramError::ArithmeticOverflow)?,
                 EscrowError::InvalidRescueStart
             )
         }
@@ -458,7 +460,6 @@ pub struct EscrowDst {
     amount: u64,
     safety_deposit: u64,
     timelocks: [u64; 4],
-    rescue_start: u32,
     bump: u8,
 }
 
@@ -496,7 +497,11 @@ impl EscrowBase for EscrowDst {
     }
 
     fn rescue_start(&self) -> u32 {
-        self.rescue_start
+        Timelocks(U256(self.timelocks))
+            .get_deployed_at()
+            .checked_add(constants::RESCUE_DELAY)
+            .ok_or(ProgramError::ArithmeticOverflow)
+            .unwrap()
     }
 
     fn asset_is_native(&self) -> bool {

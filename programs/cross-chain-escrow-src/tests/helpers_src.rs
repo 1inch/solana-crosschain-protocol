@@ -30,7 +30,7 @@ use solana_sdk::transaction::Transaction;
 use crate::merkle_tree_helpers::{get_proof, get_root};
 
 /// Byte offset in the escrow account data where the `dst_amount` field is located
-const DST_AMOUNT_OFFSET: usize = 221;
+const DST_AMOUNT_OFFSET: usize = 217;
 const U64_SIZE: usize = size_of::<u64>();
 
 /// Reads the `dst_amount` field (u64) directly from the raw account data.
