@@ -171,7 +171,7 @@ pub fn get_default_testargs(nowsecs: u32) -> TestArgs {
         merkle_root: Hash::default(),
         allow_multiple_fills: false,
         dst_chain_params: DstChainParams {
-            chain_id: [0u8; 32],
+            chain_id: 0u32,
             maker_address: [0u8; 32],
             token: [0u8; 32],
             safety_deposit: DEFAULT_SAFETY_DEPOSIT as u128,
