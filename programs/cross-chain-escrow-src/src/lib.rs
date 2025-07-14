@@ -43,7 +43,7 @@ pub mod cross_chain_escrow_src {
         max_cancellation_premium: u64,
         cancellation_auction_duration: u32,
         allow_multiple_fills: bool,
-        salt: u16,
+        salt: u64,
         _dst_chain_params: DstChainParams,
     ) -> Result<()> {
         require!(
@@ -559,7 +559,7 @@ pub mod cross_chain_escrow_src {
         max_cancellation_premium: u64,
         cancellation_auction_duration: u32,
         allow_multiple_fills: bool,
-        salt: u16,
+        salt: u64,
         rescue_amount: u64,
     ) -> Result<()> {
         let order_hash = keccak::hashv(&[
@@ -612,7 +612,7 @@ pub mod cross_chain_escrow_src {
               max_cancellation_premium: u64,
               cancellation_auction_duration: u32,
               allow_multiple_fills: bool,
-              salt: u16,
+              salt: u64,
             )]
 pub struct Create<'info> {
     #[account(
@@ -1105,7 +1105,7 @@ pub struct RescueFundsForEscrow<'info> {
         max_cancellation_premium: u64,
         cancellation_auction_duration: u32,
         allow_multiple_fills: bool,
-        salt: u16,
+        salt: u64,
 )]
 pub struct RescueFundsForOrder<'info> {
     #[account(
