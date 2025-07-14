@@ -8,7 +8,7 @@ pub struct MerkleProof {
 }
 
 impl MerkleProof {
-    /// Verifies the Merkle proof against the provided Merkle root.
+    /// Computes the Merkle root using the provided proof.
     pub fn process_proof(&self) -> [u8; 32] {
         let leaf = self.hash_leaf();
         let mut computed_hash = leaf;
