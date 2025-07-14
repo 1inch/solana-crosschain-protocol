@@ -32,7 +32,6 @@ pub mod cross_chain_escrow_src {
         ctx: Context<Create>,
         hashlock: [u8; 32], // Root of merkle tree if partially filled
         amount: u64,
-        parts_amount: u64,
         safety_deposit: u64,
         timelocks: [u64; 4],
         rescue_start: u32,
@@ -50,11 +49,11 @@ pub mod cross_chain_escrow_src {
             EscrowError::InvalidCancellationFee
         );
 
-        require!(
-            (allow_multiple_fills && parts_amount >= 2)
-                || (!allow_multiple_fills && parts_amount == 1),
-            EscrowError::InvalidPartsAmount
-        );
+        if allow_multiple_fills {
+            let parts_amount = u16::from_be_bytes([hashlock[0], hashlock[1]]);
+
+            require!(parts_amount > 1, EscrowError::InvalidPartsAmount);
+        }
 
         let now = utils::get_current_timestamp()?;
 
@@ -65,7 +64,6 @@ pub mod cross_chain_escrow_src {
             ctx.accounts.creator.key().as_ref(),
             ctx.accounts.mint.key().as_ref(),
             &amount.to_be_bytes(),
-            &parts_amount.to_be_bytes(),
             &safety_deposit.to_be_bytes(),
             &timelocks.try_to_vec()?,
             &rescue_start.to_be_bytes(),
@@ -107,7 +105,6 @@ pub mod cross_chain_escrow_src {
             token: ctx.accounts.mint.key(),
             amount,
             remaining_amount: amount,
-            parts_amount,
             safety_deposit,
             timelocks,
             rescue_start,
@@ -156,15 +153,16 @@ pub mod cross_chain_escrow_src {
 
         let hashlock = if let Some(proof) = merkle_proof {
             require!(
-                proof.verify(order.hashlock),
+                proof.process_proof()[2..] == order.hashlock[2..],
                 EscrowError::InvalidMerkleProof
             );
+            let parts_amount = u16::from_be_bytes([order.hashlock[0], order.hashlock[1]]);
             require!(
                 is_valid_partial_fill(
                     amount,
                     order.remaining_amount,
                     order.amount,
-                    order.parts_amount,
+                    parts_amount as u64,
                     proof.index,
                 ),
                 EscrowError::InvalidPartialFill
@@ -546,7 +544,6 @@ pub mod cross_chain_escrow_src {
         maker: Pubkey,
         token: Pubkey,
         order_amount: u64,
-        parts_amount: u64,
         safety_deposit: u64,
         timelocks: [u64; 4],
         rescue_start: u32,
@@ -564,7 +561,6 @@ pub mod cross_chain_escrow_src {
             maker.as_ref(),
             token.as_ref(),
             &order_amount.to_be_bytes(),
-            &parts_amount.to_be_bytes(),
             &safety_deposit.to_be_bytes(),
             &timelocks.try_to_vec()?,
             &rescue_start.to_be_bytes(),
@@ -597,7 +593,6 @@ pub mod cross_chain_escrow_src {
 #[derive(Accounts)]
 #[instruction(hashlock: [u8; 32],
               amount: u64,
-              parts_amount: u64,
               safety_deposit: u64,
               timelocks: [u64; 4],
               rescue_start: u32,
@@ -636,7 +631,6 @@ pub struct Create<'info> {
                 creator.key().as_ref(),
                 mint.key().as_ref(),
                 &amount.to_be_bytes(),
-                &parts_amount.to_be_bytes(),
                 &safety_deposit.to_be_bytes(),
                 &timelocks.try_to_vec()?,
                 &rescue_start.to_be_bytes(),
@@ -1088,7 +1082,6 @@ pub struct RescueFundsForEscrow<'info> {
         maker: Pubkey,
         token: Pubkey,
         order_amount: u64,
-        parts_amount: u64,
         safety_deposit: u64,
         timelocks: [u64; 4],
         rescue_start: u32,
@@ -1121,7 +1114,6 @@ pub struct RescueFundsForOrder<'info> {
                 maker.as_ref(),
                 token.as_ref(),
                 &order_amount.to_be_bytes(),
-                &parts_amount.to_be_bytes(),
                 &safety_deposit.to_be_bytes(),
                 &timelocks.try_to_vec()?,
                 &rescue_start.to_be_bytes(),
@@ -1165,7 +1157,6 @@ pub struct Order {
     token: Pubkey,
     amount: u64,
     remaining_amount: u64,
-    parts_amount: u64,
     safety_deposit: u64,
     timelocks: [u64; 4],
     rescue_start: u32,

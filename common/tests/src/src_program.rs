@@ -273,7 +273,6 @@ pub fn get_rescue_funds_from_order_tx<S: TokenVariant>(
             maker: test_state.maker_wallet.keypair.pubkey(),
             token: test_state.token,
             order_amount: test_state.test_arguments.order_amount,
-            parts_amount: test_state.test_arguments.order_parts_amount,
             safety_deposit: test_state.test_arguments.safety_deposit,
             timelocks: test_state.test_arguments.src_timelocks.get_timelocks(),
             rescue_start: test_state.test_arguments.rescue_start,
@@ -325,11 +324,6 @@ pub fn get_order_hash<T, S: TokenVariant>(test_state: &TestStateBase<T, S>) -> k
         test_state
             .test_arguments
             .order_amount
-            .to_be_bytes()
-            .as_ref(),
-        test_state
-            .test_arguments
-            .order_parts_amount
             .to_be_bytes()
             .as_ref(),
         test_state
@@ -411,7 +405,6 @@ pub fn get_create_order_tx<T: EscrowVariant<S>, S: TokenVariant>(
 ) -> Transaction {
     let instruction_data = InstructionData::data(&cross_chain_escrow_src::instruction::Create {
         amount: test_state.test_arguments.order_amount,
-        parts_amount: test_state.test_arguments.order_parts_amount,
         hashlock: test_state.hashlock.to_bytes(),
         safety_deposit: test_state.test_arguments.safety_deposit,
         timelocks: test_state.test_arguments.src_timelocks.get_timelocks(),
