@@ -203,26 +203,6 @@ pub async fn test_escrow_creation_fails_with_existing_order_hash<
         ));
 }
 
-pub async fn test_escrow_creation_fails_with_invalid_rescue_start<
-    T: EscrowVariant<S>,
-    S: TokenVariant,
->(
-    test_state: &mut TestStateBase<T, S>,
-) {
-    test_state.test_arguments.rescue_start =
-        test_state.test_arguments.init_timestamp + RESCUE_DELAY - 100;
-    let (_, escrow_ata, transaction) = create_escrow_data(test_state);
-
-    test_state
-        .client
-        .process_transaction(transaction)
-        .await
-        .expect_error(ProgramError::Custom(EscrowError::InvalidRescueStart.into()));
-
-    let acc_lookup_result = test_state.client.get_account(escrow_ata).await.unwrap();
-    assert!(acc_lookup_result.is_none());
-}
-
 pub async fn test_withdraw_does_not_work_with_wrong_secret<T: EscrowVariant<S>, S: TokenVariant>(
     test_state: &mut TestStateBase<T, S>,
 ) {
@@ -755,6 +735,74 @@ pub async fn test_rescue_part_of_tokens_and_not_close_ata<
         .is_some());
 }
 
+pub async fn test_rescue_tokens_when_escrow_is_deleted<
+    T: EscrowVariant<S> + 'static,
+    S: TokenVariant,
+>(
+    test_state: &mut TestStateBase<T, S>,
+) {
+    let (escrow, escrow_ata) = create_escrow(test_state).await;
+
+    let token_to_rescue = S::deploy_spl_token(&mut test_state.context).await.pubkey();
+    let escrow_ata_for_rescue_token =
+        S::initialize_spl_associated_account(&mut test_state.context, &token_to_rescue, &escrow)
+            .await;
+
+    S::mint_spl_tokens(
+        &mut test_state.context,
+        &token_to_rescue,
+        &escrow_ata_for_rescue_token,
+        &test_state.payer_kp.pubkey(),
+        &test_state.payer_kp,
+        test_state.test_arguments.rescue_amount,
+    )
+    .await;
+
+    let wallet = if TypeId::of::<T>() == TypeId::of::<SrcProgram>() {
+        test_state.taker_wallet.keypair.pubkey()
+    } else {
+        test_state.maker_wallet.keypair.pubkey()
+    };
+
+    let taker_ata =
+        S::initialize_spl_associated_account(&mut test_state.context, &token_to_rescue, &wallet)
+            .await;
+
+    let cancellation_time = test_state
+        .test_arguments
+        .src_timelocks
+        .get(Stage::SrcCancellation)
+        .unwrap();
+
+    set_time(&mut test_state.context, cancellation_time);
+
+    // Delete escrow account before rescue
+    let cancel_tx = T::get_cancel_tx(test_state, &escrow, &escrow_ata);
+    test_state
+        .client
+        .process_transaction(cancel_tx)
+        .await
+        .expect_success();
+
+    let transaction = T::get_rescue_funds_tx(
+        test_state,
+        &escrow,
+        &token_to_rescue,
+        &escrow_ata_for_rescue_token,
+        &taker_ata,
+    );
+
+    test_state
+        .expect_state_change(
+            transaction,
+            &[token_change(
+                taker_ata,
+                test_state.test_arguments.rescue_amount,
+            )],
+        )
+        .await;
+}
+
 pub async fn test_cannot_rescue_funds_before_rescue_delay_pass<
     T: EscrowVariant<S> + 'static,
     S: TokenVariant,
@@ -805,7 +853,7 @@ pub async fn test_cannot_rescue_funds_before_rescue_delay_pass<
         .client
         .process_transaction(transaction)
         .await
-        .expect_error(ProgramError::Custom(EscrowError::InvalidTime.into()));
+        .expect_error(ProgramError::Custom(EscrowError::InvalidRescueStart.into()));
 }
 
 pub async fn test_cannot_rescue_funds_by_non_recipient<T: EscrowVariant<S>, S: TokenVariant>(

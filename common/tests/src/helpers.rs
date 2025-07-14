@@ -15,10 +15,7 @@ use anchor_spl::token_2022::spl_token_2022::{
 };
 
 use async_trait::async_trait;
-use common::{
-    constants::RESCUE_DELAY,
-    timelocks::{Stage, Timelocks},
-};
+use common::timelocks::{Stage, Timelocks};
 use cross_chain_escrow_src::DstChainParams;
 use cross_chain_escrow_src::{get_escrow_hashlock, merkle_tree::MerkleProof};
 use primitive_types::U256;
@@ -109,7 +106,6 @@ pub struct TestArgs {
     pub dst_timelocks: Timelocks,
     pub src_cancellation_timestamp: u32,
     pub init_timestamp: u32,
-    pub rescue_start: u32,
     pub rescue_amount: u64,
     pub expiration_time: u32,
     pub asset_is_native: bool,
@@ -153,7 +149,6 @@ pub fn get_default_testargs(nowsecs: u32) -> TestArgs {
         ),
         src_cancellation_timestamp: nowsecs + 10000,
         init_timestamp: nowsecs,
-        rescue_start: nowsecs + RESCUE_DELAY,
         rescue_amount: DEFAULT_RESCUE_AMOUNT,
         expiration_time: nowsecs + DEFAULT_PERIOD_DURATION,
         asset_is_native: false, // This is set to false by default, will be changed for native tests.
@@ -602,11 +597,6 @@ pub fn get_escrow_addresses<T: EscrowVariant<S>, S: TokenVariant>(
             test_state
                 .test_arguments
                 .safety_deposit
-                .to_be_bytes()
-                .as_ref(),
-            test_state
-                .test_arguments
-                .rescue_start
                 .to_be_bytes()
                 .as_ref(),
         ],

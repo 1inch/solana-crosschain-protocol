@@ -9,7 +9,6 @@ use anchor_spl::token_interface::{
     TransferChecked,
 };
 
-use crate::constants::RESCUE_DELAY;
 use crate::error::EscrowError;
 use crate::timelocks::Timelocks;
 use crate::utils;
@@ -31,8 +30,6 @@ pub trait EscrowBase {
 
     fn timelocks(&self) -> Timelocks;
 
-    fn rescue_start(&self) -> u32;
-
     fn asset_is_native(&self) -> bool;
 
     fn escrow_type(&self) -> EscrowType;
@@ -53,14 +50,7 @@ pub fn create<'info>(
     sys_program: &Program<'info, System>,
     amount: u64,
     safety_deposit: u64,
-    rescue_start: u32,
-    now: u32,
 ) -> Result<()> {
-    require!(
-        rescue_start >= now + RESCUE_DELAY,
-        EscrowError::InvalidRescueStart
-    );
-
     // TODO: Verify that safety_deposit is enough to cover public_withdraw and public_cancel methods
     require!(
         amount != 0 && safety_deposit != 0,
@@ -150,7 +140,6 @@ where
         escrow.token().as_ref(),
         &escrow.amount().to_be_bytes(),
         &escrow.safety_deposit().to_be_bytes(),
-        &escrow.rescue_start().to_be_bytes(),
         &[escrow_bump],
     ];
 
@@ -201,7 +190,6 @@ where
         escrow.token().as_ref(),
         &escrow.amount().to_be_bytes(),
         &escrow.safety_deposit().to_be_bytes(),
-        &escrow.rescue_start().to_be_bytes(),
         &[escrow_bump],
     ];
 
@@ -231,7 +219,7 @@ where
 
 pub fn rescue_funds<'info>(
     escrow: &AccountInfo<'info>,
-    rescue_start: u32,
+    rescue_start: Option<u32>,
     escrow_ata: &InterfaceAccount<'info, TokenAccount>,
     recipient: &AccountInfo<'info>,
     recipient_ata: &InterfaceAccount<'info, TokenAccount>,
@@ -241,7 +229,12 @@ pub fn rescue_funds<'info>(
     seeds: &[&[u8]],
 ) -> Result<()> {
     let now = utils::get_current_timestamp()?;
-    require!(now >= rescue_start, EscrowError::InvalidTime);
+    if rescue_start.is_some() {
+        require!(
+            now >= rescue_start.unwrap(),
+            EscrowError::InvalidRescueStart
+        );
+    }
 
     // Transfer tokens from escrow to recipient
     uni_transfer(
@@ -378,7 +371,7 @@ fn close_and_withdraw_native_ata<'info, T>(
     escrow_ata: &InterfaceAccount<'info, TokenAccount>,
     recipient: &AccountInfo<'info>,
     token_program: &Interface<'info, TokenInterface>,
-    seeds: [&[u8]; 10],
+    seeds: [&[u8]; 9],
 ) -> Result<()>
 where
     T: EscrowBase + AccountSerialize + AccountDeserialize + Clone,
