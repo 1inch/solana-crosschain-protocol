@@ -784,7 +784,7 @@ pub async fn create_order_for_partial_fill<S: TokenVariant>(
 ) -> (Pubkey, Pubkey) {
     let merkle_hashes = compute_merkle_leaves();
     let root = get_root(merkle_hashes.leaves.clone());
-    test_state.hashlock = assembly_hashlock_for_root(root, DEFAULT_PARTS_AMOUNT_FOR_MULTIPLE);
+    test_state.hashlock = prepare_hashlock_for_root(root, DEFAULT_PARTS_AMOUNT_FOR_MULTIPLE);
     test_state.test_arguments.allow_multiple_fills = true;
     create_order(test_state).await
 }
@@ -862,9 +862,9 @@ pub struct MerkleHashes {
     pub secrets: Vec<[u8; 32]>,
 }
 
-pub fn assembly_hashlock_for_root(root: [u8; 32], parts_amount: u64) -> Hash {
+pub fn prepare_hashlock_for_root(root: [u8; 32], parts_amount: u64) -> Hash {
     let mut hashlock = root;
-    hashlock[0..2].copy_from_slice(&parts_amount.to_be_bytes()[6..8]);
+    hashlock[0..2].copy_from_slice(&(parts_amount as u16).to_be_bytes());
     Hash::new_from_array(hashlock)
 }
 

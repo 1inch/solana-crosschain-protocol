@@ -311,7 +311,7 @@ run_for_tokens!(
                 let merkle_hashes = compute_merkle_leaves();
                 let root = get_root(merkle_hashes.leaves.clone());
                 test_state.hashlock =
-                    assembly_hashlock_for_root(root, DEFAULT_PARTS_AMOUNT_FOR_MULTIPLE);
+                    prepare_hashlock_for_root(root, DEFAULT_PARTS_AMOUNT_FOR_MULTIPLE);
                 // test_state.test_arguments.allow_multiple_fills is false;
                 create_order(test_state).await;
 

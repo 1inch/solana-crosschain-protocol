@@ -184,7 +184,7 @@ run_for_tokens!(
             ) {
                 test_state.test_arguments.allow_multiple_fills = true;
                 let too_small_parts_amount = 1;
-                test_state.hashlock = assembly_hashlock_for_root(
+                test_state.hashlock = prepare_hashlock_for_root(
                     test_state.hashlock.to_bytes(),
                     too_small_parts_amount,
                 );
