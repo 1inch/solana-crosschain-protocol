@@ -11,6 +11,7 @@ use anchor_spl::token_interface::{
 
 use crate::constants::RESCUE_DELAY;
 use crate::error::EscrowError;
+use crate::timelocks::Timelocks;
 use crate::utils;
 
 pub trait EscrowBase {
@@ -28,11 +29,7 @@ pub trait EscrowBase {
 
     fn safety_deposit(&self) -> u64;
 
-    fn withdrawal_start(&self) -> u32;
-
-    fn public_withdrawal_start(&self) -> u32;
-
-    fn cancellation_start(&self) -> u32;
+    fn timelocks(&self) -> Timelocks;
 
     fn rescue_start(&self) -> u32;
 

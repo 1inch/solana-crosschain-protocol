@@ -1,7 +1,7 @@
 use anchor_lang::prelude::ProgramError;
 use anchor_spl::token::spl_token::native_mint::ID as NATIVE_MINT;
 use anchor_spl::token::spl_token::state::Account as SplTokenAccount;
-use common::error::EscrowError;
+use common::{error::EscrowError, timelocks::Stage};
 use common_tests::helpers::*;
 use common_tests::src_program::{
     create_order, create_order_data, create_public_escrow_cancel_tx,
@@ -114,8 +114,11 @@ mod test_native_src {
 
         set_time(
             &mut test_state.context,
-            test_state.init_timestamp
-                + DEFAULT_PERIOD_DURATION * PeriodType::PublicWithdrawal as u32,
+            test_state
+                .test_arguments
+                .src_timelocks
+                .get(Stage::SrcPublicWithdrawal)
+                .unwrap(),
         );
 
         let escrow_data_len = cross_chain_escrow_src::constants::DISCRIMINATOR_BYTES
@@ -191,8 +194,11 @@ mod test_native_src {
 
         set_time(
             &mut test_state.context,
-            test_state.init_timestamp
-                + DEFAULT_PERIOD_DURATION * PeriodType::PublicWithdrawal as u32,
+            test_state
+                .test_arguments
+                .src_timelocks
+                .get(Stage::SrcPublicWithdrawal)
+                .unwrap(),
         );
 
         let escrow_data_len = cross_chain_escrow_src::constants::DISCRIMINATOR_BYTES
@@ -265,7 +271,11 @@ mod test_native_src {
 
         set_time(
             &mut test_state.context,
-            test_state.init_timestamp + DEFAULT_PERIOD_DURATION * PeriodType::Cancellation as u32,
+            test_state
+                .test_arguments
+                .src_timelocks
+                .get(Stage::SrcCancellation)
+                .unwrap(),
         );
 
         test_state
@@ -360,7 +370,11 @@ mod test_native_src {
 
         set_time(
             &mut test_state.context,
-            test_state.init_timestamp + DEFAULT_PERIOD_DURATION * PeriodType::Cancellation as u32,
+            test_state
+                .test_arguments
+                .src_timelocks
+                .get(Stage::SrcCancellation)
+                .unwrap(),
         );
 
         let token_account_rent =
@@ -415,8 +429,11 @@ mod test_native_src {
 
         set_time(
             &mut test_state.context,
-            test_state.init_timestamp
-                + DEFAULT_PERIOD_DURATION * PeriodType::PublicCancellation as u32,
+            test_state
+                .test_arguments
+                .src_timelocks
+                .get(Stage::SrcPublicCancellation)
+                .unwrap(),
         );
 
         let escrow_data_len = DEFAULT_SRC_ESCROW_SIZE;
@@ -546,8 +563,11 @@ mod test_wrapped_native {
 
         set_time(
             &mut test_state.context,
-            test_state.init_timestamp
-                + DEFAULT_PERIOD_DURATION * PeriodType::PublicWithdrawal as u32,
+            test_state
+                .test_arguments
+                .src_timelocks
+                .get(Stage::SrcPublicWithdrawal)
+                .unwrap(),
         );
 
         let escrow_data_len = cross_chain_escrow_src::constants::DISCRIMINATOR_BYTES
@@ -619,8 +639,11 @@ mod test_wrapped_native {
 
         set_time(
             &mut test_state.context,
-            test_state.init_timestamp
-                + DEFAULT_PERIOD_DURATION * PeriodType::PublicWithdrawal as u32,
+            test_state
+                .test_arguments
+                .src_timelocks
+                .get(Stage::SrcPublicWithdrawal)
+                .unwrap(),
         );
 
         let escrow_data_len = cross_chain_escrow_src::constants::DISCRIMINATOR_BYTES
@@ -690,7 +713,11 @@ mod test_wrapped_native {
 
         set_time(
             &mut test_state.context,
-            test_state.init_timestamp + DEFAULT_PERIOD_DURATION * PeriodType::Cancellation as u32,
+            test_state
+                .test_arguments
+                .src_timelocks
+                .get(Stage::SrcCancellation)
+                .unwrap(),
         );
 
         test_state
@@ -808,8 +835,11 @@ mod test_wrapped_native {
 
         set_time(
             &mut test_state.context,
-            test_state.init_timestamp
-                + DEFAULT_PERIOD_DURATION * PeriodType::PublicCancellation as u32,
+            test_state
+                .test_arguments
+                .src_timelocks
+                .get(Stage::SrcPublicCancellation)
+                .unwrap(),
         );
 
         let escrow_data_len = DEFAULT_SRC_ESCROW_SIZE;

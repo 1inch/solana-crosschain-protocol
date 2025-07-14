@@ -8,9 +8,13 @@ use anchor_spl::token_interface::{
 };
 pub use auction::{calculate_premium, calculate_rate_bump, AuctionData};
 pub use common::constants;
-use common::error::EscrowError;
-use common::escrow::{uni_transfer, EscrowBase, EscrowType, UniTransferParams};
-use common::utils;
+use common::{
+    error::EscrowError,
+    escrow::{uni_transfer, EscrowBase, EscrowType, UniTransferParams},
+    timelocks::{Stage, Timelocks},
+    utils,
+};
+
 use primitive_types::U256;
 
 pub mod auction;
@@ -29,10 +33,7 @@ pub mod cross_chain_escrow_src {
         hashlock: [u8; 32], // Root of merkle tree if partially filled
         amount: u64,
         safety_deposit: u64,
-        finality_duration: u32,
-        withdrawal_duration: u32,
-        public_withdrawal_duration: u32,
-        cancellation_duration: u32,
+        timelocks: [u64; 4],
         rescue_start: u32,
         expiration_time: u32,
         asset_is_native: bool,
@@ -64,10 +65,7 @@ pub mod cross_chain_escrow_src {
             ctx.accounts.mint.key().as_ref(),
             &amount.to_be_bytes(),
             &safety_deposit.to_be_bytes(),
-            &finality_duration.to_be_bytes(),
-            &withdrawal_duration.to_be_bytes(),
-            &public_withdrawal_duration.to_be_bytes(),
-            &cancellation_duration.to_be_bytes(),
+            &timelocks.try_to_vec()?,
             &rescue_start.to_be_bytes(),
             &expiration_time.to_be_bytes(),
             &[asset_is_native as u8],
@@ -108,10 +106,7 @@ pub mod cross_chain_escrow_src {
             amount,
             remaining_amount: amount,
             safety_deposit,
-            finality_duration,
-            withdrawal_duration,
-            public_withdrawal_duration,
-            cancellation_duration,
+            timelocks,
             rescue_start,
             expiration_time,
             asset_is_native,
@@ -177,21 +172,10 @@ pub mod cross_chain_escrow_src {
             order.hashlock
         };
 
-        let withdrawal_start = now
-            .checked_add(order.finality_duration)
-            .ok_or(ProgramError::ArithmeticOverflow)?;
-        let public_withdrawal_start = withdrawal_start
-            .checked_add(order.withdrawal_duration)
-            .ok_or(ProgramError::ArithmeticOverflow)?;
-        let cancellation_start = public_withdrawal_start
-            .checked_add(order.public_withdrawal_duration)
-            .ok_or(ProgramError::ArithmeticOverflow)?;
-        let public_cancellation_start = cancellation_start
-            .checked_add(order.cancellation_duration)
-            .ok_or(ProgramError::ArithmeticOverflow)?;
+        let updated_timelocks = Timelocks(U256(order.timelocks)).set_deployed_at(now);
 
         require!(
-            public_cancellation_start < order.rescue_start,
+            updated_timelocks.get(Stage::SrcPublicCancellation)? < order.rescue_start,
             EscrowError::InvalidRescueStart
         );
 
@@ -223,10 +207,7 @@ pub mod cross_chain_escrow_src {
             token: order.token,
             amount,
             safety_deposit: order.safety_deposit,
-            withdrawal_start,
-            public_withdrawal_start,
-            cancellation_start,
-            public_cancellation_start,
+            timelocks: updated_timelocks.get_timelocks(),
             rescue_start: order.rescue_start,
             asset_is_native: order.asset_is_native,
             dst_amount: get_dst_amount(
@@ -268,8 +249,13 @@ pub mod cross_chain_escrow_src {
         let now = utils::get_current_timestamp()?;
 
         require!(
-            now >= ctx.accounts.escrow.withdrawal_start()
-                && now < ctx.accounts.escrow.cancellation_start(),
+            now >= ctx.accounts.escrow.timelocks().get(Stage::SrcWithdrawal)?
+                && now
+                    < ctx
+                        .accounts
+                        .escrow
+                        .timelocks()
+                        .get(Stage::SrcCancellation)?,
             EscrowError::InvalidTime
         );
 
@@ -294,8 +280,17 @@ pub mod cross_chain_escrow_src {
         let now = utils::get_current_timestamp()?;
 
         require!(
-            now >= ctx.accounts.escrow.public_withdrawal_start()
-                && now < ctx.accounts.escrow.cancellation_start(),
+            now >= ctx
+                .accounts
+                .escrow
+                .timelocks()
+                .get(Stage::SrcPublicWithdrawal)?
+                && now
+                    < ctx
+                        .accounts
+                        .escrow
+                        .timelocks()
+                        .get(Stage::SrcCancellation)?,
             EscrowError::InvalidTime
         );
 
@@ -320,7 +315,11 @@ pub mod cross_chain_escrow_src {
         let now = utils::get_current_timestamp()?;
 
         require!(
-            now >= ctx.accounts.escrow.cancellation_start(),
+            now >= ctx
+                .accounts
+                .escrow
+                .timelocks()
+                .get(Stage::SrcCancellation)?,
             EscrowError::InvalidTime
         );
 
@@ -345,7 +344,11 @@ pub mod cross_chain_escrow_src {
         let now = utils::get_current_timestamp()?;
 
         require!(
-            now >= ctx.accounts.escrow.public_cancellation_start,
+            now >= ctx
+                .accounts
+                .escrow
+                .timelocks()
+                .get(Stage::SrcPublicCancellation)?,
             EscrowError::InvalidTime
         );
 
@@ -542,10 +545,7 @@ pub mod cross_chain_escrow_src {
         token: Pubkey,
         order_amount: u64,
         safety_deposit: u64,
-        finality_duration: u32,
-        withdrawal_duration: u32,
-        public_withdrawal_duration: u32,
-        cancellation_duration: u32,
+        timelocks: [u64; 4],
         rescue_start: u32,
         expiration_time: u32,
         asset_is_native: bool,
@@ -562,10 +562,7 @@ pub mod cross_chain_escrow_src {
             token.as_ref(),
             &order_amount.to_be_bytes(),
             &safety_deposit.to_be_bytes(),
-            &finality_duration.to_be_bytes(),
-            &withdrawal_duration.to_be_bytes(),
-            &public_withdrawal_duration.to_be_bytes(),
-            &cancellation_duration.to_be_bytes(),
+            &timelocks.try_to_vec()?,
             &rescue_start.to_be_bytes(),
             &expiration_time.to_be_bytes(),
             &[asset_is_native as u8],
@@ -597,10 +594,7 @@ pub mod cross_chain_escrow_src {
 #[instruction(hashlock: [u8; 32],
               amount: u64,
               safety_deposit: u64,
-              finality_duration: u32,
-              withdrawal_duration: u32,
-              public_withdrawal_duration: u32,
-              cancellation_duration: u32,
+              timelocks: [u64; 4],
               rescue_start: u32,
               expiration_time: u32,
               asset_is_native: bool,
@@ -638,10 +632,7 @@ pub struct Create<'info> {
                 mint.key().as_ref(),
                 &amount.to_be_bytes(),
                 &safety_deposit.to_be_bytes(),
-                &finality_duration.to_be_bytes(),
-                &withdrawal_duration.to_be_bytes(),
-                &public_withdrawal_duration.to_be_bytes(),
-                &cancellation_duration.to_be_bytes(),
+                &timelocks.try_to_vec()?,
                 &rescue_start.to_be_bytes(),
                 &expiration_time.to_be_bytes(),
                 &[asset_is_native as u8],
@@ -1092,10 +1083,7 @@ pub struct RescueFundsForEscrow<'info> {
         token: Pubkey,
         order_amount: u64,
         safety_deposit: u64,
-        finality_duration: u32,
-        withdrawal_duration: u32,
-        public_withdrawal_duration: u32,
-        cancellation_duration: u32,
+        timelocks: [u64; 4],
         rescue_start: u32,
         expiration_time: u32,
         asset_is_native: bool,
@@ -1127,10 +1115,7 @@ pub struct RescueFundsForOrder<'info> {
                 token.as_ref(),
                 &order_amount.to_be_bytes(),
                 &safety_deposit.to_be_bytes(),
-                &finality_duration.to_be_bytes(),
-                &withdrawal_duration.to_be_bytes(),
-                &public_withdrawal_duration.to_be_bytes(),
-                &cancellation_duration.to_be_bytes(),
+                &timelocks.try_to_vec()?,
                 &rescue_start.to_be_bytes(),
                 &expiration_time.to_be_bytes(),
                 &[asset_is_native as u8],
@@ -1173,10 +1158,7 @@ pub struct Order {
     amount: u64,
     remaining_amount: u64,
     safety_deposit: u64,
-    finality_duration: u32,
-    withdrawal_duration: u32,
-    public_withdrawal_duration: u32,
-    cancellation_duration: u32,
+    timelocks: [u64; 4],
     rescue_start: u32,
     expiration_time: u32,
     asset_is_native: bool,
@@ -1198,10 +1180,7 @@ pub struct EscrowSrc {
     token: Pubkey,
     amount: u64,
     safety_deposit: u64,
-    withdrawal_start: u32,
-    public_withdrawal_start: u32,
-    cancellation_start: u32,
-    public_cancellation_start: u32,
+    timelocks: [u64; 4],
     rescue_start: u32,
     asset_is_native: bool,
     dst_amount: [u64; 4],
@@ -1237,16 +1216,8 @@ impl EscrowBase for EscrowSrc {
         self.safety_deposit
     }
 
-    fn withdrawal_start(&self) -> u32 {
-        self.withdrawal_start
-    }
-
-    fn public_withdrawal_start(&self) -> u32 {
-        self.public_withdrawal_start
-    }
-
-    fn cancellation_start(&self) -> u32 {
-        self.cancellation_start
+    fn timelocks(&self) -> Timelocks {
+        Timelocks(U256(self.timelocks))
     }
 
     fn rescue_start(&self) -> u32 {

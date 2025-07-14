@@ -3,12 +3,13 @@ use std::marker::PhantomData;
 use anchor_lang::error::ErrorCode;
 use anchor_lang::prelude::ProgramError;
 use anchor_spl::token::spl_token::native_mint::ID as NATIVE_MINT;
+use common::timelocks::Stage;
 use common_tests::helpers::{
     account_closure, create_escrow_data, find_user_ata, get_min_rent_for_size, get_token_balance,
-    native_change, set_time, token_change, EscrowVariant, Expectation, HasTokenVariant, PeriodType,
+    native_change, set_time, token_change, EscrowVariant, Expectation, HasTokenVariant,
     StateChange, TestStateBase, TokenVariant, DEFAULT_ESCROW_AMOUNT, DEFAULT_ORDER_SIZE,
-    DEFAULT_PARTS_AMOUNT_FOR_MULTIPLE, DEFAULT_PERIOD_DURATION, DEFAULT_SRC_ESCROW_SIZE,
-    WALLET_DEFAULT_LAMPORTS, WALLET_DEFAULT_TOKENS,
+    DEFAULT_PARTS_AMOUNT_FOR_MULTIPLE, DEFAULT_SRC_ESCROW_SIZE, WALLET_DEFAULT_LAMPORTS,
+    WALLET_DEFAULT_TOKENS,
 };
 use common_tests::src_program::{
     create_order, create_order_data, create_public_escrow_cancel_tx,
@@ -28,7 +29,7 @@ use solana_sdk::transaction::Transaction;
 use crate::merkle_tree_helpers::{get_proof, get_root};
 
 /// Byte offset in the escrow account data where the `dst_amount` field is located
-const DST_AMOUNT_OFFSET: usize = 205;
+const DST_AMOUNT_OFFSET: usize = 221;
 const U64_SIZE: usize = size_of::<u64>();
 
 /// Reads the `dst_amount` field (u64) directly from the raw account data.
@@ -105,7 +106,11 @@ pub async fn test_withdraw_escrow<S: TokenVariant>(
 ) {
     set_time(
         &mut test_state.context,
-        test_state.init_timestamp + DEFAULT_PERIOD_DURATION * PeriodType::Withdrawal as u32,
+        test_state
+            .test_arguments
+            .src_timelocks
+            .get(Stage::SrcWithdrawal)
+            .unwrap(),
     );
 
     let transaction = SrcProgram::get_withdraw_tx(test_state, escrow, escrow_ata);
@@ -141,7 +146,11 @@ pub async fn test_public_withdraw_escrow<S: TokenVariant>(
 ) {
     set_time(
         &mut test_state.context,
-        test_state.init_timestamp + DEFAULT_PERIOD_DURATION * PeriodType::PublicWithdrawal as u32,
+        test_state
+            .test_arguments
+            .src_timelocks
+            .get(Stage::SrcPublicWithdrawal)
+            .unwrap(),
     );
 
     let transaction =
@@ -196,7 +205,11 @@ pub async fn test_cancel_escrow_partial_native<S: TokenVariant>(
 
     set_time(
         &mut test_state.context,
-        test_state.init_timestamp + DEFAULT_PERIOD_DURATION * PeriodType::Cancellation as u32,
+        test_state
+            .test_arguments
+            .src_timelocks
+            .get(Stage::SrcCancellation)
+            .unwrap(),
     );
 
     let escrow_data_len = DEFAULT_SRC_ESCROW_SIZE;
@@ -232,7 +245,11 @@ pub async fn test_public_cancel_escrow<S: TokenVariant>(
 ) {
     set_time(
         &mut test_state.context,
-        test_state.init_timestamp + DEFAULT_PERIOD_DURATION * PeriodType::PublicCancellation as u32,
+        test_state
+            .test_arguments
+            .src_timelocks
+            .get(Stage::SrcPublicCancellation)
+            .unwrap(),
     );
     let transaction = create_public_escrow_cancel_tx(test_state, escrow, escrow_ata, canceller);
 
@@ -281,7 +298,11 @@ pub async fn test_public_cancel_escrow_native<S: TokenVariant>(
 ) {
     set_time(
         &mut test_state.context,
-        test_state.init_timestamp + DEFAULT_PERIOD_DURATION * PeriodType::PublicCancellation as u32,
+        test_state
+            .test_arguments
+            .src_timelocks
+            .get(Stage::SrcPublicCancellation)
+            .unwrap(),
     );
     let transaction = create_public_escrow_cancel_tx(test_state, escrow, escrow_ata, canceller);
 

@@ -15,7 +15,10 @@ use anchor_spl::token_2022::spl_token_2022::{
 };
 
 use async_trait::async_trait;
-use common::constants::RESCUE_DELAY;
+use common::{
+    constants::RESCUE_DELAY,
+    timelocks::{Stage, Timelocks},
+};
 use cross_chain_escrow_src::DstChainParams;
 use cross_chain_escrow_src::{get_escrow_hashlock, merkle_tree::MerkleProof};
 use primitive_types::U256;
@@ -53,14 +56,6 @@ pub const WALLET_DEFAULT_TOKENS: u64 = 1000000000;
 pub const DEFAULT_PERIOD_DURATION: u32 = 100;
 pub const DEFAULT_PARTS_AMOUNT_FOR_MULTIPLE: u64 = 4;
 
-pub enum PeriodType {
-    Finality = 0,
-    Withdrawal = 1,
-    PublicWithdrawal = 2,
-    Cancellation = 3,
-    PublicCancellation = 4,
-}
-
 pub const DEFAULT_ESCROW_AMOUNT: u64 = 100000;
 pub const DEFAULT_DST_ESCROW_AMOUNT: u64 = 1000;
 pub const DEFAULT_RESCUE_AMOUNT: u64 = 100;
@@ -75,15 +70,43 @@ pub const DEFAULT_DST_ESCROW_SIZE: usize = cross_chain_escrow_dst::EscrowDst::IN
 pub const DEFAULT_ORDER_SIZE: usize = cross_chain_escrow_src::constants::DISCRIMINATOR_BYTES
     + cross_chain_escrow_src::Order::INIT_SPACE;
 
+pub fn init_timelocks(
+    src_withdrawal: u32,
+    src_public_withdrawal: u32,
+    src_cancellation: u32,
+    src_public_cancellation: u32,
+    dst_withdrawal: u32,
+    dst_public_withdrawal: u32,
+    dst_cancellation: u32,
+    deployed_at: u32,
+) -> Timelocks {
+    const DEPLOYED_AT_OFFSET: usize = 224;
+    const STAGE_BIT_SIZE: usize = 32;
+
+    let mut value = U256::zero();
+
+    value |= U256::from(deployed_at) << DEPLOYED_AT_OFFSET;
+    value |= U256::from(src_withdrawal) << ((Stage::SrcWithdrawal as usize) * STAGE_BIT_SIZE);
+    value |= U256::from(src_public_withdrawal)
+        << ((Stage::SrcPublicWithdrawal as usize) * STAGE_BIT_SIZE);
+    value |= U256::from(src_cancellation) << ((Stage::SrcCancellation as usize) * STAGE_BIT_SIZE);
+    value |= U256::from(src_public_cancellation)
+        << ((Stage::SrcPublicCancellation as usize) * STAGE_BIT_SIZE);
+    value |= U256::from(dst_withdrawal) << ((Stage::DstWithdrawal as usize) * STAGE_BIT_SIZE);
+    value |= U256::from(dst_public_withdrawal)
+        << ((Stage::DstPublicWithdrawal as usize) * STAGE_BIT_SIZE);
+    value |= U256::from(dst_cancellation) << ((Stage::DstCancellation as usize) * STAGE_BIT_SIZE);
+
+    Timelocks(value)
+}
+
 pub struct TestArgs {
     pub order_amount: u64,
     pub order_remaining_amount: u64,
     pub escrow_amount: u64,
     pub safety_deposit: u64,
-    pub finality_duration: u32,
-    pub withdrawal_duration: u32,
-    pub public_withdrawal_duration: u32,
-    pub cancellation_duration: u32,
+    pub src_timelocks: Timelocks,
+    pub dst_timelocks: Timelocks,
     pub src_cancellation_timestamp: u32,
     pub init_timestamp: u32,
     pub rescue_start: u32,
@@ -108,10 +131,26 @@ pub fn get_default_testargs(nowsecs: u32) -> TestArgs {
         order_remaining_amount: DEFAULT_ESCROW_AMOUNT,
         escrow_amount: DEFAULT_ESCROW_AMOUNT,
         safety_deposit: DEFAULT_SAFETY_DEPOSIT,
-        finality_duration: DEFAULT_PERIOD_DURATION,
-        withdrawal_duration: DEFAULT_PERIOD_DURATION,
-        public_withdrawal_duration: DEFAULT_PERIOD_DURATION,
-        cancellation_duration: DEFAULT_PERIOD_DURATION,
+        src_timelocks: init_timelocks(
+            DEFAULT_PERIOD_DURATION,
+            DEFAULT_PERIOD_DURATION * 2,
+            DEFAULT_PERIOD_DURATION * 3,
+            DEFAULT_PERIOD_DURATION * 4,
+            DEFAULT_PERIOD_DURATION,
+            DEFAULT_PERIOD_DURATION * 2,
+            DEFAULT_PERIOD_DURATION * 3,
+            nowsecs,
+        ),
+        dst_timelocks: init_timelocks(
+            0,
+            0,
+            0,
+            0,
+            DEFAULT_PERIOD_DURATION,
+            DEFAULT_PERIOD_DURATION * 2,
+            DEFAULT_PERIOD_DURATION * 3,
+            nowsecs,
+        ),
         src_cancellation_timestamp: nowsecs + 10000,
         init_timestamp: nowsecs,
         rescue_start: nowsecs + RESCUE_DELAY,
