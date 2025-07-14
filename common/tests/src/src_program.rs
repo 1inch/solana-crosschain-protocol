@@ -192,7 +192,6 @@ impl<S: TokenVariant> EscrowVariant<S> for SrcProgram {
                 token: test_state.token,
                 amount: test_state.test_arguments.escrow_amount,
                 safety_deposit: test_state.test_arguments.safety_deposit,
-                rescue_start: test_state.test_arguments.rescue_start,
                 rescue_amount: test_state.test_arguments.rescue_amount,
             });
 
@@ -288,7 +287,6 @@ pub fn get_rescue_funds_from_order_tx<S: TokenVariant>(
             max_cancellation_premium: test_state.test_arguments.max_cancellation_premium,
             cancellation_auction_duration: test_state.test_arguments.cancellation_auction_duration,
             allow_multiple_fills: test_state.test_arguments.allow_multiple_fills,
-            rescue_start: test_state.test_arguments.rescue_start,
             rescue_amount: test_state.test_arguments.rescue_amount,
         });
 

@@ -190,7 +190,6 @@ impl<S: TokenVariant> EscrowVariant<S> for DstProgram {
                 escrow_mint: test_state.token,
                 escrow_amount: test_state.test_arguments.escrow_amount,
                 safety_deposit: test_state.test_arguments.safety_deposit,
-                rescue_start: test_state.test_arguments.rescue_start,
                 rescue_amount: test_state.test_arguments.rescue_amount,
             });
 

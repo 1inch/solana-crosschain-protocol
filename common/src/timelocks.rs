@@ -29,6 +29,14 @@ impl Timelocks {
         Self(cleared | (U256::from(value) << DEPLOYED_AT_OFFSET))
     }
 
+    pub fn rescue_start(self, rescue_delay: u32) -> std::result::Result<u32, ProgramError> {
+        let deployed_at = (self.0 >> DEPLOYED_AT_OFFSET).as_u32();
+        let result = deployed_at
+            .checked_add(rescue_delay)
+            .ok_or(ProgramError::ArithmeticOverflow)?;
+        Ok(result)
+    }
+
     pub fn get(self, stage: Stage) -> std::result::Result<u32, ProgramError> {
         let shift = (stage as usize) * STAGE_BIT_SIZE;
         let deployed_at = (self.0 >> DEPLOYED_AT_OFFSET).as_u32();
@@ -37,9 +45,5 @@ impl Timelocks {
             .checked_add(delta)
             .ok_or(ProgramError::ArithmeticOverflow)?;
         Ok(result)
-    }
-
-    pub fn get_deployed_at(self) -> u32 {
-        (self.0 >> DEPLOYED_AT_OFFSET).as_u32()
     }
 }

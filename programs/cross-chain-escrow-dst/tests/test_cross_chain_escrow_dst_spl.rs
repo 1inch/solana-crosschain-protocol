@@ -736,14 +736,6 @@ run_for_tokens!(
                 common_escrow_tests::test_cannot_rescue_funds_with_wrong_escrow_ata(test_state)
                     .await
             }
-
-            #[test_context(TestState)]
-            #[tokio::test]
-            async fn test_cannot_rescue_funds_with_wrong_rescue_start(test_state: &mut TestState) {
-                prepare_resolvers(test_state, &[test_state.taker_wallet.keypair.pubkey()]).await;
-                common_escrow_tests::test_cannot_rescue_funds_with_wrong_rescue_start(test_state)
-                    .await;
-            }
         }
     }
 );

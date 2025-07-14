@@ -30,8 +30,6 @@ pub trait EscrowBase {
 
     fn timelocks(&self) -> Timelocks;
 
-    fn rescue_start(&self) -> u32;
-
     fn asset_is_native(&self) -> bool;
 
     fn escrow_type(&self) -> EscrowType;
