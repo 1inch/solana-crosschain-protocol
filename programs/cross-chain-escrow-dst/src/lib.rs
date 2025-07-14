@@ -15,8 +15,6 @@ declare_id!("B9SnVJbXNd6RFNxHqPkTvdr46YPT17xunemTQfDsCNzR");
 #[program]
 pub mod cross_chain_escrow_dst {
 
-    
-
     use super::*;
 
     pub fn create(
