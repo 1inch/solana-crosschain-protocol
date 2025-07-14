@@ -468,7 +468,7 @@ pub async fn test_rescue_part_of_tokens_from_order_and_not_close_ata<S: TokenVar
         .is_some());
 }
 
-pub async fn test_rescue_tokens_when_escrow_is_deleted<S: TokenVariant>(
+pub async fn test_rescue_tokens_when_order_is_deleted<S: TokenVariant>(
     test_state: &mut TestStateBase<SrcProgram, S>,
 ) {
     let (order, order_ata) = create_order(test_state).await;

@@ -1113,9 +1113,9 @@ run_for_tokens!(
 
             #[test_context(TestState)]
             #[tokio::test]
-            async fn test_rescue_tokens_when_escrow_is_deleted(test_state: &mut TestState) {
+            async fn test_rescue_tokens_when_order_is_deleted(test_state: &mut TestState) {
                 prepare_resolvers(test_state, &[test_state.taker_wallet.keypair.pubkey()]).await;
-                helpers_src::test_rescue_tokens_when_escrow_is_deleted(test_state).await;
+                helpers_src::test_rescue_tokens_when_order_is_deleted(test_state).await;
             }
 
             #[test_context(TestState)]
