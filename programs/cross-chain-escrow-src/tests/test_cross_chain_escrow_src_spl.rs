@@ -1516,7 +1516,7 @@ run_for_tokens!(
                     .client
                     .process_transaction(transaction)
                     .await
-                    .expect_error(ProgramError::Custom(EscrowError::InvalidTime.into()));
+                    .expect_error(ProgramError::Custom(EscrowError::InvalidRescueStart.into()));
             }
 
             // #[test_context(TestState)]

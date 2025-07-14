@@ -508,7 +508,7 @@ pub async fn test_rescue_tokens_when_order_is_deleted<S: TokenVariant>(
         .await
         .expect_success();
 
-    test_state.test_arguments.rescue_start = cancellation_time;
+    test_state.test_arguments.rescue_start = None;
     let transaction = get_rescue_funds_from_order_tx(
         test_state,
         &order,
@@ -602,7 +602,7 @@ pub async fn test_cannot_rescue_funds_with_wrong_rescue_start<S: TokenVariant>(
     )
     .await;
 
-    test_state.test_arguments.rescue_start = test_state.init_timestamp + RESCUE_DELAY - 1;
+    test_state.test_arguments.rescue_start = Some(test_state.init_timestamp + RESCUE_DELAY - 1);
     let transaction = get_rescue_funds_from_order_tx(
         test_state,
         &order,

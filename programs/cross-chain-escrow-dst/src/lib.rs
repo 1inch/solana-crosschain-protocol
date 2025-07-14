@@ -162,8 +162,8 @@ pub mod cross_chain_escrow_dst {
         escrow_mint: Pubkey,
         escrow_amount: u64,
         safety_deposit: u64,
-        rescue_start: u32,
         rescue_amount: u64,
+        rescue_start: Option<u32>,
     ) -> Result<()> {
         let recipient_pubkey = ctx.accounts.recipient.key();
         let creator_pubkey = ctx.accounts.creator.key();
@@ -172,7 +172,7 @@ pub mod cross_chain_escrow_dst {
             let escrow_data =
                 EscrowDst::try_deserialize(&mut &ctx.accounts.escrow.data.borrow()[..])?;
             require!(
-                rescue_start
+                rescue_start.ok_or(EscrowError::InvalidRescueStart)?
                     == escrow_data
                         .timelocks()
                         .get_deployed_at()

@@ -111,7 +111,7 @@ pub struct TestArgs {
     pub dst_timelocks: Timelocks,
     pub src_cancellation_timestamp: u32,
     pub init_timestamp: u32,
-    pub rescue_start: u32,
+    pub rescue_start: Option<u32>,
     pub rescue_amount: u64,
     pub expiration_time: u32,
     pub asset_is_native: bool,
@@ -156,7 +156,7 @@ pub fn get_default_testargs(nowsecs: u32) -> TestArgs {
         ),
         src_cancellation_timestamp: nowsecs + 10000,
         init_timestamp: nowsecs,
-        rescue_start: nowsecs + RESCUE_DELAY,
+        rescue_start: Some(nowsecs + RESCUE_DELAY),
         rescue_amount: DEFAULT_RESCUE_AMOUNT,
         expiration_time: nowsecs + DEFAULT_PERIOD_DURATION,
         asset_is_native: false, // This is set to false by default, will be changed for native tests.

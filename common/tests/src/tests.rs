@@ -784,7 +784,7 @@ pub async fn test_rescue_tokens_when_escrow_is_deleted<
         .await
         .expect_success();
 
-    test_state.test_arguments.rescue_start = cancellation_time;
+    test_state.test_arguments.rescue_start = None;
     let transaction = T::get_rescue_funds_tx(
         test_state,
         &escrow,
@@ -854,7 +854,7 @@ pub async fn test_cannot_rescue_funds_before_rescue_delay_pass<
         .client
         .process_transaction(transaction)
         .await
-        .expect_error(ProgramError::Custom(EscrowError::InvalidTime.into()));
+        .expect_error(ProgramError::Custom(EscrowError::InvalidRescueStart.into()));
 }
 
 pub async fn test_cannot_rescue_funds_by_non_recipient<T: EscrowVariant<S>, S: TokenVariant>(
@@ -1030,7 +1030,7 @@ pub async fn test_cannot_rescue_funds_with_wrong_rescue_start<
         S::initialize_spl_associated_account(&mut test_state.context, &token_to_rescue, &wallet)
             .await;
 
-    test_state.test_arguments.rescue_start = test_state.init_timestamp + RESCUE_DELAY - 1;
+    test_state.test_arguments.rescue_start = Some(test_state.init_timestamp + RESCUE_DELAY - 1);
     let transaction = T::get_rescue_funds_tx(
         test_state,
         &escrow,

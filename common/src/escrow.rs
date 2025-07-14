@@ -221,7 +221,7 @@ where
 
 pub fn rescue_funds<'info>(
     escrow: &AccountInfo<'info>,
-    rescue_start: u32,
+    rescue_start: Option<u32>,
     escrow_ata: &InterfaceAccount<'info, TokenAccount>,
     recipient: &AccountInfo<'info>,
     recipient_ata: &InterfaceAccount<'info, TokenAccount>,
@@ -231,7 +231,12 @@ pub fn rescue_funds<'info>(
     seeds: &[&[u8]],
 ) -> Result<()> {
     let now = utils::get_current_timestamp()?;
-    require!(now >= rescue_start, EscrowError::InvalidTime);
+    if rescue_start.is_some() {
+        require!(
+            now >= rescue_start.unwrap(),
+            EscrowError::InvalidRescueStart
+        );
+    }
 
     // Transfer tokens from escrow to recipient
     uni_transfer(

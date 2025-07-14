@@ -495,14 +495,14 @@ pub mod cross_chain_escrow_src {
         token: Pubkey,
         amount: u64,
         safety_deposit: u64,
-        rescue_start: u32,
         rescue_amount: u64,
+        rescue_start: Option<u32>,
     ) -> Result<()> {
         if !ctx.accounts.escrow.data_is_empty() {
             let escrow_data =
                 EscrowSrc::try_deserialize(&mut &ctx.accounts.escrow.data.borrow()[..])?;
             require!(
-                rescue_start
+                rescue_start.ok_or(EscrowError::InvalidRescueStart)?
                     == escrow_data
                         .timelocks()
                         .get_deployed_at()
@@ -555,13 +555,13 @@ pub mod cross_chain_escrow_src {
         max_cancellation_premium: u64,
         cancellation_auction_duration: u32,
         allow_multiple_fills: bool,
-        rescue_start: u32,
         rescue_amount: u64,
+        rescue_start: Option<u32>,
     ) -> Result<()> {
         if !ctx.accounts.order.data_is_empty() {
             let order_data = Order::try_deserialize(&mut &ctx.accounts.order.data.borrow()[..])?;
             require!(
-                rescue_start
+                rescue_start.ok_or(EscrowError::InvalidRescueStart)?
                     == Timelocks(U256(order_data.timelocks))
                         .get_deployed_at()
                         .checked_add(constants::RESCUE_DELAY)
