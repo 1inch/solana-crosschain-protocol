@@ -1,5 +1,5 @@
 use anchor_spl::token::spl_token::native_mint::ID as NATIVE_MINT;
-use common::error::EscrowError;
+use common::{error::EscrowError, timelocks::Stage};
 use common_tests::dst_program::DstProgram;
 use common_tests::helpers::*;
 use common_tests::tests as common_escrow_tests;
@@ -80,7 +80,11 @@ mod test_escrow_native {
 
         set_time(
             &mut test_state.context,
-            test_state.init_timestamp + DEFAULT_PERIOD_DURATION * PeriodType::Withdrawal as u32,
+            test_state
+                .test_arguments
+                .dst_timelocks
+                .get(Stage::DstWithdrawal)
+                .unwrap(),
         );
 
         test_state
@@ -130,8 +134,11 @@ mod test_escrow_native {
 
         set_time(
             &mut test_state.context,
-            test_state.init_timestamp
-                + DEFAULT_PERIOD_DURATION * PeriodType::PublicWithdrawal as u32,
+            test_state
+                .test_arguments
+                .dst_timelocks
+                .get(Stage::DstPublicWithdrawal)
+                .unwrap(),
         );
 
         let escrow_data_len = cross_chain_escrow_dst::constants::DISCRIMINATOR_BYTES
@@ -201,8 +208,11 @@ mod test_escrow_native {
 
         set_time(
             &mut test_state.context,
-            test_state.init_timestamp
-                + DEFAULT_PERIOD_DURATION * PeriodType::PublicWithdrawal as u32,
+            test_state
+                .test_arguments
+                .dst_timelocks
+                .get(Stage::DstPublicWithdrawal)
+                .unwrap(),
         );
 
         let escrow_data_len = cross_chain_escrow_dst::constants::DISCRIMINATOR_BYTES
@@ -261,7 +271,11 @@ mod test_escrow_native {
 
         set_time(
             &mut test_state.context,
-            test_state.init_timestamp + DEFAULT_PERIOD_DURATION * PeriodType::Cancellation as u32,
+            test_state
+                .test_arguments
+                .dst_timelocks
+                .get(Stage::DstCancellation)
+                .unwrap(),
         );
 
         let token_account_rent =
@@ -334,7 +348,11 @@ mod test_escrow_wrapped_native {
 
         set_time(
             &mut test_state.context,
-            test_state.init_timestamp + DEFAULT_PERIOD_DURATION * PeriodType::Withdrawal as u32,
+            test_state
+                .test_arguments
+                .dst_timelocks
+                .get(Stage::DstWithdrawal)
+                .unwrap(),
         );
 
         let (_, taker_ata) = find_user_ata(test_state);
@@ -382,7 +400,11 @@ mod test_escrow_wrapped_native {
 
         set_time(
             &mut test_state.context,
-            test_state.init_timestamp + DEFAULT_PERIOD_DURATION * PeriodType::Withdrawal as u32,
+            test_state
+                .test_arguments
+                .dst_timelocks
+                .get(Stage::DstWithdrawal)
+                .unwrap(),
         );
 
         test_state
@@ -407,8 +429,11 @@ mod test_escrow_wrapped_native {
 
         set_time(
             &mut test_state.context,
-            test_state.init_timestamp
-                + DEFAULT_PERIOD_DURATION * PeriodType::PublicWithdrawal as u32,
+            test_state
+                .test_arguments
+                .dst_timelocks
+                .get(Stage::DstPublicWithdrawal)
+                .unwrap(),
         );
 
         let escrow_data_len = DEFAULT_DST_ESCROW_SIZE;
@@ -479,8 +504,11 @@ mod test_escrow_wrapped_native {
 
         set_time(
             &mut test_state.context,
-            test_state.init_timestamp
-                + DEFAULT_PERIOD_DURATION * PeriodType::PublicWithdrawal as u32,
+            test_state
+                .test_arguments
+                .dst_timelocks
+                .get(Stage::DstPublicWithdrawal)
+                .unwrap(),
         );
 
         let escrow_data_len = DEFAULT_DST_ESCROW_SIZE;
@@ -562,8 +590,11 @@ mod test_escrow_wrapped_native {
 
         set_time(
             &mut test_state.context,
-            test_state.init_timestamp
-                + DEFAULT_PERIOD_DURATION * PeriodType::PublicWithdrawal as u32,
+            test_state
+                .test_arguments
+                .dst_timelocks
+                .get(Stage::DstPublicWithdrawal)
+                .unwrap(),
         );
 
         test_state

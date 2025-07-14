@@ -1,5 +1,5 @@
 use anchor_lang::{error::ErrorCode, prelude::ProgramError};
-use common::error::EscrowError;
+use common::{error::EscrowError, timelocks::Stage};
 use common_tests::helpers::*;
 use common_tests::run_for_tokens;
 use common_tests::src_program::create_public_escrow_cancel_tx;
@@ -403,8 +403,11 @@ run_for_tokens!(
 
                 set_time(
                     &mut test_state.context,
-                    test_state.init_timestamp
-                        + DEFAULT_PERIOD_DURATION * PeriodType::Withdrawal as u32,
+                    test_state
+                        .test_arguments
+                        .src_timelocks
+                        .get(Stage::SrcWithdrawal)
+                        .unwrap(),
                 );
 
                 test_state.secret = [0u8; 32]; // Invalid secret
@@ -434,8 +437,11 @@ run_for_tokens!(
 
                 set_time(
                     &mut test_state.context,
-                    test_state.init_timestamp
-                        + DEFAULT_PERIOD_DURATION * PeriodType::Withdrawal as u32,
+                    test_state
+                        .test_arguments
+                        .src_timelocks
+                        .get(Stage::SrcWithdrawal)
+                        .unwrap(),
                 );
 
                 let transaction = SrcProgram::get_withdraw_tx(
@@ -583,8 +589,11 @@ run_for_tokens!(
 
                 set_time(
                     &mut test_state.context,
-                    test_state.init_timestamp
-                        + DEFAULT_PERIOD_DURATION * PeriodType::PublicWithdrawal as u32,
+                    test_state
+                        .test_arguments
+                        .src_timelocks
+                        .get(Stage::SrcPublicWithdrawal)
+                        .unwrap(),
                 );
 
                 let taker_kp = test_state.taker_wallet.keypair.insecure_clone();
@@ -655,8 +664,11 @@ run_for_tokens!(
 
                 set_time(
                     &mut test_state.context,
-                    test_state.init_timestamp
-                        + DEFAULT_PERIOD_DURATION * PeriodType::Cancellation as u32,
+                    test_state
+                        .test_arguments
+                        .src_timelocks
+                        .get(Stage::SrcCancellation)
+                        .unwrap(),
                 );
 
                 let transaction = SrcProgram::get_cancel_tx(
@@ -763,8 +775,11 @@ run_for_tokens!(
 
                 set_time(
                     &mut test_state.context,
-                    test_state.init_timestamp
-                        + DEFAULT_PERIOD_DURATION * PeriodType::PublicCancellation as u32,
+                    test_state
+                        .test_arguments
+                        .src_timelocks
+                        .get(Stage::SrcPublicCancellation)
+                        .unwrap(),
                 );
 
                 let taker_kp = test_state.taker_wallet.keypair.insecure_clone();

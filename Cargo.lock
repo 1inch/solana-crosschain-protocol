@@ -1040,6 +1040,7 @@ version = "0.1.0"
 dependencies = [
  "anchor-lang",
  "anchor-spl",
+ "primitive-types",
 ]
 
 [[package]]
@@ -1182,6 +1183,7 @@ dependencies = [
  "anchor-spl",
  "common",
  "common_tests",
+ "primitive-types",
  "solana-program",
  "solana-program-pack",
  "solana-program-runtime",
