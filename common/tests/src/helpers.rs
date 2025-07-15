@@ -57,6 +57,7 @@ pub const DEFAULT_ESCROW_AMOUNT: u64 = 100000;
 pub const DEFAULT_DST_ESCROW_AMOUNT: u64 = 1000;
 pub const DEFAULT_RESCUE_AMOUNT: u64 = 100;
 pub const DEFAULT_SAFETY_DEPOSIT: u64 = 25;
+pub const DEFAULT_SALT: u64 = 0xFACE8D00DEADBEEF;
 
 pub const DEFAULT_SRC_ESCROW_SIZE: usize = cross_chain_escrow_src::EscrowSrc::INIT_SPACE
     + cross_chain_escrow_src::constants::DISCRIMINATOR_BYTES;
@@ -118,6 +119,7 @@ pub struct TestArgs {
     pub merkle_root: Hash,
     pub allow_multiple_fills: bool,
     pub dst_chain_params: DstChainParams,
+    pub salt: u64,
     pub partial_secrets: Vec<[u8; 32]>,
 }
 
@@ -165,6 +167,7 @@ pub fn get_default_testargs(nowsecs: u32) -> TestArgs {
         merkle_proof: None,
         merkle_root: Hash::default(),
         allow_multiple_fills: false,
+        salt: DEFAULT_SALT,
         dst_chain_params: DstChainParams {
             chain_id: [0u8; 32],
             maker_address: [0u8; 32],
