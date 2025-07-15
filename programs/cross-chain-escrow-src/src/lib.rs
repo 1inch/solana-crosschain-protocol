@@ -1283,6 +1283,7 @@ pub struct DstChainParams {
     pub safety_deposit: u128,
 }
 
+#[allow(clippy::too_many_arguments)]
 fn get_order_hash(
     hashlock: [u8; 32],
     maker: Pubkey,
@@ -1297,7 +1298,7 @@ fn get_order_hash(
     max_cancellation_premium: u64,
     cancellation_auction_duration: u32,
     allow_multiple_fills: bool,
-    salt: u16,
+    salt: u64,
 ) -> [u8; 32] {
     keccak::hashv(&[
         &hashlock,
