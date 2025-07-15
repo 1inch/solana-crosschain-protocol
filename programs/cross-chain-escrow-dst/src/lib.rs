@@ -10,7 +10,7 @@ use common::{
 };
 use primitive_types::U256;
 
-declare_id!("B9SnVJbXNd6RFNxHqPkTvdr46YPT17xunemTQfDsCNzR");
+declare_id!("GveV3ToLhvRmeq1Fyg3BMkNetZuG9pZEp4uBGWLrTjve");
 
 #[program]
 pub mod cross_chain_escrow_dst {
