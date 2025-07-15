@@ -1170,7 +1170,7 @@ run_for_tokens!(
                 .await;
 
                 // By setting these two test arguments below to token_account_rent and current time to
-                // more than (test_state.init_timestamp + test_state.test_arguments.expiration_duration +
+                // more than (test_state.test_arguments.expiration_time +
                 // auction_duration)
                 // we ensure that the make_amount will evaluate to zero.
                 test_state.test_arguments.max_cancellation_premium = token_account_rent;
