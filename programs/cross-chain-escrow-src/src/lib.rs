@@ -1273,7 +1273,7 @@ pub fn get_escrow_hashlock(
 
 #[account]
 pub struct DstChainParams {
-    pub chain_id: [u8; 32],
+    pub chain_id: u32,
     pub maker_address: [u8; 32],
     pub token: [u8; 32],
     pub safety_deposit: u128,
