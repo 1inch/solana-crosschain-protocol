@@ -130,28 +130,6 @@ pub fn uni_transfer(
     }
 }
 
-pub fn close_escrow_account<'info>(
-    escrow: &AccountInfo<'info>,
-    safety_deposit: u64,
-    safety_deposit_recipient: &AccountInfo<'info>,
-    rent_recipient: &AccountInfo<'info>,
-) -> Result<()> {
-    // Transfer safety_deposit from escrow to safety_deposit_recipient
-    if rent_recipient.key() != safety_deposit_recipient.key() {
-        escrow.sub_lamports(safety_deposit)?;
-        safety_deposit_recipient.add_lamports(safety_deposit)?;
-    }
-
-    // Close escrow account and transfer remaining lamports to rent_recipient
-    let lamports = escrow.lamports();
-    if lamports > 0 {
-        **rent_recipient.lamports.borrow_mut() += lamports;
-        **escrow.lamports.borrow_mut() = 0;
-    }
-
-    Ok(())
-}
-
 // Handle native token transfer or WSOL unwrapping and ata closure
 pub fn close_and_withdraw_native_ata<'info>(
     escrow: &AccountInfo<'info>,

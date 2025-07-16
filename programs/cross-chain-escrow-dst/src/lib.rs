@@ -332,6 +332,7 @@ pub struct Withdraw<'info> {
     mint: Box<InterfaceAccount<'info, Mint>>,
     #[account(
         mut,
+        close = creator,
         seeds = [
             "escrow".as_bytes(),
             escrow.order_hash.as_ref(),
@@ -388,6 +389,7 @@ pub struct PublicWithdraw<'info> {
     mint: Box<InterfaceAccount<'info, Mint>>,
     #[account(
         mut,
+        close = creator,
         seeds = [
             "escrow".as_bytes(),
             escrow.order_hash.as_ref(),
@@ -430,6 +432,7 @@ pub struct Cancel<'info> {
     mint: Box<InterfaceAccount<'info, Mint>>,
     #[account(
         mut,
+        close = creator,
         seeds = [
             "escrow".as_bytes(),
             escrow.order_hash.as_ref(),

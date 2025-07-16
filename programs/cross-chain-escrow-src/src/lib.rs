@@ -778,6 +778,7 @@ pub struct Withdraw<'info> {
     mint: Box<InterfaceAccount<'info, Mint>>,
     #[account(
         mut,
+        close = taker,
         seeds = [
             "escrow".as_bytes(),
             escrow.order_hash.as_ref(),
@@ -828,6 +829,7 @@ pub struct PublicWithdraw<'info> {
     mint: Box<InterfaceAccount<'info, Mint>>,
     #[account(
         mut,
+        close = taker,
         seeds = [
             "escrow".as_bytes(),
             escrow.order_hash.as_ref(),
@@ -875,6 +877,7 @@ pub struct CancelEscrow<'info> {
     mint: Box<InterfaceAccount<'info, Mint>>,
     #[account(
         mut,
+        close = taker,
         seeds = [
             "escrow".as_bytes(),
             escrow.order_hash.as_ref(),
@@ -932,6 +935,7 @@ pub struct PublicCancelEscrow<'info> {
     resolver_access: Account<'info, whitelist::ResolverAccess>,
     #[account(
         mut,
+        close = taker,
         seeds = [
             "escrow".as_bytes(),
             escrow.order_hash.as_ref(),
