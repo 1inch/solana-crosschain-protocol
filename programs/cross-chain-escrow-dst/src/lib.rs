@@ -6,8 +6,8 @@ pub use common::constants;
 use common::{
     error::EscrowError,
     escrow::{
-        close_and_withdraw_native_ata, close_escrow_account, uni_transfer,
-        withdraw_and_close_token_ata, UniTransferParams,
+        close_and_withdraw_native_ata, uni_transfer, withdraw_and_close_token_ata,
+        UniTransferParams,
     },
     timelocks::{Stage, Timelocks},
     utils::get_current_timestamp,
@@ -206,14 +206,6 @@ pub mod cross_chain_escrow_dst {
                 &seeds,
             )?;
         }
-
-        // Close the escrow account
-        close_escrow_account(
-            &ctx.accounts.escrow.to_account_info(),
-            ctx.accounts.escrow.safety_deposit,
-            &ctx.accounts.creator.to_account_info(),
-            &ctx.accounts.creator.to_account_info(),
-        )?;
 
         Ok(())
     }
