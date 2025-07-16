@@ -5,7 +5,10 @@ use anchor_spl::token_interface::{Mint, TokenAccount, TokenInterface};
 pub use common::constants;
 use common::{
     error::EscrowError,
-    escrow::{uni_transfer, UniTransferParams},
+    escrow::{
+        close_and_withdraw_native_ata, close_escrow_account, uni_transfer,
+        withdraw_and_close_token_ata, UniTransferParams,
+    },
     timelocks::{Stage, Timelocks},
     utils::get_current_timestamp,
 };
@@ -167,15 +170,54 @@ pub mod cross_chain_escrow_dst {
             EscrowError::InvalidTime
         );
 
-        utils::cancel(
-            &ctx.accounts.escrow,
-            ctx.accounts.escrow.bump,
-            &ctx.accounts.escrow_ata,
-            ctx.accounts.creator_ata.as_deref(),
-            &ctx.accounts.mint,
-            &ctx.accounts.token_program,
-            &ctx.accounts.creator,
-        )
+        let seeds = [
+            "escrow".as_bytes(),
+            &ctx.accounts.escrow.order_hash,
+            &ctx.accounts.escrow.hashlock,
+            ctx.accounts.escrow.creator.as_ref(),
+            ctx.accounts.escrow.recipient.as_ref(),
+            ctx.accounts.escrow.token.as_ref(),
+            &ctx.accounts.escrow.amount.to_be_bytes(),
+            &ctx.accounts.escrow.safety_deposit.to_be_bytes(),
+            &[ctx.accounts.escrow.bump],
+        ];
+
+        if ctx.accounts.escrow.asset_is_native {
+            close_and_withdraw_native_ata(
+                &ctx.accounts.escrow.to_account_info(),
+                ctx.accounts.escrow.amount,
+                &ctx.accounts.escrow_ata,
+                &ctx.accounts.creator,
+                &ctx.accounts.token_program,
+                seeds,
+            )?;
+        } else {
+            withdraw_and_close_token_ata(
+                &ctx.accounts.escrow_ata.to_account_info(),
+                &ctx.accounts.escrow.to_account_info(),
+                &ctx.accounts
+                    .creator_ata
+                    .clone()
+                    .ok_or(EscrowError::MissingCreatorAta)?
+                    .to_account_info(),
+                &ctx.accounts.mint,
+                ctx.accounts.escrow_ata.amount,
+                &ctx.accounts.token_program,
+                &ctx.accounts.escrow_ata,
+                &ctx.accounts.creator.to_account_info(),
+                &seeds,
+            )?;
+        }
+
+        // Close the escrow account
+        close_escrow_account(
+            &ctx.accounts.escrow.to_account_info(),
+            ctx.accounts.escrow.safety_deposit,
+            &ctx.accounts.creator.to_account_info(),
+            &ctx.accounts.creator.to_account_info(),
+        )?;
+
+        Ok(())
     }
 
     pub fn rescue_funds(
