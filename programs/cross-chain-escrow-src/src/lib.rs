@@ -10,7 +10,7 @@ pub use auction::{calculate_premium, calculate_rate_bump, AuctionData};
 pub use common::constants;
 use common::{
     error::EscrowError,
-    escrow::{uni_transfer, EscrowBase, UniTransferParams},
+    escrow::{uni_transfer, UniTransferParams},
     timelocks::{Stage, Timelocks},
     utils::get_current_timestamp,
 };
@@ -281,14 +281,10 @@ pub mod cross_chain_escrow_src {
     pub fn withdraw(ctx: Context<Withdraw>, secret: [u8; 32]) -> Result<()> {
         let now = get_current_timestamp()?;
 
+        let timelocks = Timelocks(U256(ctx.accounts.escrow.timelocks));
         require!(
-            now >= ctx.accounts.escrow.timelocks().get(Stage::SrcWithdrawal)?
-                && now
-                    < ctx
-                        .accounts
-                        .escrow
-                        .timelocks()
-                        .get(Stage::SrcCancellation)?,
+            now >= timelocks.get(Stage::SrcWithdrawal)?
+                && now < timelocks.get(Stage::SrcCancellation)?,
             EscrowError::InvalidTime
         );
 
@@ -311,18 +307,10 @@ pub mod cross_chain_escrow_src {
     pub fn public_withdraw(ctx: Context<PublicWithdraw>, secret: [u8; 32]) -> Result<()> {
         let now = get_current_timestamp()?;
 
+        let timelocks = Timelocks(U256(ctx.accounts.escrow.timelocks));
         require!(
-            now >= ctx
-                .accounts
-                .escrow
-                .timelocks()
-                .get(Stage::SrcPublicWithdrawal)?
-                && now
-                    < ctx
-                        .accounts
-                        .escrow
-                        .timelocks()
-                        .get(Stage::SrcCancellation)?,
+            now >= timelocks.get(Stage::SrcPublicWithdrawal)?
+                && now < timelocks.get(Stage::SrcCancellation)?,
             EscrowError::InvalidTime
         );
 
@@ -346,11 +334,7 @@ pub mod cross_chain_escrow_src {
         let now = get_current_timestamp()?;
 
         require!(
-            now >= ctx
-                .accounts
-                .escrow
-                .timelocks()
-                .get(Stage::SrcCancellation)?,
+            now >= Timelocks(U256(ctx.accounts.escrow.timelocks)).get(Stage::SrcCancellation)?,
             EscrowError::InvalidTime
         );
 
@@ -358,7 +342,7 @@ pub mod cross_chain_escrow_src {
         // because they initially covered the entire rent during escrow creation, while the maker
         // receives their tokens back to their initial ATA or wallet if the token is native.
 
-        common::escrow::cancel(
+        utils::cancel(
             &ctx.accounts.escrow,
             ctx.accounts.escrow.bump,
             &ctx.accounts.escrow_ata,
@@ -373,12 +357,8 @@ pub mod cross_chain_escrow_src {
 
     pub fn public_cancel_escrow(ctx: Context<PublicCancelEscrow>) -> Result<()> {
         let now = get_current_timestamp()?;
-
         require!(
-            now >= ctx
-                .accounts
-                .escrow
-                .timelocks()
+            now >= Timelocks(U256(ctx.accounts.escrow.timelocks))
                 .get(Stage::SrcPublicCancellation)?,
             EscrowError::InvalidTime
         );
@@ -387,7 +367,7 @@ pub mod cross_chain_escrow_src {
         // which is awarded to the payer who executed the public cancellation, while the maker
         // receives their tokens back to their initial ATA or wallet if the token is native.
 
-        common::escrow::cancel(
+        utils::cancel(
             &ctx.accounts.escrow,
             ctx.accounts.escrow.bump,
             &ctx.accounts.escrow_ata,
@@ -543,11 +523,7 @@ pub mod cross_chain_escrow_src {
         let rescue_start = if !ctx.accounts.escrow.data_is_empty() {
             let escrow_data =
                 EscrowSrc::try_deserialize(&mut &ctx.accounts.escrow.data.borrow()[..])?;
-            Some(
-                escrow_data
-                    .timelocks()
-                    .rescue_start(constants::RESCUE_DELAY)?,
-            )
+            Some(Timelocks(U256(escrow_data.timelocks)).rescue_start(constants::RESCUE_DELAY)?)
         } else {
             None
         };
@@ -1214,55 +1190,17 @@ pub struct Order {
 #[account]
 #[derive(InitSpace)]
 pub struct EscrowSrc {
-    order_hash: [u8; 32],
-    hashlock: [u8; 32],
-    maker: Pubkey,
-    taker: Pubkey,
-    token: Pubkey,
-    amount: u64,
-    safety_deposit: u64,
-    timelocks: [u64; 4],
-    asset_is_native: bool,
-    dst_amount: [u64; 4],
-    bump: u8,
-}
-
-impl EscrowBase for EscrowSrc {
-    fn order_hash(&self) -> &[u8; 32] {
-        &self.order_hash
-    }
-
-    fn hashlock(&self) -> &[u8; 32] {
-        &self.hashlock
-    }
-
-    fn creator(&self) -> &Pubkey {
-        &self.maker
-    }
-
-    fn recipient(&self) -> &Pubkey {
-        &self.taker
-    }
-
-    fn token(&self) -> &Pubkey {
-        &self.token
-    }
-
-    fn amount(&self) -> u64 {
-        self.amount
-    }
-
-    fn safety_deposit(&self) -> u64 {
-        self.safety_deposit
-    }
-
-    fn timelocks(&self) -> Timelocks {
-        Timelocks(U256(self.timelocks))
-    }
-
-    fn asset_is_native(&self) -> bool {
-        self.asset_is_native
-    }
+    pub order_hash: [u8; 32],
+    pub hashlock: [u8; 32],
+    pub maker: Pubkey,
+    pub taker: Pubkey,
+    pub token: Pubkey,
+    pub amount: u64,
+    pub safety_deposit: u64,
+    pub timelocks: [u64; 4],
+    pub asset_is_native: bool,
+    pub dst_amount: [u64; 4],
+    pub bump: u8,
 }
 
 fn get_dst_amount(dst_amount: [u64; 4], data: &AuctionData) -> Result<[u64; 4]> {

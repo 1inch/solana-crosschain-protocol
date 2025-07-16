@@ -5,7 +5,7 @@ use anchor_spl::token_interface::{Mint, TokenAccount, TokenInterface};
 pub use common::constants;
 use common::{
     error::EscrowError,
-    escrow::{uni_transfer, EscrowBase, UniTransferParams},
+    escrow::{uni_transfer, UniTransferParams},
     timelocks::{Stage, Timelocks},
     utils::get_current_timestamp,
 };
@@ -109,14 +109,10 @@ pub mod cross_chain_escrow_dst {
 
     pub fn withdraw(ctx: Context<Withdraw>, secret: [u8; 32]) -> Result<()> {
         let now = get_current_timestamp()?;
+        let timelocks = Timelocks(U256(ctx.accounts.escrow.timelocks));
         require!(
-            now >= ctx.accounts.escrow.timelocks().get(Stage::DstWithdrawal)?
-                && now
-                    < ctx
-                        .accounts
-                        .escrow
-                        .timelocks()
-                        .get(Stage::DstCancellation)?,
+            now >= timelocks.get(Stage::DstWithdrawal)?
+                && now < timelocks.get(Stage::DstCancellation)?,
             EscrowError::InvalidTime
         );
 
@@ -139,18 +135,10 @@ pub mod cross_chain_escrow_dst {
 
     pub fn public_withdraw(ctx: Context<PublicWithdraw>, secret: [u8; 32]) -> Result<()> {
         let now = get_current_timestamp()?;
+        let timelocks = Timelocks(U256(ctx.accounts.escrow.timelocks));
         require!(
-            now >= ctx
-                .accounts
-                .escrow
-                .timelocks()
-                .get(Stage::DstPublicWithdrawal)?
-                && now
-                    < ctx
-                        .accounts
-                        .escrow
-                        .timelocks()
-                        .get(Stage::DstCancellation)?,
+            now >= timelocks.get(Stage::DstPublicWithdrawal)?
+                && now < timelocks.get(Stage::DstCancellation)?,
             EscrowError::InvalidTime
         );
 
@@ -173,16 +161,13 @@ pub mod cross_chain_escrow_dst {
 
     pub fn cancel(ctx: Context<Cancel>) -> Result<()> {
         let now = get_current_timestamp()?;
+        let timelocks = Timelocks(U256(ctx.accounts.escrow.timelocks));
         require!(
-            now >= ctx
-                .accounts
-                .escrow
-                .timelocks()
-                .get(Stage::DstCancellation)?,
+            now >= timelocks.get(Stage::DstCancellation)?,
             EscrowError::InvalidTime
         );
 
-        common::escrow::cancel(
+        utils::cancel(
             &ctx.accounts.escrow,
             ctx.accounts.escrow.bump,
             &ctx.accounts.escrow_ata,
@@ -210,11 +195,7 @@ pub mod cross_chain_escrow_dst {
         let rescue_start = if !ctx.accounts.escrow.data_is_empty() {
             let escrow_data =
                 EscrowDst::try_deserialize(&mut &ctx.accounts.escrow.data.borrow()[..])?;
-            Some(
-                escrow_data
-                    .timelocks()
-                    .rescue_start(constants::RESCUE_DELAY)?,
-            )
+            Some(Timelocks(U256(escrow_data.timelocks)).rescue_start(constants::RESCUE_DELAY)?)
         } else {
             None
         };
@@ -488,52 +469,14 @@ pub struct RescueFunds<'info> {
 #[account]
 #[derive(InitSpace)]
 pub struct EscrowDst {
-    order_hash: [u8; 32],
-    hashlock: [u8; 32],
-    creator: Pubkey,
-    recipient: Pubkey,
-    token: Pubkey,
-    asset_is_native: bool,
-    amount: u64,
-    safety_deposit: u64,
-    timelocks: [u64; 4],
-    bump: u8,
-}
-
-impl EscrowBase for EscrowDst {
-    fn order_hash(&self) -> &[u8; 32] {
-        &self.order_hash
-    }
-
-    fn hashlock(&self) -> &[u8; 32] {
-        &self.hashlock
-    }
-
-    fn creator(&self) -> &Pubkey {
-        &self.creator
-    }
-
-    fn recipient(&self) -> &Pubkey {
-        &self.recipient
-    }
-
-    fn token(&self) -> &Pubkey {
-        &self.token
-    }
-
-    fn amount(&self) -> u64 {
-        self.amount
-    }
-
-    fn safety_deposit(&self) -> u64 {
-        self.safety_deposit
-    }
-
-    fn timelocks(&self) -> Timelocks {
-        Timelocks(U256(self.timelocks))
-    }
-
-    fn asset_is_native(&self) -> bool {
-        self.asset_is_native
-    }
+    pub order_hash: [u8; 32],
+    pub hashlock: [u8; 32],
+    pub creator: Pubkey,
+    pub recipient: Pubkey,
+    pub token: Pubkey,
+    pub asset_is_native: bool,
+    pub amount: u64,
+    pub safety_deposit: u64,
+    pub timelocks: [u64; 4],
+    pub bump: u8,
 }
