@@ -299,7 +299,7 @@ pub mod cross_chain_escrow_src {
             &ctx.accounts.escrow,
             ctx.accounts.escrow.bump,
             &ctx.accounts.escrow_ata,
-            Some(&ctx.accounts.taker_ata),
+            &ctx.accounts.taker_ata,
             &ctx.accounts.mint,
             &ctx.accounts.token_program,
             &ctx.accounts.taker, // rent recipient
@@ -333,7 +333,7 @@ pub mod cross_chain_escrow_src {
             &ctx.accounts.escrow,
             ctx.accounts.escrow.bump,
             &ctx.accounts.escrow_ata,
-            Some(&ctx.accounts.taker_ata),
+            &ctx.accounts.taker_ata,
             &ctx.accounts.mint,
             &ctx.accounts.token_program,
             &ctx.accounts.taker, // rent recipient

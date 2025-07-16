@@ -7,7 +7,7 @@ pub fn withdraw<'info, T>(
     escrow: &Account<'info, T>,
     escrow_bump: u8,
     escrow_ata: &InterfaceAccount<'info, TokenAccount>,
-    recipient_ata: Option<&InterfaceAccount<'info, TokenAccount>>,
+    recipient_ata: &InterfaceAccount<'info, TokenAccount>,
     mint: &InterfaceAccount<'info, Mint>,
     token_program: &Interface<'info, TokenInterface>,
     rent_recipient: &AccountInfo<'info>,
@@ -38,9 +38,7 @@ where
     common::escrow::withdraw_and_close_token_ata(
         &escrow_ata.to_account_info(),
         &escrow.to_account_info(),
-        &recipient_ata
-            .ok_or(EscrowError::MissingRecipientAta)?
-            .to_account_info(),
+        &recipient_ata.to_account_info(),
         mint,
         escrow_ata.amount,
         token_program,
