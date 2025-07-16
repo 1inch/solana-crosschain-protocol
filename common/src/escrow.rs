@@ -173,7 +173,7 @@ pub fn withdraw_and_close_token_ata<'info>(
         &UniTransferParams::TokenTransfer {
             from: escrow_ata.to_account_info(),
             authority: authority.clone(),
-            to: to.clone(),
+            to: to.to_account_info(),
             mint: mint.clone(),
             amount: escrow_ata.amount,
             program: token_program.clone(),
