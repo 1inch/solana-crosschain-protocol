@@ -80,9 +80,7 @@ pub fn cancel<'info>(
     creator_ata: Option<&InterfaceAccount<'info, TokenAccount>>,
     mint: &InterfaceAccount<'info, Mint>,
     token_program: &Interface<'info, TokenInterface>,
-    rent_recipient: &AccountInfo<'info>,
     creator: &AccountInfo<'info>,
-    safety_deposit_recipient: &AccountInfo<'info>,
 ) -> Result<()> {
     let seeds = [
         "escrow".as_bytes(),
@@ -116,7 +114,7 @@ pub fn cancel<'info>(
             escrow_ata.amount,
             token_program,
             escrow_ata,
-            rent_recipient,
+            creator,
             &seeds,
         )?;
     }
@@ -125,8 +123,8 @@ pub fn cancel<'info>(
     close_escrow_account(
         &escrow.to_account_info(),
         escrow.safety_deposit,
-        safety_deposit_recipient,
-        rent_recipient,
+        creator,
+        creator,
     )?;
 
     Ok(())
