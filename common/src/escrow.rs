@@ -142,13 +142,6 @@ pub fn close_escrow_account<'info>(
         safety_deposit_recipient.add_lamports(safety_deposit)?;
     }
 
-    // Close escrow account and transfer remaining lamports to rent_recipient
-    let lamports = escrow.lamports();
-    if lamports > 0 {
-        **rent_recipient.lamports.borrow_mut() += lamports;
-        **escrow.lamports.borrow_mut() = 0;
-    }
-
     Ok(())
 }
 
