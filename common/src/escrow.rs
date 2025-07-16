@@ -138,7 +138,6 @@ pub fn close_escrow_account<'info>(
 ) -> Result<()> {
     // Transfer safety_deposit from escrow to safety_deposit_recipient
     if rent_recipient.key() != safety_deposit_recipient.key() {
-        let safety_deposit = safety_deposit;
         escrow.sub_lamports(safety_deposit)?;
         safety_deposit_recipient.add_lamports(safety_deposit)?;
     }
