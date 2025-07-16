@@ -2,7 +2,7 @@ use crate::merkle_tree::MerkleProof;
 use anchor_lang::prelude::*;
 use anchor_lang::solana_program::keccak;
 use anchor_spl::associated_token::{AssociatedToken, ID as ASSOCIATED_TOKEN_PROGRAM_ID};
-use anchor_spl::token::spl_token::native_mint;
+use anchor_spl::token::spl_token::native_mint::ID as NATIVE_MINT;
 use anchor_spl::token_interface::{
     close_account, CloseAccount, Mint, TokenAccount, TokenInterface,
 };
@@ -10,15 +10,16 @@ pub use auction::{calculate_premium, calculate_rate_bump, AuctionData};
 pub use common::constants;
 use common::{
     error::EscrowError,
-    escrow::{uni_transfer, EscrowBase, EscrowType, UniTransferParams},
+    escrow::{uni_transfer, EscrowBase, UniTransferParams},
     timelocks::{Stage, Timelocks},
-    utils,
+    utils::get_current_timestamp,
 };
 
 use primitive_types::U256;
 
 pub mod auction;
 pub mod merkle_tree;
+pub mod utils;
 
 declare_id!("6NwMYeUmigiMDjhYeYpbxC6Kc63NzZy1dfGd7fGcdkVS");
 
@@ -55,7 +56,7 @@ pub mod cross_chain_escrow_src {
             require!(parts_amount > 1, EscrowError::InvalidPartsAmount);
         }
 
-        let now = utils::get_current_timestamp()?;
+        let now = get_current_timestamp()?;
 
         require!(now < expiration_time, EscrowError::OrderHasExpired);
 
@@ -77,19 +78,63 @@ pub mod cross_chain_escrow_src {
         ])
         .to_bytes();
 
-        common::escrow::create(
-            EscrowSrc::INIT_SPACE + constants::DISCRIMINATOR_BYTES, // Needed to check the safety deposit amount validity
-            EscrowType::Src, // Hardcoded to Src type to sync native ata if applicable
-            &ctx.accounts.creator,
-            asset_is_native,
-            &ctx.accounts.order_ata,
-            ctx.accounts.creator_ata.as_deref(),
-            &ctx.accounts.mint,
-            &ctx.accounts.token_program,
-            &ctx.accounts.system_program,
-            amount,
-            safety_deposit,
-        )?;
+        // TODO: Verify that safety_deposit is enough to cover public_withdraw and public_cancel methods
+        require!(
+            amount != 0 && safety_deposit != 0,
+            EscrowError::ZeroAmountOrDeposit
+        );
+
+        // Verify that safety_deposit is less than escrow rent_exempt_reserve
+        let rent_exempt_reserve =
+            Rent::get()?.minimum_balance(EscrowSrc::INIT_SPACE + constants::DISCRIMINATOR_BYTES);
+        require!(
+            safety_deposit <= rent_exempt_reserve,
+            EscrowError::SafetyDepositTooLarge
+        );
+
+        require!(
+            ctx.accounts.mint.key() == NATIVE_MINT || !asset_is_native,
+            EscrowError::InconsistentNativeTrait
+        );
+
+        // Check if token is native (WSOL) and is expected to be wrapped
+        if asset_is_native {
+            // Transfer native tokens from creator to escrow_ata and wrap
+            uni_transfer(
+                &UniTransferParams::NativeTransfer {
+                    from: ctx.accounts.creator.to_account_info(),
+                    to: ctx.accounts.order_ata.to_account_info(),
+                    amount,
+                    program: ctx.accounts.system_program.clone(),
+                },
+                None,
+            )?;
+
+            anchor_spl::token::sync_native(CpiContext::new(
+                ctx.accounts.token_program.to_account_info(),
+                anchor_spl::token::SyncNative {
+                    account: ctx.accounts.order_ata.to_account_info(),
+                },
+            ))?;
+        } else {
+            // Do SPL token transfer
+            uni_transfer(
+                &UniTransferParams::TokenTransfer {
+                    from: ctx
+                        .accounts
+                        .creator_ata
+                        .clone()
+                        .ok_or(EscrowError::MissingCreatorAta)?
+                        .to_account_info(),
+                    authority: ctx.accounts.creator.to_account_info(),
+                    to: ctx.accounts.order_ata.to_account_info(),
+                    mint: *ctx.accounts.mint.clone(),
+                    amount,
+                    program: ctx.accounts.token_program.clone(),
+                },
+                None,
+            )?;
+        }
 
         let updated_timelocks = Timelocks(U256(timelocks)).set_deployed_at(now);
 
@@ -129,7 +174,7 @@ pub mod cross_chain_escrow_src {
             EscrowError::InvalidAmount
         );
 
-        let now = utils::get_current_timestamp()?;
+        let now = get_current_timestamp()?;
 
         require!(now < order.expiration_time, EscrowError::OrderHasExpired);
 
@@ -234,7 +279,7 @@ pub mod cross_chain_escrow_src {
     }
 
     pub fn withdraw(ctx: Context<Withdraw>, secret: [u8; 32]) -> Result<()> {
-        let now = utils::get_current_timestamp()?;
+        let now = get_current_timestamp()?;
 
         require!(
             now >= ctx.accounts.escrow.timelocks().get(Stage::SrcWithdrawal)?
@@ -250,12 +295,11 @@ pub mod cross_chain_escrow_src {
         // In a standard withdrawal, the taker receives the entire rent amount, including the safety deposit,
         // because they initially covered the entire rent during escrow creation.
 
-        common::escrow::withdraw(
+        utils::withdraw(
             &ctx.accounts.escrow,
             ctx.accounts.escrow.bump,
             &ctx.accounts.escrow_ata,
-            &ctx.accounts.taker,           // recipient
-            Some(&ctx.accounts.taker_ata), // recipient ATA
+            Some(&ctx.accounts.taker_ata),
             &ctx.accounts.mint,
             &ctx.accounts.token_program,
             &ctx.accounts.taker, // rent recipient
@@ -265,7 +309,7 @@ pub mod cross_chain_escrow_src {
     }
 
     pub fn public_withdraw(ctx: Context<PublicWithdraw>, secret: [u8; 32]) -> Result<()> {
-        let now = utils::get_current_timestamp()?;
+        let now = get_current_timestamp()?;
 
         require!(
             now >= ctx
@@ -285,12 +329,11 @@ pub mod cross_chain_escrow_src {
         // In a public withdrawal, the taker receives the rent minus the safety deposit
         // while the safety deposit is awarded to the payer who executed the public withdrawal
 
-        common::escrow::withdraw(
+        utils::withdraw(
             &ctx.accounts.escrow,
             ctx.accounts.escrow.bump,
             &ctx.accounts.escrow_ata,
-            &ctx.accounts.taker,           // recipient
-            Some(&ctx.accounts.taker_ata), // recipient ATA
+            Some(&ctx.accounts.taker_ata),
             &ctx.accounts.mint,
             &ctx.accounts.token_program,
             &ctx.accounts.taker, // rent recipient
@@ -300,7 +343,7 @@ pub mod cross_chain_escrow_src {
     }
 
     pub fn cancel_escrow(ctx: Context<CancelEscrow>) -> Result<()> {
-        let now = utils::get_current_timestamp()?;
+        let now = get_current_timestamp()?;
 
         require!(
             now >= ctx
@@ -329,7 +372,7 @@ pub mod cross_chain_escrow_src {
     }
 
     pub fn public_cancel_escrow(ctx: Context<PublicCancelEscrow>) -> Result<()> {
-        let now = utils::get_current_timestamp()?;
+        let now = get_current_timestamp()?;
 
         require!(
             now >= ctx
@@ -361,7 +404,7 @@ pub mod cross_chain_escrow_src {
         let order = &ctx.accounts.order;
 
         require!(
-            ctx.accounts.mint.key() == native_mint::id() || !order.asset_is_native,
+            ctx.accounts.mint.key() == NATIVE_MINT || !order.asset_is_native,
             EscrowError::InconsistentNativeTrait
         );
 
@@ -413,7 +456,7 @@ pub mod cross_chain_escrow_src {
         reward_limit: u64,
     ) -> Result<()> {
         let order = &ctx.accounts.order;
-        let now = utils::get_current_timestamp()?;
+        let now = get_current_timestamp()?;
 
         require!(now >= order.expiration_time, EscrowError::OrderNotExpired);
 
@@ -1219,10 +1262,6 @@ impl EscrowBase for EscrowSrc {
 
     fn asset_is_native(&self) -> bool {
         self.asset_is_native
-    }
-
-    fn escrow_type(&self) -> EscrowType {
-        EscrowType::Src
     }
 }
 
