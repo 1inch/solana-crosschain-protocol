@@ -2,7 +2,7 @@ use anchor_lang::{prelude::*, solana_program::keccak::hash};
 use anchor_spl::token_interface::{Mint, TokenAccount, TokenInterface};
 use common::{
     error::EscrowError,
-    escrow::{close_and_withdraw_native_ata, close_escrow_account, withdraw_and_close_token_ata},
+    escrow::{close_and_withdraw_native_ata, withdraw_and_close_token_ata},
 };
 
 use crate::EscrowDst;
@@ -62,13 +62,11 @@ pub fn withdraw<'info>(
         )?;
     }
 
-    // Close the escrow account
-    common::escrow::close_escrow_account(
-        &escrow.to_account_info(),
-        escrow.safety_deposit,
-        safety_deposit_recipient,
-        rent_recipient,
-    )?;
+    // Disrtibute the safety deposit if needed
+    if rent_recipient.key() != safety_deposit_recipient.key() {
+        escrow.sub_lamports(escrow.safety_deposit)?;
+        safety_deposit_recipient.add_lamports(escrow.safety_deposit)?;
+    }
 
     Ok(())
 }
@@ -118,14 +116,6 @@ pub fn cancel<'info>(
             &seeds,
         )?;
     }
-
-    // Close the escrow account
-    close_escrow_account(
-        &escrow.to_account_info(),
-        escrow.safety_deposit,
-        creator,
-        creator,
-    )?;
 
     Ok(())
 }
