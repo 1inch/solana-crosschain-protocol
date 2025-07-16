@@ -81,7 +81,7 @@ pub mod cross_chain_escrow_dst {
                     from: ctx
                         .accounts
                         .creator_ata
-                        .clone()
+                        .as_ref()
                         .ok_or(EscrowError::MissingCreatorAta)?
                         .to_account_info(),
                     authority: ctx.accounts.creator.to_account_info(),
@@ -197,7 +197,7 @@ pub mod cross_chain_escrow_dst {
                 &ctx.accounts.escrow.to_account_info(),
                 &ctx.accounts
                     .creator_ata
-                    .clone()
+                    .as_ref()
                     .ok_or(EscrowError::MissingCreatorAta)?
                     .to_account_info(),
                 &ctx.accounts.mint,
