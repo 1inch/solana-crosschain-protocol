@@ -193,7 +193,7 @@ pub mod cross_chain_escrow_dst {
             )?;
         } else {
             withdraw_and_close_token_ata(
-                &ctx.accounts.escrow_ata.to_account_info(),
+                &ctx.accounts.escrow_ata,
                 &ctx.accounts.escrow.to_account_info(),
                 &ctx.accounts
                     .creator_ata
@@ -201,9 +201,7 @@ pub mod cross_chain_escrow_dst {
                     .ok_or(EscrowError::MissingCreatorAta)?
                     .to_account_info(),
                 &ctx.accounts.mint,
-                ctx.accounts.escrow_ata.amount,
                 &ctx.accounts.token_program,
-                &ctx.accounts.escrow_ata,
                 &ctx.accounts.creator.to_account_info(),
                 &seeds,
             )?;

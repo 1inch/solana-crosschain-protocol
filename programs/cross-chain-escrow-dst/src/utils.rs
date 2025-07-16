@@ -45,15 +45,13 @@ pub fn withdraw<'info>(
         )?;
     } else {
         common::escrow::withdraw_and_close_token_ata(
-            &escrow_ata.to_account_info(),
+            escrow_ata,
             &escrow.to_account_info(),
             &recipient_ata
                 .ok_or(EscrowError::MissingRecipientAta)?
                 .to_account_info(),
             mint,
-            escrow_ata.amount,
             token_program,
-            escrow_ata,
             rent_recipient,
             &seeds,
         )?;

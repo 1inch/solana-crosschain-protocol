@@ -182,24 +182,22 @@ pub fn close_and_withdraw_native_ata<'info>(
 }
 
 pub fn withdraw_and_close_token_ata<'info>(
-    from: &AccountInfo<'info>,
+    escrow_ata: &InterfaceAccount<'info, TokenAccount>,
     authority: &AccountInfo<'info>,
     to: &AccountInfo<'info>,
     mint: &InterfaceAccount<'info, Mint>,
-    amount: u64,
     token_program: &Interface<'info, TokenInterface>,
-    escrow_ata: &InterfaceAccount<'info, TokenAccount>,
     rent_recipient: &AccountInfo<'info>,
     seeds: &[&[u8]],
 ) -> Result<()> {
     // Transfer tokens
     uni_transfer(
         &UniTransferParams::TokenTransfer {
-            from: from.clone(),
+            from: escrow_ata.to_account_info(),
             authority: authority.clone(),
             to: to.clone(),
             mint: mint.clone(),
-            amount,
+            amount: escrow_ata.amount,
             program: token_program.clone(),
         },
         Some(&[seeds]),

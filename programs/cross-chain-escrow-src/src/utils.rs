@@ -37,15 +37,13 @@ pub fn withdraw<'info>(
     ];
 
     common::escrow::withdraw_and_close_token_ata(
-        &escrow_ata.to_account_info(),
+        escrow_ata,
         &escrow.to_account_info(),
         &recipient_ata
             .ok_or(EscrowError::MissingRecipientAta)?
             .to_account_info(),
         mint,
-        escrow_ata.amount,
         token_program,
-        escrow_ata,
         rent_recipient,
         &seeds,
     )?;
@@ -95,15 +93,13 @@ pub fn cancel<'info>(
         )?;
     } else {
         withdraw_and_close_token_ata(
-            &escrow_ata.to_account_info(),
+            escrow_ata,
             &escrow.to_account_info(),
             &creator_ata
                 .ok_or(EscrowError::MissingCreatorAta)?
                 .to_account_info(),
             mint,
-            escrow_ata.amount,
             token_program,
-            escrow_ata,
             rent_recipient,
             &seeds,
         )?;
