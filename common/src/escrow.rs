@@ -130,35 +130,6 @@ pub fn uni_transfer(
     }
 }
 
-// Handle native token transfer or WSOL unwrapping and ata closure
-pub fn close_and_withdraw_native_ata<'info>(
-    escrow: &AccountInfo<'info>,
-    escrow_amount: u64,
-    escrow_ata: &InterfaceAccount<'info, TokenAccount>,
-    recipient: &AccountInfo<'info>,
-    token_program: &Interface<'info, TokenInterface>,
-    seeds: [&[u8]; 9],
-) -> Result<()> {
-    // Using escrow pda as an intermediate account to transfer native tokens
-    // the leftover lamports from ata's rent will be transferred to the rent recipient
-    // after closing the escrow account
-    close_account(CpiContext::new_with_signer(
-        token_program.to_account_info(),
-        CloseAccount {
-            account: escrow_ata.to_account_info(),
-            destination: escrow.to_account_info(),
-            authority: escrow.to_account_info(),
-        },
-        &[&seeds],
-    ))?;
-
-    // Transfer the native tokens from escrow pda to recipient
-    escrow.sub_lamports(escrow_amount)?;
-    recipient.add_lamports(escrow_amount)?;
-
-    Ok(())
-}
-
 pub fn withdraw_and_close_token_ata<'info>(
     escrow_ata: &InterfaceAccount<'info, TokenAccount>,
     authority: &AccountInfo<'info>,
@@ -207,14 +178,22 @@ pub fn process_payout<'info>(
     token_program: &Interface<'info, TokenInterface>,
 ) -> Result<()> {
     if asset_is_native {
-        close_and_withdraw_native_ata(
-            &escrow.to_account_info(),
-            escrow_amount,
-            escrow_ata,
-            recipient,
-            token_program,
-            seeds,
-        )?;
+        // Using escrow pda as an intermediate account to transfer native tokens
+        // the leftover lamports from ata's rent will be transferred to the rent recipient
+        // after closing the escrow account
+        close_account(CpiContext::new_with_signer(
+            token_program.to_account_info(),
+            CloseAccount {
+                account: escrow_ata.to_account_info(),
+                destination: escrow.to_account_info(),
+                authority: escrow.to_account_info(),
+            },
+            &[&seeds],
+        ))?;
+
+        // Transfer the native tokens from escrow pda to recipient
+        escrow.sub_lamports(escrow_amount)?;
+        recipient.add_lamports(escrow_amount)?;
     } else {
         withdraw_and_close_token_ata(
             escrow_ata,
