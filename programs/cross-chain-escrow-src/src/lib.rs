@@ -426,9 +426,7 @@ pub mod cross_chain_escrow_src {
                 authority: order.to_account_info(),
             },
             &[&seeds],
-        ))?;
-
-        Ok(())
+        ))
     }
 
     pub fn cancel_order_by_resolver(
@@ -505,9 +503,7 @@ pub mod cross_chain_escrow_src {
                 program: ctx.accounts.system_program.clone(),
             },
             None,
-        )?;
-
-        Ok(())
+        )
     }
 
     pub fn rescue_funds_for_escrow(
