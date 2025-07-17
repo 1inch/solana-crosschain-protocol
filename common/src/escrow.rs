@@ -193,3 +193,41 @@ pub fn withdraw_and_close_token_ata<'info>(
     ))?;
     Ok(())
 }
+
+pub fn process_payout<'info>(
+    mint: &InterfaceAccount<'info, Mint>,
+    asset_is_native: bool,
+    escrow_amount: u64,
+    escrow: &AccountInfo<'info>,
+    escrow_ata: &InterfaceAccount<'info, TokenAccount>,
+    recipient: &AccountInfo<'info>,
+    recipient_ata: Option<&InterfaceAccount<'info, TokenAccount>>,
+    rent_recipient: &AccountInfo<'info>,
+    seeds: [&[u8]; 9],
+    token_program: &Interface<'info, TokenInterface>,
+) -> Result<()> {
+    if asset_is_native {
+        close_and_withdraw_native_ata(
+            &escrow.to_account_info(),
+            escrow_amount,
+            escrow_ata,
+            recipient,
+            token_program,
+            seeds,
+        )?;
+    } else {
+        withdraw_and_close_token_ata(
+            escrow_ata,
+            &escrow.to_account_info(),
+            &recipient_ata
+                .ok_or(EscrowError::MissingRecipientAta)?
+                .to_account_info(),
+            mint,
+            token_program,
+            rent_recipient,
+            &seeds,
+        )?;
+    }
+
+    Ok(())
+}

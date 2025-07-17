@@ -5,10 +5,7 @@ use anchor_spl::token_interface::{Mint, TokenAccount, TokenInterface};
 pub use common::constants;
 use common::{
     error::EscrowError,
-    escrow::{
-        close_and_withdraw_native_ata, uni_transfer, withdraw_and_close_token_ata,
-        UniTransferParams,
-    },
+    escrow::{process_payout, uni_transfer, UniTransferParams},
     timelocks::{Stage, Timelocks},
     utils::get_current_timestamp,
 };
@@ -182,30 +179,18 @@ pub mod cross_chain_escrow_dst {
             &[ctx.accounts.escrow.bump],
         ];
 
-        if ctx.accounts.escrow.asset_is_native {
-            close_and_withdraw_native_ata(
-                &ctx.accounts.escrow.to_account_info(),
-                ctx.accounts.escrow.amount,
-                &ctx.accounts.escrow_ata,
-                &ctx.accounts.creator,
-                &ctx.accounts.token_program,
-                seeds,
-            )?;
-        } else {
-            withdraw_and_close_token_ata(
-                &ctx.accounts.escrow_ata,
-                &ctx.accounts.escrow.to_account_info(),
-                &ctx.accounts
-                    .creator_ata
-                    .as_ref()
-                    .ok_or(EscrowError::MissingCreatorAta)?
-                    .to_account_info(),
-                &ctx.accounts.mint,
-                &ctx.accounts.token_program,
-                &ctx.accounts.creator.to_account_info(),
-                &seeds,
-            )?;
-        }
+        process_payout(
+            &ctx.accounts.mint,
+            ctx.accounts.escrow.asset_is_native,
+            ctx.accounts.escrow.amount,
+            &ctx.accounts.escrow.to_account_info(),
+            &ctx.accounts.escrow_ata,
+            &ctx.accounts.creator,
+            ctx.accounts.creator_ata.as_deref(),
+            &ctx.accounts.creator,
+            seeds,
+            &ctx.accounts.token_program,
+        )?;
 
         Ok(())
     }
