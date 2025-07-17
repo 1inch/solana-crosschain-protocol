@@ -13,7 +13,7 @@ use primitive_types::U256;
 
 mod utils;
 
-declare_id!("B9SnVJbXNd6RFNxHqPkTvdr46YPT17xunemTQfDsCNzR");
+declare_id!("GveV3ToLhvRmeq1Fyg3BMkNetZuG9pZEp4uBGWLrTjve");
 
 #[program]
 pub mod cross_chain_escrow_dst {
@@ -450,6 +450,7 @@ pub struct RescueFunds<'info> {
         mut, // Needed because this account receives lamports from closed token account.
     )]
     creator: Signer<'info>,
+    /// CHECK: This account is used to check its pubkey to match the one stored in the escrow account seeds
     recipient: AccountInfo<'info>,
     mint: Box<InterfaceAccount<'info, Mint>>,
     /// CHECK: We don't accept escrow as 'Account<'info, Escrow>' because it may be already closed at the time of rescue funds.

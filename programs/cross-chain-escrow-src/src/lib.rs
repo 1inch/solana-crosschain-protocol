@@ -21,7 +21,7 @@ pub mod auction;
 pub mod merkle_tree;
 pub mod utils;
 
-declare_id!("6NwMYeUmigiMDjhYeYpbxC6Kc63NzZy1dfGd7fGcdkVS");
+declare_id!("2g4JDRMD7G3dK1PHmCnDAycKzd6e5sdhxqGBbs264zwz");
 
 #[program]
 pub mod cross_chain_escrow_src {
@@ -60,23 +60,22 @@ pub mod cross_chain_escrow_src {
 
         require!(now < expiration_time, EscrowError::OrderHasExpired);
 
-        let order_hash = keccak::hashv(&[
-            &hashlock,
-            ctx.accounts.creator.key().as_ref(),
-            ctx.accounts.mint.key().as_ref(),
-            &amount.to_be_bytes(),
-            &safety_deposit.to_be_bytes(),
-            &timelocks.try_to_vec()?,
-            &expiration_time.to_be_bytes(),
-            &[asset_is_native as u8],
-            &dst_amount.try_to_vec()?,
-            dutch_auction_data_hash.as_ref(),
-            &max_cancellation_premium.to_be_bytes(),
-            &cancellation_auction_duration.to_be_bytes(),
-            &[allow_multiple_fills as u8],
-            &salt.to_be_bytes(),
-        ])
-        .to_bytes();
+        let order_hash = get_order_hash(
+            hashlock,
+            ctx.accounts.creator.key(),
+            ctx.accounts.mint.key(),
+            amount,
+            safety_deposit,
+            timelocks,
+            expiration_time,
+            asset_is_native,
+            dst_amount,
+            dutch_auction_data_hash,
+            max_cancellation_premium,
+            cancellation_auction_duration,
+            allow_multiple_fills,
+            salt,
+        );
 
         // TODO: Verify that safety_deposit is enough to cover public_withdraw and public_cancel methods
         require!(
@@ -604,23 +603,22 @@ pub mod cross_chain_escrow_src {
             None
         };
 
-        let order_hash = keccak::hashv(&[
-            &hashlock,
-            maker.as_ref(),
-            token.as_ref(),
-            &order_amount.to_be_bytes(),
-            &safety_deposit.to_be_bytes(),
-            &timelocks.try_to_vec()?,
-            &expiration_time.to_be_bytes(),
-            &[asset_is_native as u8],
-            &dst_amount.try_to_vec()?,
-            dutch_auction_data_hash.as_ref(),
-            &max_cancellation_premium.to_be_bytes(),
-            &cancellation_auction_duration.to_be_bytes(),
-            &[allow_multiple_fills as u8],
-            &salt.to_be_bytes(),
-        ])
-        .to_bytes();
+        let order_hash = get_order_hash(
+            hashlock,
+            maker,
+            token,
+            order_amount,
+            safety_deposit,
+            timelocks,
+            expiration_time,
+            asset_is_native,
+            dst_amount,
+            dutch_auction_data_hash,
+            max_cancellation_premium,
+            cancellation_auction_duration,
+            allow_multiple_fills,
+            salt,
+        );
 
         let seeds = ["order".as_bytes(), order_hash.as_ref(), &[ctx.bumps.order]];
 
@@ -674,23 +672,22 @@ pub struct Create<'info> {
         space = constants::DISCRIMINATOR_BYTES + Order::INIT_SPACE,
         seeds = [
             "order".as_bytes(),
-            &keccak::hashv(&[
-                &hashlock,
-                creator.key().as_ref(),
-                mint.key().as_ref(),
-                &amount.to_be_bytes(),
-                &safety_deposit.to_be_bytes(),
-                &timelocks.try_to_vec()?,
-                &expiration_time.to_be_bytes(),
-                &[asset_is_native as u8],
-                &dst_amount.try_to_vec()?,
-                dutch_auction_data_hash.as_ref(),
-                &max_cancellation_premium.to_be_bytes(),
-                &cancellation_auction_duration.to_be_bytes(),
-                &[allow_multiple_fills as u8],
-                &salt.to_be_bytes(),
-            ])
-            .to_bytes(),
+            &get_order_hash(
+                hashlock,
+                creator.key(),
+                mint.key(),
+                amount,
+                safety_deposit,
+                timelocks,
+                expiration_time,
+                asset_is_native,
+                dst_amount,
+                dutch_auction_data_hash,
+                max_cancellation_premium,
+                cancellation_auction_duration,
+                allow_multiple_fills,
+                salt,
+            )
             ],
         bump,
     )]
@@ -1151,23 +1148,22 @@ pub struct RescueFundsForOrder<'info> {
     #[account(
         seeds = [
             "order".as_bytes(),
-            &keccak::hashv(&[
-                &hashlock,
-                maker.as_ref(),
-                token.as_ref(),
-                &order_amount.to_be_bytes(),
-                &safety_deposit.to_be_bytes(),
-                &timelocks.try_to_vec()?,
-                &expiration_time.to_be_bytes(),
-                &[asset_is_native as u8],
-                &dst_amount.try_to_vec()?,
-                dutch_auction_data_hash.as_ref(),
-                &max_cancellation_premium.to_be_bytes(),
-                &cancellation_auction_duration.to_be_bytes(),
-                &[allow_multiple_fills as u8],
-                &salt.to_be_bytes(),
-            ])
-            .to_bytes(),
+            &get_order_hash(
+                hashlock,
+                maker,
+                token.key(),
+                order_amount,
+                safety_deposit,
+                timelocks,
+                expiration_time,
+                asset_is_native,
+                dst_amount,
+                dutch_auction_data_hash,
+                max_cancellation_premium,
+                cancellation_auction_duration,
+                allow_multiple_fills,
+                salt,
+            )
         ],
         bump,
     )]
@@ -1324,4 +1320,40 @@ pub struct DstChainParams {
     pub maker_address: [u8; 32],
     pub token: [u8; 32],
     pub safety_deposit: u128,
+}
+
+#[allow(clippy::too_many_arguments)]
+fn get_order_hash(
+    hashlock: [u8; 32],
+    maker: Pubkey,
+    token: Pubkey,
+    order_amount: u64,
+    safety_deposit: u64,
+    timelocks: [u64; 4],
+    expiration_time: u32,
+    asset_is_native: bool,
+    dst_amount: [u64; 4],
+    dutch_auction_data_hash: [u8; 32],
+    max_cancellation_premium: u64,
+    cancellation_auction_duration: u32,
+    allow_multiple_fills: bool,
+    salt: u64,
+) -> [u8; 32] {
+    keccak::hashv(&[
+        &hashlock,
+        maker.as_ref(),
+        token.as_ref(),
+        &order_amount.to_be_bytes(),
+        &safety_deposit.to_be_bytes(),
+        &timelocks.try_to_vec().unwrap(),
+        &expiration_time.to_be_bytes(),
+        &[asset_is_native as u8],
+        &dst_amount.try_to_vec().unwrap(),
+        dutch_auction_data_hash.as_ref(),
+        &max_cancellation_premium.to_be_bytes(),
+        &cancellation_auction_duration.to_be_bytes(),
+        &[allow_multiple_fills as u8],
+        &salt.to_be_bytes(),
+    ])
+    .to_bytes()
 }
