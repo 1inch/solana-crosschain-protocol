@@ -9,6 +9,9 @@
     "build": "anchor build",
     "new": "anchor new",
     "sync": "anchor keys sync",
-    "debug": "DEBUG=1 anchor test"
+    "debug": "DEBUG=1 anchor test",
+    "deploy:whitelist": "anchor clean && anchor keys sync && anchor build && anchor deploy --program-name whitelist --provider.cluster ",
+    "deploy:dst": "anchor clean && anchor keys sync && anchor build && anchor deploy --program-name cross_chain_escrow_dst --provider.cluster ",
+    "deploy:src": "anchor clean && anchor keys sync && anchor build && anchor deploy --program-name cross_chain_escrow_src --provider.cluster "
   }
 }

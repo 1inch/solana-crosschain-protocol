@@ -20,7 +20,7 @@ use primitive_types::U256;
 pub mod auction;
 pub mod merkle_tree;
 
-declare_id!("6NwMYeUmigiMDjhYeYpbxC6Kc63NzZy1dfGd7fGcdkVS");
+declare_id!("2g4JDRMD7G3dK1PHmCnDAycKzd6e5sdhxqGBbs264zwz");
 
 #[program]
 pub mod cross_chain_escrow_src {
