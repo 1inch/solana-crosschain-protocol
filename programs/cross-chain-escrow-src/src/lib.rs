@@ -428,7 +428,7 @@ pub mod cross_chain_escrow_src {
             &[&seeds],
         ))?;
 
-        order.close(ctx.accounts.creator.to_account_info())
+        Ok(())
     }
 
     pub fn cancel_order_by_resolver(
@@ -507,7 +507,7 @@ pub mod cross_chain_escrow_src {
             None,
         )?;
 
-        order.close(ctx.accounts.creator.to_account_info())
+        Ok(())
     }
 
     pub fn rescue_funds_for_escrow(
@@ -982,6 +982,7 @@ pub struct CancelOrder<'info> {
     mint: Box<InterfaceAccount<'info, Mint>>,
     #[account(
         mut,
+        close = creator,
         seeds = [
             "order".as_bytes(),
             order.order_hash.as_ref(),
@@ -1031,6 +1032,7 @@ pub struct CancelOrderbyResolver<'info> {
     mint: Box<InterfaceAccount<'info, Mint>>,
     #[account(
         mut,
+        close = creator,
         seeds = [
             "order".as_bytes(),
             order.order_hash.as_ref(),
