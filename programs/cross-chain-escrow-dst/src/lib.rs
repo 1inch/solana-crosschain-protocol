@@ -1,14 +1,17 @@
 use anchor_lang::prelude::*;
 use anchor_spl::associated_token::{AssociatedToken, ID as ASSOCIATED_TOKEN_PROGRAM_ID};
+use anchor_spl::token::spl_token::native_mint::ID as NATIVE_MINT;
 use anchor_spl::token_interface::{Mint, TokenAccount, TokenInterface};
 pub use common::constants;
 use common::{
     error::EscrowError,
-    escrow::{EscrowBase, EscrowType},
+    escrow::{uni_transfer, EscrowBase, UniTransferParams},
     timelocks::{Stage, Timelocks},
-    utils,
+    utils::get_current_timestamp,
 };
 use primitive_types::U256;
+
+mod utils;
 
 declare_id!("GveV3ToLhvRmeq1Fyg3BMkNetZuG9pZEp4uBGWLrTjve");
 
@@ -29,7 +32,7 @@ pub mod cross_chain_escrow_dst {
         asset_is_native: bool,
     ) -> Result<()> {
         let updated_timelocks =
-            Timelocks(U256(timelocks)).set_deployed_at(utils::get_current_timestamp()?);
+            Timelocks(U256(timelocks)).set_deployed_at(get_current_timestamp()?);
         let cancellation_start = updated_timelocks.get(Stage::DstCancellation)?;
 
         require!(
@@ -37,19 +40,56 @@ pub mod cross_chain_escrow_dst {
             EscrowError::InvalidCreationTime
         );
 
-        common::escrow::create(
-            EscrowDst::INIT_SPACE + constants::DISCRIMINATOR_BYTES,
-            EscrowType::Dst,
-            &ctx.accounts.creator,
-            asset_is_native,
-            &ctx.accounts.escrow_ata,
-            ctx.accounts.creator_ata.as_deref(),
-            &ctx.accounts.mint,
-            &ctx.accounts.token_program,
-            &ctx.accounts.system_program,
-            amount,
-            safety_deposit,
-        )?;
+        // TODO: Verify that safety_deposit is enough to cover public_withdraw and public_cancel methods
+        require!(
+            amount != 0 && safety_deposit != 0,
+            EscrowError::ZeroAmountOrDeposit
+        );
+
+        // Verify that safety_deposit is less than escrow rent_exempt_reserve
+        let rent_exempt_reserve =
+            Rent::get()?.minimum_balance(EscrowDst::INIT_SPACE + constants::DISCRIMINATOR_BYTES);
+        require!(
+            safety_deposit <= rent_exempt_reserve,
+            EscrowError::SafetyDepositTooLarge
+        );
+
+        require!(
+            ctx.accounts.mint.key() == NATIVE_MINT || !asset_is_native,
+            EscrowError::InconsistentNativeTrait
+        );
+
+        // Check if token is native (WSOL) and is expected to be wrapped
+        if asset_is_native {
+            // Transfer native tokens from creator to escrow_ata and wrap
+            uni_transfer(
+                &UniTransferParams::NativeTransfer {
+                    from: ctx.accounts.creator.to_account_info(),
+                    to: ctx.accounts.escrow_ata.to_account_info(),
+                    amount,
+                    program: ctx.accounts.system_program.clone(),
+                },
+                None,
+            )?;
+        } else {
+            // Do SPL token transfer
+            uni_transfer(
+                &UniTransferParams::TokenTransfer {
+                    from: ctx
+                        .accounts
+                        .creator_ata
+                        .clone()
+                        .ok_or(EscrowError::MissingCreatorAta)?
+                        .to_account_info(),
+                    authority: ctx.accounts.creator.to_account_info(),
+                    to: ctx.accounts.escrow_ata.to_account_info(),
+                    mint: *ctx.accounts.mint.clone(),
+                    amount,
+                    program: ctx.accounts.token_program.clone(),
+                },
+                None,
+            )?;
+        }
 
         ctx.accounts.escrow.set_inner(EscrowDst {
             order_hash,
@@ -68,7 +108,7 @@ pub mod cross_chain_escrow_dst {
     }
 
     pub fn withdraw(ctx: Context<Withdraw>, secret: [u8; 32]) -> Result<()> {
-        let now = utils::get_current_timestamp()?;
+        let now = get_current_timestamp()?;
         require!(
             now >= ctx.accounts.escrow.timelocks().get(Stage::DstWithdrawal)?
                 && now
@@ -83,7 +123,7 @@ pub mod cross_chain_escrow_dst {
         // In a standard withdrawal, the creator receives the entire rent amount, including the safety deposit,
         // because they initially covered the entire rent during escrow creation.
 
-        common::escrow::withdraw(
+        utils::withdraw(
             &ctx.accounts.escrow,
             ctx.accounts.escrow.bump,
             &ctx.accounts.escrow_ata,
@@ -98,7 +138,7 @@ pub mod cross_chain_escrow_dst {
     }
 
     pub fn public_withdraw(ctx: Context<PublicWithdraw>, secret: [u8; 32]) -> Result<()> {
-        let now = utils::get_current_timestamp()?;
+        let now = get_current_timestamp()?;
         require!(
             now >= ctx
                 .accounts
@@ -117,7 +157,7 @@ pub mod cross_chain_escrow_dst {
         // In a public withdrawal, the creator receives the rent minus the safety deposit
         // while the safety deposit is awarded to the payer who executed the public withdrawal
 
-        common::escrow::withdraw(
+        utils::withdraw(
             &ctx.accounts.escrow,
             ctx.accounts.escrow.bump,
             &ctx.accounts.escrow_ata,
@@ -132,7 +172,7 @@ pub mod cross_chain_escrow_dst {
     }
 
     pub fn cancel(ctx: Context<Cancel>) -> Result<()> {
-        let now = utils::get_current_timestamp()?;
+        let now = get_current_timestamp()?;
         require!(
             now >= ctx
                 .accounts
@@ -496,9 +536,5 @@ impl EscrowBase for EscrowDst {
 
     fn asset_is_native(&self) -> bool {
         self.asset_is_native
-    }
-
-    fn escrow_type(&self) -> EscrowType {
-        EscrowType::Dst
     }
 }
