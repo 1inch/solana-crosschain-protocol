@@ -5,7 +5,7 @@ use common_tests::run_for_tokens;
 use common_tests::src_program::create_public_escrow_cancel_tx;
 use common_tests::src_program::{create_order, SrcProgram};
 use common_tests::tests as common_escrow_tests;
-use common_tests::whitelist::prepare_resolvers;
+use common_tests::whitelist::prepare_resolvers_src;
 use solana_program_test::tokio;
 use solana_sdk::{keccak::hashv, signature::Signer, signer::keypair::Keypair};
 use test_context::test_context;
@@ -35,7 +35,8 @@ run_for_tokens!(
                 let (order, order_ata) = create_order_for_partial_fill(test_state).await;
 
                 let escrow_amount = DEFAULT_ESCROW_AMOUNT / DEFAULT_PARTS_AMOUNT_FOR_MULTIPLE * 3;
-                prepare_resolvers(test_state, &[test_state.taker_wallet.keypair.pubkey()]).await;
+                prepare_resolvers_src(test_state, &[test_state.taker_wallet.keypair.pubkey()])
+                    .await;
 
                 test_escrow_creation_for_partial_fill(test_state, escrow_amount).await;
 
@@ -53,7 +54,8 @@ run_for_tokens!(
                 let (order, order_ata) = create_order_for_partial_fill(test_state).await;
 
                 let escrow_amount = DEFAULT_ESCROW_AMOUNT / DEFAULT_PARTS_AMOUNT_FOR_MULTIPLE;
-                prepare_resolvers(test_state, &[test_state.taker_wallet.keypair.pubkey()]).await;
+                prepare_resolvers_src(test_state, &[test_state.taker_wallet.keypair.pubkey()])
+                    .await;
 
                 test_escrow_creation_for_partial_fill(test_state, escrow_amount).await;
                 test_escrow_creation_for_partial_fill(test_state, escrow_amount).await;
@@ -72,7 +74,8 @@ run_for_tokens!(
                 test_state: &mut TestState,
             ) {
                 let (order, order_ata) = create_order_for_partial_fill(test_state).await;
-                prepare_resolvers(test_state, &[test_state.taker_wallet.keypair.pubkey()]).await;
+                prepare_resolvers_src(test_state, &[test_state.taker_wallet.keypair.pubkey()])
+                    .await;
 
                 test_escrow_creation_for_partial_fill(test_state, DEFAULT_ESCROW_AMOUNT).await;
 
@@ -90,7 +93,8 @@ run_for_tokens!(
                 let (order, order_ata) = create_order_for_partial_fill(test_state).await;
 
                 let escrow_amount = DEFAULT_ESCROW_AMOUNT / DEFAULT_PARTS_AMOUNT_FOR_MULTIPLE;
-                prepare_resolvers(test_state, &[test_state.taker_wallet.keypair.pubkey()]).await;
+                prepare_resolvers_src(test_state, &[test_state.taker_wallet.keypair.pubkey()])
+                    .await;
 
                 test_escrow_creation_for_partial_fill(test_state, escrow_amount).await;
                 test_escrow_creation_for_partial_fill(
@@ -115,7 +119,8 @@ run_for_tokens!(
                 let (order, order_ata) = create_order_for_partial_fill(test_state).await;
 
                 let escrow_amount = DEFAULT_ESCROW_AMOUNT / DEFAULT_PARTS_AMOUNT_FOR_MULTIPLE;
-                prepare_resolvers(test_state, &[test_state.taker_wallet.keypair.pubkey()]).await;
+                prepare_resolvers_src(test_state, &[test_state.taker_wallet.keypair.pubkey()])
+                    .await;
 
                 test_escrow_creation_for_partial_fill(test_state, escrow_amount).await;
 
@@ -148,7 +153,8 @@ run_for_tokens!(
                 create_order_for_partial_fill(test_state).await;
 
                 let escrow_amount = DEFAULT_ESCROW_AMOUNT / DEFAULT_PARTS_AMOUNT_FOR_MULTIPLE * 3;
-                prepare_resolvers(test_state, &[test_state.taker_wallet.keypair.pubkey()]).await;
+                prepare_resolvers_src(test_state, &[test_state.taker_wallet.keypair.pubkey()])
+                    .await;
                 let (escrow, _) =
                     test_escrow_creation_for_partial_fill(test_state, escrow_amount).await;
 
@@ -179,7 +185,8 @@ run_for_tokens!(
             ) {
                 create_order_for_partial_fill(test_state).await;
                 let escrow_amount = DEFAULT_ESCROW_AMOUNT / DEFAULT_PARTS_AMOUNT_FOR_MULTIPLE * 3;
-                prepare_resolvers(test_state, &[test_state.taker_wallet.keypair.pubkey()]).await;
+                prepare_resolvers_src(test_state, &[test_state.taker_wallet.keypair.pubkey()])
+                    .await;
 
                 test_escrow_creation_for_partial_fill(test_state, escrow_amount).await;
                 let (_, _, transaction) = test_escrow_creation_for_partial_fill_data(
@@ -203,7 +210,8 @@ run_for_tokens!(
                 create_order_for_partial_fill(test_state).await;
 
                 let escrow_amount = DEFAULT_ESCROW_AMOUNT / DEFAULT_PARTS_AMOUNT_FOR_MULTIPLE + 1;
-                prepare_resolvers(test_state, &[test_state.taker_wallet.keypair.pubkey()]).await;
+                prepare_resolvers_src(test_state, &[test_state.taker_wallet.keypair.pubkey()])
+                    .await;
 
                 test_escrow_creation_for_partial_fill(test_state, escrow_amount).await;
                 let so_small_escrow_amount = 1;
@@ -242,7 +250,8 @@ run_for_tokens!(
                     hashed_secret,
                 };
                 test_state.test_arguments.merkle_proof = Some(proof);
-                prepare_resolvers(test_state, &[test_state.taker_wallet.keypair.pubkey()]).await;
+                prepare_resolvers_src(test_state, &[test_state.taker_wallet.keypair.pubkey()])
+                    .await;
                 let (_, _, transaction) = create_escrow_data(test_state);
 
                 test_state
@@ -275,7 +284,8 @@ run_for_tokens!(
                     hashed_secret: merkle_hashes.hashed_secrets[index_to_validate + 1],
                 };
                 test_state.test_arguments.merkle_proof = Some(proof);
-                prepare_resolvers(test_state, &[test_state.taker_wallet.keypair.pubkey()]).await;
+                prepare_resolvers_src(test_state, &[test_state.taker_wallet.keypair.pubkey()])
+                    .await;
                 let (_, _, transaction) = create_escrow_data(test_state);
 
                 test_state
@@ -289,7 +299,8 @@ run_for_tokens!(
             #[tokio::test]
             async fn test_create_escrow_fails_without_merkle_proof(test_state: &mut TestState) {
                 create_order_for_partial_fill(test_state).await;
-                prepare_resolvers(test_state, &[test_state.taker_wallet.keypair.pubkey()]).await;
+                prepare_resolvers_src(test_state, &[test_state.taker_wallet.keypair.pubkey()])
+                    .await;
 
                 // test_state.test_arguments.merkle_proof is none
                 let (_, _, transaction) = create_escrow_data(test_state);
@@ -327,7 +338,8 @@ run_for_tokens!(
                     hashed_secret,
                 };
                 test_state.test_arguments.merkle_proof = Some(proof);
-                prepare_resolvers(test_state, &[test_state.taker_wallet.keypair.pubkey()]).await;
+                prepare_resolvers_src(test_state, &[test_state.taker_wallet.keypair.pubkey()])
+                    .await;
                 let (_, _, transaction) = create_escrow_data(test_state);
 
                 test_state
@@ -349,7 +361,8 @@ run_for_tokens!(
                 create_order_for_partial_fill(test_state).await;
 
                 let escrow_amount = DEFAULT_ESCROW_AMOUNT / DEFAULT_PARTS_AMOUNT_FOR_MULTIPLE * 3;
-                prepare_resolvers(test_state, &[test_state.taker_wallet.keypair.pubkey()]).await;
+                prepare_resolvers_src(test_state, &[test_state.taker_wallet.keypair.pubkey()])
+                    .await;
 
                 let secret_index = get_index_for_escrow_amount(test_state, escrow_amount);
 
@@ -366,7 +379,8 @@ run_for_tokens!(
                 create_order_for_partial_fill(test_state).await;
 
                 let escrow_amount = DEFAULT_ESCROW_AMOUNT / DEFAULT_PARTS_AMOUNT_FOR_MULTIPLE;
-                prepare_resolvers(test_state, &[test_state.taker_wallet.keypair.pubkey()]).await;
+                prepare_resolvers_src(test_state, &[test_state.taker_wallet.keypair.pubkey()])
+                    .await;
 
                 let secret_index = get_index_for_escrow_amount(test_state, escrow_amount);
 
@@ -393,7 +407,8 @@ run_for_tokens!(
                 create_order_for_partial_fill(test_state).await;
 
                 let escrow_amount = DEFAULT_ESCROW_AMOUNT / DEFAULT_PARTS_AMOUNT_FOR_MULTIPLE * 3;
-                prepare_resolvers(test_state, &[test_state.taker_wallet.keypair.pubkey()]).await;
+                prepare_resolvers_src(test_state, &[test_state.taker_wallet.keypair.pubkey()])
+                    .await;
 
                 let (escrow, escrow_ata) =
                     test_escrow_creation_for_partial_fill(test_state, escrow_amount).await;
@@ -424,7 +439,8 @@ run_for_tokens!(
                 create_order_for_partial_fill(test_state).await;
 
                 let escrow_amount = DEFAULT_ESCROW_AMOUNT / DEFAULT_PARTS_AMOUNT_FOR_MULTIPLE;
-                prepare_resolvers(test_state, &[test_state.taker_wallet.keypair.pubkey()]).await;
+                prepare_resolvers_src(test_state, &[test_state.taker_wallet.keypair.pubkey()])
+                    .await;
 
                 let (_, escrow_ata) =
                     test_escrow_creation_for_partial_fill(test_state, escrow_amount).await;
@@ -464,7 +480,8 @@ run_for_tokens!(
                 create_order_for_partial_fill(test_state).await;
 
                 let escrow_amount = DEFAULT_ESCROW_AMOUNT / DEFAULT_PARTS_AMOUNT_FOR_MULTIPLE * 3;
-                prepare_resolvers(test_state, &[test_state.taker_wallet.keypair.pubkey()]).await;
+                prepare_resolvers_src(test_state, &[test_state.taker_wallet.keypair.pubkey()])
+                    .await;
 
                 let secret_index = get_index_for_escrow_amount(test_state, escrow_amount);
 
@@ -492,7 +509,8 @@ run_for_tokens!(
                 create_order_for_partial_fill(test_state).await;
 
                 let escrow_amount = DEFAULT_ESCROW_AMOUNT / DEFAULT_PARTS_AMOUNT_FOR_MULTIPLE;
-                prepare_resolvers(test_state, &[test_state.taker_wallet.keypair.pubkey()]).await;
+                prepare_resolvers_src(test_state, &[test_state.taker_wallet.keypair.pubkey()])
+                    .await;
 
                 let secret_index = get_index_for_escrow_amount(test_state, escrow_amount);
 
@@ -545,7 +563,7 @@ run_for_tokens!(
                 .await;
 
                 let escrow_amount = DEFAULT_ESCROW_AMOUNT / DEFAULT_PARTS_AMOUNT_FOR_MULTIPLE * 3;
-                prepare_resolvers(
+                prepare_resolvers_src(
                     test_state,
                     &[
                         test_state.taker_wallet.keypair.pubkey(),
@@ -576,7 +594,8 @@ run_for_tokens!(
                 create_order_for_partial_fill(test_state).await;
 
                 let escrow_amount = DEFAULT_ESCROW_AMOUNT / DEFAULT_PARTS_AMOUNT_FOR_MULTIPLE;
-                prepare_resolvers(test_state, &[test_state.taker_wallet.keypair.pubkey()]).await;
+                prepare_resolvers_src(test_state, &[test_state.taker_wallet.keypair.pubkey()])
+                    .await;
 
                 let (_, escrow_ata) =
                     test_escrow_creation_for_partial_fill(test_state, escrow_amount).await;
@@ -619,7 +638,8 @@ run_for_tokens!(
                 create_order_for_partial_fill(test_state).await;
 
                 let escrow_amount = DEFAULT_ESCROW_AMOUNT / DEFAULT_PARTS_AMOUNT_FOR_MULTIPLE * 3;
-                prepare_resolvers(test_state, &[test_state.taker_wallet.keypair.pubkey()]).await;
+                prepare_resolvers_src(test_state, &[test_state.taker_wallet.keypair.pubkey()])
+                    .await;
 
                 let (escrow, escrow_ata) =
                     test_escrow_creation_for_partial_fill(test_state, escrow_amount).await;
@@ -633,7 +653,8 @@ run_for_tokens!(
                 create_order_for_partial_fill(test_state).await;
 
                 let escrow_amount = DEFAULT_ESCROW_AMOUNT / DEFAULT_PARTS_AMOUNT_FOR_MULTIPLE;
-                prepare_resolvers(test_state, &[test_state.taker_wallet.keypair.pubkey()]).await;
+                prepare_resolvers_src(test_state, &[test_state.taker_wallet.keypair.pubkey()])
+                    .await;
 
                 let (escrow, escrow_ata) =
                     test_escrow_creation_for_partial_fill(test_state, escrow_amount).await;
@@ -651,7 +672,8 @@ run_for_tokens!(
                 create_order_for_partial_fill(test_state).await;
 
                 let escrow_amount = DEFAULT_ESCROW_AMOUNT / DEFAULT_PARTS_AMOUNT_FOR_MULTIPLE;
-                prepare_resolvers(test_state, &[test_state.taker_wallet.keypair.pubkey()]).await;
+                prepare_resolvers_src(test_state, &[test_state.taker_wallet.keypair.pubkey()])
+                    .await;
 
                 let (_, escrow_ata) =
                     test_escrow_creation_for_partial_fill(test_state, escrow_amount).await;
@@ -692,7 +714,8 @@ run_for_tokens!(
                 create_order_for_partial_fill(test_state).await;
 
                 let escrow_amount = DEFAULT_ESCROW_AMOUNT / DEFAULT_PARTS_AMOUNT_FOR_MULTIPLE * 3;
-                prepare_resolvers(test_state, &[test_state.taker_wallet.keypair.pubkey()]).await;
+                prepare_resolvers_src(test_state, &[test_state.taker_wallet.keypair.pubkey()])
+                    .await;
 
                 let (escrow, escrow_ata) =
                     test_escrow_creation_for_partial_fill(test_state, escrow_amount).await;
@@ -710,7 +733,8 @@ run_for_tokens!(
                 create_order_for_partial_fill(test_state).await;
 
                 let escrow_amount = DEFAULT_ESCROW_AMOUNT / DEFAULT_PARTS_AMOUNT_FOR_MULTIPLE;
-                prepare_resolvers(test_state, &[test_state.taker_wallet.keypair.pubkey()]).await;
+                prepare_resolvers_src(test_state, &[test_state.taker_wallet.keypair.pubkey()])
+                    .await;
 
                 let (escrow, escrow_ata) =
                     test_escrow_creation_for_partial_fill(test_state, escrow_amount).await;
@@ -744,7 +768,7 @@ run_for_tokens!(
                 .await;
 
                 let escrow_amount = DEFAULT_ESCROW_AMOUNT / DEFAULT_PARTS_AMOUNT_FOR_MULTIPLE * 3;
-                prepare_resolvers(
+                prepare_resolvers_src(
                     test_state,
                     &[test_state.taker_wallet.keypair.pubkey(), canceller.pubkey()],
                 )
@@ -762,7 +786,8 @@ run_for_tokens!(
                 create_order_for_partial_fill(test_state).await;
 
                 let escrow_amount = DEFAULT_ESCROW_AMOUNT / DEFAULT_PARTS_AMOUNT_FOR_MULTIPLE;
-                prepare_resolvers(test_state, &[test_state.taker_wallet.keypair.pubkey()]).await;
+                prepare_resolvers_src(test_state, &[test_state.taker_wallet.keypair.pubkey()])
+                    .await;
 
                 let (_, escrow_ata) =
                     test_escrow_creation_for_partial_fill(test_state, escrow_amount).await;

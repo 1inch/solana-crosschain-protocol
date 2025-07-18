@@ -17,7 +17,7 @@ use common_tests::src_program::{
     get_cancel_order_by_resolver_tx, get_cancel_order_tx, get_order_addresses,
     get_rescue_funds_from_order_tx, SrcProgram,
 };
-use common_tests::whitelist::prepare_resolvers;
+use common_tests::whitelist::prepare_resolvers_src;
 use cross_chain_escrow_src::calculate_premium;
 use cross_chain_escrow_src::merkle_tree::MerkleProof;
 use primitive_types::U256;
@@ -675,7 +675,7 @@ pub async fn test_cancel_by_resolver_at_different_points<S: TokenVariant>(
                     / (100 * 100)
         })
         .collect();
-    prepare_resolvers(
+    prepare_resolvers_src(
         init_test_state,
         &[init_test_state.taker_wallet.keypair.pubkey()],
     )
@@ -693,7 +693,7 @@ pub async fn test_cancel_by_resolver_at_different_points<S: TokenVariant>(
             // Create a new test state for each cancellation point and premium
             let mut test_state =
                 reset_test_state(PhantomData::<TestStateBase<SrcProgram, S>>).await;
-            prepare_resolvers(&test_state, &[test_state.taker_wallet.keypair.pubkey()]).await;
+            prepare_resolvers_src(&test_state, &[test_state.taker_wallet.keypair.pubkey()]).await;
 
             // Set max cancellation premium
             test_state.test_arguments.max_cancellation_premium = max_cancellation_premium as u64;
