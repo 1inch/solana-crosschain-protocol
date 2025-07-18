@@ -271,7 +271,6 @@ mod test_escrow_native {
         let withdrawer = Keypair::new();
         prepare_resolvers(test_state, &[withdrawer.pubkey()]).await;
         let payer_kp = &test_state.payer_kp;
-        {
             let context = &mut test_state.context;
 
             transfer_lamports(
@@ -281,7 +280,6 @@ mod test_escrow_native {
                 &withdrawer.pubkey(),
             )
             .await;
-        }
         let (escrow, escrow_ata) = create_escrow(test_state).await;
 
         deregister(test_state, withdrawer.pubkey()).await;
