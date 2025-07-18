@@ -12,6 +12,17 @@
     "debug": "DEBUG=1 anchor test",
     "deploy:whitelist": "anchor clean && anchor keys sync && anchor build && anchor deploy --program-name whitelist --provider.cluster ",
     "deploy:dst": "anchor clean && anchor keys sync && anchor build && anchor deploy --program-name cross_chain_escrow_dst --provider.cluster ",
-    "deploy:src": "anchor clean && anchor keys sync && anchor build && anchor deploy --program-name cross_chain_escrow_src --provider.cluster "
+    "deploy:src": "anchor clean && anchor keys sync && anchor build && anchor deploy --program-name cross_chain_escrow_src --provider.cluster ",
+    "whitelist:register": "ts-node scripts/whitelist/register.ts"
+  },
+  "dependencies": {
+    "@coral-xyz/anchor": "^0.31.1",
+    "@types/yargs": "^17.0.33",
+    "prompt-sync": "^4.2.0",
+    "yargs": "^18.0.0"
+  },
+  "devDependencies": {
+    "ts-node": "^10.9.2",
+    "typescript": "^5.8.3"
   }
 }
