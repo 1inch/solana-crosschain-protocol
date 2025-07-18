@@ -130,54 +130,23 @@ pub fn uni_transfer(
     }
 }
 
-// Handle native token transfer or WSOL unwrapping and ata closure
-pub fn close_and_withdraw_native_ata<'info>(
-    escrow: &AccountInfo<'info>,
-    escrow_amount: u64,
-    escrow_ata: &InterfaceAccount<'info, TokenAccount>,
-    recipient: &AccountInfo<'info>,
-    token_program: &Interface<'info, TokenInterface>,
-    seeds: [&[u8]; 9],
-) -> Result<()> {
-    // Using escrow pda as an intermediate account to transfer native tokens
-    // the leftover lamports from ata's rent will be transferred to the rent recipient
-    // after closing the escrow account
-    close_account(CpiContext::new_with_signer(
-        token_program.to_account_info(),
-        CloseAccount {
-            account: escrow_ata.to_account_info(),
-            destination: escrow.to_account_info(),
-            authority: escrow.to_account_info(),
-        },
-        &[&seeds],
-    ))?;
-
-    // Transfer the native tokens from escrow pda to recipient
-    escrow.sub_lamports(escrow_amount)?;
-    recipient.add_lamports(escrow_amount)?;
-
-    Ok(())
-}
-
 pub fn withdraw_and_close_token_ata<'info>(
-    from: &AccountInfo<'info>,
+    escrow_ata: &InterfaceAccount<'info, TokenAccount>,
     authority: &AccountInfo<'info>,
     to: &AccountInfo<'info>,
     mint: &InterfaceAccount<'info, Mint>,
-    amount: u64,
     token_program: &Interface<'info, TokenInterface>,
-    escrow_ata: &InterfaceAccount<'info, TokenAccount>,
     rent_recipient: &AccountInfo<'info>,
     seeds: &[&[u8]],
 ) -> Result<()> {
     // Transfer tokens
     uni_transfer(
         &UniTransferParams::TokenTransfer {
-            from: from.clone(),
+            from: escrow_ata.to_account_info(),
             authority: authority.clone(),
-            to: to.clone(),
+            to: to.to_account_info(),
             mint: mint.clone(),
-            amount,
+            amount: escrow_ata.amount,
             program: token_program.clone(),
         },
         Some(&[seeds]),
@@ -193,5 +162,51 @@ pub fn withdraw_and_close_token_ata<'info>(
         },
         &[seeds],
     ))?;
+    Ok(())
+}
+
+pub fn process_payout<'info>(
+    mint: &InterfaceAccount<'info, Mint>,
+    asset_is_native: bool,
+    escrow_amount: u64,
+    escrow: &AccountInfo<'info>,
+    escrow_ata: &InterfaceAccount<'info, TokenAccount>,
+    recipient: &AccountInfo<'info>,
+    recipient_ata: Option<&InterfaceAccount<'info, TokenAccount>>,
+    rent_recipient: &AccountInfo<'info>,
+    seeds: [&[u8]; 9],
+    token_program: &Interface<'info, TokenInterface>,
+) -> Result<()> {
+    if asset_is_native {
+        // Using escrow pda as an intermediate account to transfer native tokens
+        // the leftover lamports from ata's rent will be transferred to the rent recipient
+        // after closing the escrow account
+        close_account(CpiContext::new_with_signer(
+            token_program.to_account_info(),
+            CloseAccount {
+                account: escrow_ata.to_account_info(),
+                destination: escrow.to_account_info(),
+                authority: escrow.to_account_info(),
+            },
+            &[&seeds],
+        ))?;
+
+        // Transfer the native tokens from escrow pda to recipient
+        escrow.sub_lamports(escrow_amount)?;
+        recipient.add_lamports(escrow_amount)?;
+    } else {
+        withdraw_and_close_token_ata(
+            escrow_ata,
+            &escrow.to_account_info(),
+            &recipient_ata
+                .ok_or(EscrowError::MissingRecipientAta)?
+                .to_account_info(),
+            mint,
+            token_program,
+            rent_recipient,
+            &seeds,
+        )?;
+    }
+
     Ok(())
 }

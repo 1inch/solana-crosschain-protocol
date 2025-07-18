@@ -5,7 +5,7 @@ use anchor_spl::token_interface::{Mint, TokenAccount, TokenInterface};
 pub use common::constants;
 use common::{
     error::EscrowError,
-    escrow::{uni_transfer, UniTransferParams},
+    escrow::{process_payout, uni_transfer, UniTransferParams},
     timelocks::{Stage, Timelocks},
     utils::get_current_timestamp,
 };
@@ -78,7 +78,7 @@ pub mod cross_chain_escrow_dst {
                     from: ctx
                         .accounts
                         .creator_ata
-                        .clone()
+                        .as_ref()
                         .ok_or(EscrowError::MissingCreatorAta)?
                         .to_account_info(),
                     authority: ctx.accounts.creator.to_account_info(),
@@ -167,15 +167,32 @@ pub mod cross_chain_escrow_dst {
             EscrowError::InvalidTime
         );
 
-        utils::cancel(
-            &ctx.accounts.escrow,
-            ctx.accounts.escrow.bump,
-            &ctx.accounts.escrow_ata,
-            ctx.accounts.creator_ata.as_deref(),
+        let seeds = [
+            "escrow".as_bytes(),
+            &ctx.accounts.escrow.order_hash,
+            &ctx.accounts.escrow.hashlock,
+            ctx.accounts.escrow.creator.as_ref(),
+            ctx.accounts.escrow.recipient.as_ref(),
+            ctx.accounts.escrow.token.as_ref(),
+            &ctx.accounts.escrow.amount.to_be_bytes(),
+            &ctx.accounts.escrow.safety_deposit.to_be_bytes(),
+            &[ctx.accounts.escrow.bump],
+        ];
+
+        process_payout(
             &ctx.accounts.mint,
-            &ctx.accounts.token_program,
+            ctx.accounts.escrow.asset_is_native,
+            ctx.accounts.escrow.amount,
+            &ctx.accounts.escrow.to_account_info(),
+            &ctx.accounts.escrow_ata,
             &ctx.accounts.creator,
-        )
+            ctx.accounts.creator_ata.as_deref(),
+            &ctx.accounts.creator,
+            seeds,
+            &ctx.accounts.token_program,
+        )?;
+
+        Ok(())
     }
 
     pub fn rescue_funds(

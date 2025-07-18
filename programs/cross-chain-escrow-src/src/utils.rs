@@ -2,7 +2,7 @@ use anchor_lang::{prelude::*, solana_program::keccak::hash};
 use anchor_spl::token_interface::{Mint, TokenAccount, TokenInterface};
 use common::{
     error::EscrowError,
-    escrow::{close_and_withdraw_native_ata, withdraw_and_close_token_ata},
+    escrow::{process_payout, withdraw_and_close_token_ata},
 };
 
 use crate::EscrowSrc;
@@ -36,14 +36,12 @@ pub fn withdraw<'info>(
         &[escrow_bump],
     ];
 
-    common::escrow::withdraw_and_close_token_ata(
-        &escrow_ata.to_account_info(),
+    withdraw_and_close_token_ata(
+        escrow_ata,
         &escrow.to_account_info(),
         &taker_ata.to_account_info(),
         mint,
-        escrow_ata.amount,
         token_program,
-        escrow_ata,
         rent_recipient,
         &seeds,
     )?;
@@ -80,30 +78,18 @@ pub fn cancel<'info>(
         &[escrow_bump],
     ];
 
-    if escrow.asset_is_native {
-        close_and_withdraw_native_ata(
-            &escrow.to_account_info(),
-            escrow.amount,
-            escrow_ata,
-            creator,
-            token_program,
-            seeds,
-        )?;
-    } else {
-        withdraw_and_close_token_ata(
-            &escrow_ata.to_account_info(),
-            &escrow.to_account_info(),
-            &creator_ata
-                .ok_or(EscrowError::MissingCreatorAta)?
-                .to_account_info(),
-            mint,
-            escrow_ata.amount,
-            token_program,
-            escrow_ata,
-            rent_recipient,
-            &seeds,
-        )?;
-    }
+    process_payout(
+        mint,
+        escrow.asset_is_native,
+        escrow.amount,
+        &escrow.to_account_info(),
+        escrow_ata,
+        creator,
+        creator_ata,
+        rent_recipient,
+        seeds,
+        token_program,
+    )?;
 
     // Disrtibute the safety deposit if needed
     if rent_recipient.key() != safety_deposit_recipient.key() {
