@@ -1,4 +1,4 @@
-use anchor_lang::prelude::ProgramError;
+use anchor_lang::{error::ErrorCode, prelude::ProgramError};
 use anchor_spl::token::spl_token::native_mint::ID as NATIVE_MINT;
 use anchor_spl::token::spl_token::state::Account as SplTokenAccount;
 use common::{error::EscrowError, timelocks::Stage};
@@ -72,6 +72,23 @@ mod test_native_src {
                 .await
                 .unwrap()
         );
+    }
+
+    #[test_context(TestState)]
+    #[tokio::test]
+    async fn test_escrow_creation_fails_with_unwhitelisted_resolver(test_state: &mut TestState) {
+        test_state.token = NATIVE_MINT;
+        test_state.test_arguments.asset_is_native = true;
+        create_order(test_state).await;
+        let (_, _, tx) = create_escrow_data(test_state);
+
+        test_state
+            .client
+            .process_transaction(tx)
+            .await
+            .expect_error(ProgramError::Custom(
+                ErrorCode::AccountNotInitialized.into(),
+            ));
     }
 
     #[test_context(TestState)]

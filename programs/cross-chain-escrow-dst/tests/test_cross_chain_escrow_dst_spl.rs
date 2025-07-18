@@ -1,5 +1,6 @@
 use anchor_lang::error::ErrorCode;
-use common::{error::EscrowError, timelocks::Stage};
+use common::timelocks::Stage;
+use common::{constants::RESCUE_DELAY, error::EscrowError};
 use common_tests::dst_program::DstProgram;
 use common_tests::helpers::*;
 use common_tests::run_for_tokens;
@@ -714,13 +715,63 @@ run_for_tokens!(
                     .await
             }
 
-            // TODO: Replace with a test that non-creator cannot rescue funds
-            // #[test_context(TestState)]
-            // #[tokio::test]
-            // async fn test_cannot_rescue_funds_by_non_recipient(test_state: &mut TestState) {
-            //     prepare_resolvers(test_state, &[test_state.maker_wallet.keypair.pubkey()]).await;
-            //     common_escrow_tests::test_cannot_rescue_funds_by_non_recipient(test_state).await
-            // }
+            #[test_context(TestState)]
+            #[tokio::test]
+            async fn test_cannot_rescue_funds_by_non_creator(test_state: &mut TestState) {
+                prepare_resolvers(test_state, &[test_state.maker_wallet.keypair.pubkey()]).await;
+                let (escrow, _) = create_escrow(test_state).await;
+
+                let token_to_rescue = <TestState as HasTokenVariant>::Token::deploy_spl_token(
+                    &mut test_state.context,
+                )
+                .await
+                .pubkey();
+                let escrow_ata =
+                    <TestState as HasTokenVariant>::Token::initialize_spl_associated_account(
+                        &mut test_state.context,
+                        &token_to_rescue,
+                        &escrow,
+                    )
+                    .await;
+                // Set wrong maker
+                test_state.maker_wallet = test_state.taker_wallet.clone(); // Use different wallet as maker
+                let taker_ata =
+                    <TestState as HasTokenVariant>::Token::initialize_spl_associated_account(
+                        &mut test_state.context,
+                        &token_to_rescue,
+                        &test_state.taker_wallet.keypair.pubkey(),
+                    )
+                    .await;
+
+                <TestState as HasTokenVariant>::Token::mint_spl_tokens(
+                    &mut test_state.context,
+                    &token_to_rescue,
+                    &escrow_ata,
+                    &test_state.payer_kp.pubkey(),
+                    &test_state.payer_kp,
+                    test_state.test_arguments.rescue_amount,
+                )
+                .await;
+
+                let transaction = DstProgram::get_rescue_funds_tx(
+                    test_state,
+                    &escrow,
+                    &token_to_rescue,
+                    &escrow_ata,
+                    &taker_ata,
+                );
+
+                set_time(
+                    &mut test_state.context,
+                    test_state.init_timestamp + RESCUE_DELAY + 100,
+                );
+
+                test_state
+                    .client
+                    .process_transaction(transaction)
+                    .await
+                    .expect_error(ProgramError::Custom(ErrorCode::ConstraintSeeds.into()))
+            }
 
             #[test_context(TestState)]
             #[tokio::test]
@@ -740,53 +791,4 @@ run_for_tokens!(
     }
 );
 
-// pub async fn test_cannot_rescue_funds_by_non_whitelisted_resolver<S: TokenVariant>(
-//     test_state: &mut TestStateBase<DstProgram, S>,
-// ) {
-//     let (escrow, _) = create_escrow(test_state).await;
-
-//     let token_to_rescue = S::deploy_spl_token(&mut test_state.context).await.pubkey();
-//     let escrow_ata = S::initialize_spl_associated_account(
-//         &mut test_state.context,
-//         &token_to_rescue,
-//         &escrow,
-//     )
-//     .await;
-//     let maker_ata = S::initialize_spl_associated_account(
-//         &mut test_state.context,
-//         &token_to_rescue,
-//         &test_state.maker_wallet.keypair.pubkey(),
-//     )
-//     .await;
-
-//     S::mint_spl_tokens(
-//         &mut test_state.context,
-//         &token_to_rescue,
-//         &escrow_ata,
-//         &test_state.payer_kp.pubkey(),
-//         &test_state.payer_kp,
-//         test_state.test_arguments.rescue_amount,
-//     )
-//     .await;
-
-//     let transaction = DstProgram::get_rescue_funds_tx(
-//         test_state,
-//         &escrow,
-//         &token_to_rescue,
-//         &escrow_ata,
-//         &maker_ata,
-//     );
-
-//     set_time(
-//         &mut test_state.context,
-//         test_state.init_timestamp + RESCUE_DELAY + 100,
-//     );
-//     test_state
-//         .client
-//         .process_transaction(transaction)
-//         .await
-//         .expect_error((
-//             0,
-//             ProgramError::Custom(ErrorCode::AccountNotInitialized.into()),
-//         ));
-// }
+//

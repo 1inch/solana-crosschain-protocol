@@ -219,6 +219,22 @@ run_for_tokens!(
 
             #[test_context(TestState)]
             #[tokio::test]
+            async fn test_escrow_creation_fails_with_unwhitelisted_resolver(
+                test_state: &mut TestState,
+            ) {
+                create_order(test_state).await;
+                let (_, _, tx) = create_escrow_data(test_state);
+                test_state
+                    .client
+                    .process_transaction(tx)
+                    .await
+                    .expect_error(ProgramError::Custom(
+                        ErrorCode::AccountNotInitialized.into(),
+                    ));
+            }
+
+            #[test_context(TestState)]
+            #[tokio::test]
             async fn test_escrow_creation_with_pre_existing_escrow_ata(test_state: &mut TestState) {
                 create_order(test_state).await;
                 prepare_resolvers(test_state, &[test_state.taker_wallet.keypair.pubkey()]).await;
@@ -808,6 +824,39 @@ run_for_tokens!(
 
             #[test_context(TestState)]
             #[tokio::test]
+            async fn test_public_withdraw_fails_with_unwhitelisted_withdrawer(
+                test_state: &mut TestState,
+            ) {
+                create_order(test_state).await;
+                let withdrawer = Keypair::new();
+                prepare_resolvers(test_state, &[test_state.taker_wallet.keypair.pubkey()]).await;
+                transfer_lamports(
+                    &mut test_state.context,
+                    WALLET_DEFAULT_LAMPORTS,
+                    &test_state.payer_kp,
+                    &withdrawer.pubkey(),
+                )
+                .await;
+                let (escrow, escrow_ata) = create_escrow(test_state).await;
+
+                let transaction = SrcProgram::get_public_withdraw_tx(
+                    test_state,
+                    &escrow,
+                    &escrow_ata,
+                    &withdrawer,
+                );
+
+                test_state
+                    .client
+                    .process_transaction(transaction)
+                    .await
+                    .expect_error(ProgramError::Custom(
+                        ErrorCode::AccountNotInitialized.into(),
+                    ));
+            }
+
+            #[test_context(TestState)]
+            #[tokio::test]
             async fn test_public_withdraw_fails_with_wrong_secret(test_state: &mut TestState) {
                 create_order(test_state).await;
                 prepare_resolvers(
@@ -1157,6 +1206,27 @@ run_for_tokens!(
                     .await;
             }
 
+            #[test_context(TestState)]
+            #[tokio::test]
+            async fn test_cancel_by_resolver_fails_with_unwhitelisted_resolver(
+                test_state: &mut TestState,
+            ) {
+                let (order, order_ata) = create_order(test_state).await;
+                let transaction =
+                    get_cancel_order_by_resolver_tx(test_state, &order, &order_ata, None);
+                set_time(
+                    &mut test_state.context,
+                    test_state.test_arguments.expiration_time,
+                );
+                test_state
+                    .client
+                    .process_transaction(transaction)
+                    .await
+                    .expect_error(ProgramError::Custom(
+                        ErrorCode::AccountNotInitialized.into(),
+                    ));
+            }
+
             // Checks the maker_amount transfer transaction is skipped if the maker_amount is zero
             #[test_context(TestState)]
             #[tokio::test]
@@ -1351,6 +1421,45 @@ run_for_tokens!(
 
             #[test_context(TestState)]
             #[tokio::test]
+            async fn test_public_cancel_fails_with_unwhitelisted_canceller(
+                test_state: &mut TestState,
+            ) {
+                let canceller = Keypair::new();
+                transfer_lamports(
+                    &mut test_state.context,
+                    WALLET_DEFAULT_LAMPORTS,
+                    &test_state.payer_kp,
+                    &canceller.pubkey(),
+                )
+                .await;
+
+                prepare_resolvers(test_state, &[test_state.taker_wallet.keypair.pubkey()]).await;
+
+                create_order(test_state).await;
+                let (escrow, escrow_ata) = create_escrow(test_state).await;
+
+                set_time(
+                    &mut test_state.context,
+                    test_state
+                        .test_arguments
+                        .src_timelocks
+                        .get(Stage::SrcPublicCancellation)
+                        .unwrap(),
+                );
+                let transaction =
+                    create_public_escrow_cancel_tx(test_state, &escrow, &escrow_ata, &canceller);
+
+                test_state
+                    .client
+                    .process_transaction(transaction)
+                    .await
+                    .expect_error(ProgramError::Custom(
+                        ErrorCode::AccountNotInitialized.into(),
+                    ));
+            }
+
+            #[test_context(TestState)]
+            #[tokio::test]
             async fn test_cannot_public_cancel_before_public_cancellation_start(
                 test_state: &mut TestState,
             ) {
@@ -1420,6 +1529,63 @@ run_for_tokens!(
             async fn test_rescue_all_tokens_from_order_and_close_ata(test_state: &mut TestState) {
                 prepare_resolvers(test_state, &[test_state.taker_wallet.keypair.pubkey()]).await;
                 helpers_src::test_rescue_all_tokens_from_order_and_close_ata(test_state).await
+            }
+
+            #[test_context(TestState)]
+            #[tokio::test]
+            async fn test_rescue_fails_with_unwhitelisted_resolver(test_state: &mut TestState) {
+                let (order, _) = create_order(test_state).await;
+
+                let token_to_rescue = <TestState as HasTokenVariant>::Token::deploy_spl_token(
+                    &mut test_state.context,
+                )
+                .await
+                .pubkey();
+                let order_ata =
+                    <TestState as HasTokenVariant>::Token::initialize_spl_associated_account(
+                        &mut test_state.context,
+                        &token_to_rescue,
+                        &order,
+                    )
+                    .await;
+                let taker_ata =
+                    <TestState as HasTokenVariant>::Token::initialize_spl_associated_account(
+                        &mut test_state.context,
+                        &token_to_rescue,
+                        &test_state.taker_wallet.keypair.pubkey(),
+                    )
+                    .await;
+
+                <TestState as HasTokenVariant>::Token::mint_spl_tokens(
+                    &mut test_state.context,
+                    &token_to_rescue,
+                    &order_ata,
+                    &test_state.payer_kp.pubkey(),
+                    &test_state.payer_kp,
+                    test_state.test_arguments.rescue_amount,
+                )
+                .await;
+
+                let transaction = get_rescue_funds_from_order_tx(
+                    test_state,
+                    &order,
+                    &order_ata,
+                    &token_to_rescue,
+                    &taker_ata,
+                );
+
+                set_time(
+                    &mut test_state.context,
+                    test_state.init_timestamp + common::constants::RESCUE_DELAY + 100,
+                );
+
+                test_state
+                    .client
+                    .process_transaction(transaction)
+                    .await
+                    .expect_error(ProgramError::Custom(
+                        ErrorCode::AccountNotInitialized.into(),
+                    ));
             }
 
             #[test_context(TestState)]
