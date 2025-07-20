@@ -611,7 +611,7 @@ run_for_tokens!(
                     .client
                     .process_transaction(transaction)
                     .await
-                    .expect_error(ProgramError::Custom(ErrorCode::ConstraintSeeds.into()));
+                    .expect_error(ProgramError::Custom(ErrorCode::ConstraintAssociated.into()));
             }
 
             #[test_context(TestState)]
@@ -932,7 +932,7 @@ run_for_tokens!(
                     .client
                     .process_transaction(transaction)
                     .await
-                    .expect_error(ProgramError::Custom(ErrorCode::ConstraintSeeds.into()));
+                    .expect_error(ProgramError::Custom(ErrorCode::ConstraintAssociated.into()));
             }
         }
 
@@ -1052,7 +1052,7 @@ run_for_tokens!(
                     .client
                     .process_transaction(transaction)
                     .await
-                    .expect_error(ProgramError::Custom(ErrorCode::ConstraintSeeds.into()));
+                    .expect_error(ProgramError::Custom(ErrorCode::ConstraintAssociated.into()));
             }
 
             #[test_context(TestState)]
@@ -1408,7 +1408,7 @@ run_for_tokens!(
                     .client
                     .process_transaction(transaction)
                     .await
-                    .expect_error(ProgramError::Custom(ErrorCode::ConstraintSeeds.into()));
+                    .expect_error(ProgramError::Custom(ErrorCode::ConstraintAssociated.into()));
             }
         }
 

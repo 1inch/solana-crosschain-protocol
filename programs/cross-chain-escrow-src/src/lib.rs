@@ -528,11 +528,8 @@ pub mod cross_chain_escrow_src {
             "escrow".as_bytes(),
             order_hash.as_ref(),
             hashlock.as_ref(),
-            maker.as_ref(),
             taker_pubkey.as_ref(),
-            token.as_ref(),
             &amount.to_be_bytes(),
-            &safety_deposit.to_be_bytes(),
             &[ctx.bumps.escrow],
         ];
 
@@ -735,11 +732,8 @@ pub struct CreateEscrow<'info> {
                 order.hashlock,
                 merkle_proof.clone()
             ),
-            order.creator.as_ref(),
             taker.key().as_ref(),
-            mint.key().as_ref(),
             amount.to_be_bytes().as_ref(),
-            order.safety_deposit.to_be_bytes().as_ref(),
         ],
         bump,
     )]
@@ -776,11 +770,8 @@ pub struct Withdraw<'info> {
             "escrow".as_bytes(),
             escrow.order_hash.as_ref(),
             escrow.hashlock.as_ref(),
-            escrow.maker.as_ref(),
             escrow.taker.as_ref(),
-            mint.key().as_ref(),
             escrow.amount.to_be_bytes().as_ref(),
-            escrow.safety_deposit.to_be_bytes().as_ref(),
         ],
         bump = escrow.bump,
     )]
@@ -827,11 +818,8 @@ pub struct PublicWithdraw<'info> {
             "escrow".as_bytes(),
             escrow.order_hash.as_ref(),
             escrow.hashlock.as_ref(),
-            escrow.maker.as_ref(),
             escrow.taker.as_ref(),
-            mint.key().as_ref(),
             escrow.amount.to_be_bytes().as_ref(),
-            escrow.safety_deposit.to_be_bytes().as_ref(),
         ],
         bump = escrow.bump,
     )]
@@ -875,11 +863,8 @@ pub struct CancelEscrow<'info> {
             "escrow".as_bytes(),
             escrow.order_hash.as_ref(),
             escrow.hashlock.as_ref(),
-            escrow.maker.as_ref(),
             taker.key().as_ref(),
-            mint.key().as_ref(),
             escrow.amount.to_be_bytes().as_ref(),
-            escrow.safety_deposit.to_be_bytes().as_ref(),
         ],
         bump = escrow.bump,
     )]
@@ -933,11 +918,8 @@ pub struct PublicCancelEscrow<'info> {
             "escrow".as_bytes(),
             escrow.order_hash.as_ref(),
             escrow.hashlock.as_ref(),
-            escrow.maker.as_ref(),
             taker.key().as_ref(),
-            mint.key().as_ref(),
             escrow.amount.to_be_bytes().as_ref(),
-            escrow.safety_deposit.to_be_bytes().as_ref(),
         ],
         bump = escrow.bump,
     )]
@@ -1066,11 +1048,8 @@ pub struct RescueFundsForEscrow<'info> {
             "escrow".as_bytes(),
             order_hash.as_ref(),
             hashlock.as_ref(),
-            maker.as_ref(),
             taker.key().as_ref(),
-            token.as_ref(),
             amount.to_be_bytes().as_ref(),
-            safety_deposit.to_be_bytes().as_ref(),
         ],
         bump,
     )]

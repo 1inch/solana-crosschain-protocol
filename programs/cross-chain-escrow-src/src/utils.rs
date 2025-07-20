@@ -28,11 +28,8 @@ pub fn withdraw<'info>(
         "escrow".as_bytes(),
         &escrow.order_hash,
         &escrow.hashlock,
-        escrow.maker.as_ref(),
         escrow.taker.as_ref(),
-        escrow.token.as_ref(),
         &escrow.amount.to_be_bytes(),
-        &escrow.safety_deposit.to_be_bytes(),
         &[escrow_bump],
     ];
 
@@ -70,11 +67,8 @@ pub fn cancel<'info>(
         "escrow".as_bytes(),
         &escrow.order_hash,
         &escrow.hashlock,
-        escrow.maker.as_ref(),
         escrow.taker.as_ref(),
-        escrow.token.as_ref(),
         &escrow.amount.to_be_bytes(),
-        &escrow.safety_deposit.to_be_bytes(),
         &[escrow_bump],
     ];
 

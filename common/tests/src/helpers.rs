@@ -589,17 +589,10 @@ pub fn get_escrow_addresses<T: EscrowVariant<S>, S: TokenVariant>(
             b"escrow",
             test_state.order_hash.as_ref(),
             hashlock.as_ref(),
-            creator.as_ref(),
             test_state.taker_wallet.keypair.pubkey().as_ref(),
-            test_state.token.as_ref(),
             test_state
                 .test_arguments
                 .escrow_amount
-                .to_be_bytes()
-                .as_ref(),
-            test_state
-                .test_arguments
-                .safety_deposit
                 .to_be_bytes()
                 .as_ref(),
         ],
