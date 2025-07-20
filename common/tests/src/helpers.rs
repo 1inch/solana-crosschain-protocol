@@ -158,7 +158,7 @@ pub fn get_default_testargs(nowsecs: u32) -> TestArgs {
         dutch_auction_data: cross_chain_escrow_src::AuctionData {
             start_time: nowsecs,
             duration: DEFAULT_PERIOD_DURATION,
-            initial_rate_bump: 0,
+            initial_rate_bump: 0.into(),
             points_and_time_deltas: vec![],
         },
         max_cancellation_premium: DEFAULT_ESCROW_AMOUNT.mul(50_u64 * 100).div(100_u64 * 100),

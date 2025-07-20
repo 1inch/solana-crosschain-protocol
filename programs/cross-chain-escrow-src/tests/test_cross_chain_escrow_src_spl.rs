@@ -203,8 +203,8 @@ run_for_tokens!(
 
             const AUCTION_START_OFFSET: u32 = 250;
             const AUCTION_DURATION: u32 = 1000;
-            const INITIAL_RATE_BUMP: u16 = 10_000; // 10%
-            const INTERMEDIATE_RATE_BUMP: u16 = 9_000; // 9%
+            const INITIAL_RATE_BUMP: u32 = 10_000; // 10%
+            const INTERMEDIATE_RATE_BUMP: u32 = 9_000; // 9%
             const INTERMEDIATE_TIME_DELTA: u16 = 500;
             const EXPECTED_MULTIPLIER_NUMERATOR: u64 = 1095;
             const EXPECTED_MULTIPLIER_DENOMINATOR: u64 = 1000;
@@ -242,10 +242,10 @@ run_for_tokens!(
                     cross_chain_escrow_src::AuctionData {
                         start_time: test_state.init_timestamp - AUCTION_START_OFFSET,
                         duration: AUCTION_DURATION,
-                        initial_rate_bump: INITIAL_RATE_BUMP,
+                        initial_rate_bump: INITIAL_RATE_BUMP.into(),
                         points_and_time_deltas: vec![
                             cross_chain_escrow_src::auction::PointAndTimeDelta {
-                                rate_bump: INTERMEDIATE_RATE_BUMP,
+                                rate_bump: INTERMEDIATE_RATE_BUMP.into(),
                                 time_delta: INTERMEDIATE_TIME_DELTA,
                             },
                         ],
@@ -296,10 +296,10 @@ run_for_tokens!(
                     cross_chain_escrow_src::AuctionData {
                         start_time: test_state.init_timestamp - AUCTION_START_OFFSET,
                         duration: AUCTION_DURATION,
-                        initial_rate_bump: INITIAL_RATE_BUMP,
+                        initial_rate_bump: INITIAL_RATE_BUMP.into(),
                         points_and_time_deltas: vec![
                             cross_chain_escrow_src::auction::PointAndTimeDelta {
-                                rate_bump: INTERMEDIATE_RATE_BUMP,
+                                rate_bump: INTERMEDIATE_RATE_BUMP.into(),
                                 time_delta: INTERMEDIATE_TIME_DELTA,
                             },
                         ],
@@ -310,10 +310,10 @@ run_for_tokens!(
                     cross_chain_escrow_src::AuctionData {
                         start_time: test_state.init_timestamp - AUCTION_START_OFFSET,
                         duration: AUCTION_DURATION,
-                        initial_rate_bump: INITIAL_RATE_BUMP,
+                        initial_rate_bump: INITIAL_RATE_BUMP.into(),
                         points_and_time_deltas: vec![
                             cross_chain_escrow_src::auction::PointAndTimeDelta {
-                                rate_bump: INTERMEDIATE_RATE_BUMP * 2, // Incorrect rate bump
+                                rate_bump: (INTERMEDIATE_RATE_BUMP * 2).into(), // Incorrect rate bump
                                 time_delta: INTERMEDIATE_TIME_DELTA,
                             },
                         ],
@@ -336,10 +336,10 @@ run_for_tokens!(
                     cross_chain_escrow_src::AuctionData {
                         start_time: test_state.init_timestamp - AUCTION_START_OFFSET,
                         duration: AUCTION_DURATION,
-                        initial_rate_bump: INITIAL_RATE_BUMP,
+                        initial_rate_bump: INITIAL_RATE_BUMP.into(),
                         points_and_time_deltas: vec![
                             cross_chain_escrow_src::auction::PointAndTimeDelta {
-                                rate_bump: INTERMEDIATE_RATE_BUMP, // 9%
+                                rate_bump: INTERMEDIATE_RATE_BUMP.into(), // 9%
                                 time_delta: INTERMEDIATE_TIME_DELTA,
                             },
                         ],
