@@ -509,10 +509,7 @@ pub mod cross_chain_escrow_src {
         ctx: Context<RescueFundsForEscrow>,
         order_hash: [u8; 32],
         hashlock: [u8; 32],
-        maker: Pubkey,
-        token: Pubkey,
         amount: u64,
-        safety_deposit: u64,
         rescue_amount: u64,
     ) -> Result<()> {
         let rescue_start = if !ctx.accounts.escrow.data_is_empty() {
@@ -1035,7 +1032,7 @@ pub struct CancelOrderbyResolver<'info> {
 }
 
 #[derive(Accounts)]
-#[instruction(order_hash: [u8; 32], hashlock: [u8; 32], maker: Pubkey, token: Pubkey, amount: u64, safety_deposit: u64)]
+#[instruction(order_hash: [u8; 32], hashlock: [u8; 32], amount: u64)]
 pub struct RescueFundsForEscrow<'info> {
     #[account(
         mut, // Needed because this account receives lamports from closed token account.

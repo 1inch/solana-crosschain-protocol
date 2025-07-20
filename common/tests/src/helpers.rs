@@ -577,7 +577,6 @@ impl Clone for Wallet {
 
 pub fn get_escrow_addresses<T: EscrowVariant<S>, S: TokenVariant>(
     test_state: &TestStateBase<T, S>,
-    creator: Pubkey,
 ) -> (Pubkey, Pubkey) {
     let program_id = T::get_program_spec().0;
     let hashlock = get_escrow_hashlock(
@@ -610,8 +609,7 @@ pub fn get_escrow_addresses<T: EscrowVariant<S>, S: TokenVariant>(
 pub fn create_escrow_data<T: EscrowVariant<S>, S: TokenVariant>(
     test_state: &TestStateBase<T, S>,
 ) -> (Pubkey, Pubkey, Transaction) {
-    let (escrow_pda, escrow_ata) =
-        get_escrow_addresses(test_state, test_state.maker_wallet.keypair.pubkey());
+    let (escrow_pda, escrow_ata) = get_escrow_addresses(test_state);
     let transaction: Transaction = T::get_create_tx(test_state, &escrow_pda, &escrow_ata);
 
     (escrow_pda, escrow_ata, transaction)
