@@ -672,7 +672,7 @@ pub struct CreateEscrow<'info> {
     #[account(mut)]
     taker: Signer<'info>,
     #[account(
-        seeds = [whitelist::RESOLVER_ACCESS_SEED, ID.as_ref(), taker.key().as_ref()],
+        seeds = [ID.as_ref(), taker.key().as_ref()],
         bump = resolver_access.bump,
         seeds::program = whitelist::ID,
     )]
@@ -798,7 +798,7 @@ pub struct PublicWithdraw<'info> {
     #[account(mut)]
     payer: Signer<'info>,
     #[account(
-        seeds = [whitelist::RESOLVER_ACCESS_SEED, ID.as_ref(), payer.key().as_ref()],
+        seeds = [ID.as_ref(), payer.key().as_ref()],
         bump = resolver_access.bump,
         seeds::program = whitelist::ID,
     )]
@@ -903,7 +903,7 @@ pub struct PublicCancelEscrow<'info> {
     #[account(mut)]
     payer: Signer<'info>,
     #[account(
-        seeds = [whitelist::RESOLVER_ACCESS_SEED, ID.as_ref(), payer.key().as_ref()],
+        seeds = [ID.as_ref(), payer.key().as_ref()],
         bump = resolver_access.bump,
         seeds::program = whitelist::ID,
     )]
@@ -988,7 +988,7 @@ pub struct CancelOrderbyResolver<'info> {
     #[account(mut, signer)]
     resolver: Signer<'info>,
     #[account(
-        seeds = [whitelist::RESOLVER_ACCESS_SEED, ID.as_ref(), resolver.key().as_ref()],
+        seeds = [ID.as_ref(), resolver.key().as_ref()],
         bump = resolver_access.bump,
         seeds::program = whitelist::ID,
     )]
@@ -1095,7 +1095,7 @@ pub struct RescueFundsForOrder<'info> {
     )]
     resolver: Signer<'info>,
     #[account(
-        seeds = [whitelist::RESOLVER_ACCESS_SEED, ID.as_ref(), resolver.key().as_ref()],
+        seeds = [ID.as_ref(), resolver.key().as_ref()],
         bump = resolver_access.bump,
         seeds::program = whitelist::ID,
     )]

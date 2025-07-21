@@ -7,7 +7,6 @@ use error::WhitelistError;
 declare_id!("CShaLBTQn6xbwq9behWTZuDuYY7APeWvXchsHkTw3DcZ");
 
 pub const WHITELIST_STATE_SEED: &[u8] = b"whitelist_state";
-pub const RESOLVER_ACCESS_SEED: &[u8] = b"resolver_access";
 
 /// Program for managing whitelisted users for the Fusion Swap
 #[program]
@@ -75,7 +74,7 @@ pub struct Register<'info> {
         init,
         payer = authority,
         space = DISCRIMINATOR_BYTES + ResolverAccess::INIT_SPACE,
-        seeds = [RESOLVER_ACCESS_SEED, client_program.key().as_ref(), user.key().as_ref()],
+        seeds = [client_program.key().as_ref(), user.key().as_ref()],
         bump,
     )]
     pub resolver_access: Account<'info, ResolverAccess>,
@@ -100,7 +99,7 @@ pub struct Deregister<'info> {
     #[account(
         mut,
         close = authority,
-        seeds = [RESOLVER_ACCESS_SEED, client_program.key().as_ref(), user.key().as_ref()],
+        seeds = [client_program.key().as_ref(), user.key().as_ref()],
         bump = resolver_access.bump,
     )]
     pub resolver_access: Account<'info, ResolverAccess>,

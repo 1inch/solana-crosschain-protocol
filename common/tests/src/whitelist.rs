@@ -24,10 +24,8 @@ pub fn get_whitelist_state_address() -> (Pubkey, Pubkey) {
 
 pub fn get_whitelist_access_address(client_program: &Pubkey, user: &Pubkey) -> (Pubkey, u8) {
     let program_id = whitelist::id();
-    let (whitelist_access, bump) = Pubkey::find_program_address(
-        &[b"resolver_access", client_program.as_ref(), user.as_ref()],
-        &program_id,
-    );
+    let (whitelist_access, bump) =
+        Pubkey::find_program_address(&[client_program.as_ref(), user.as_ref()], &program_id);
     (whitelist_access, bump)
 }
 
