@@ -391,7 +391,7 @@ pub struct PublicWithdraw<'info> {
     escrow_ata: Box<InterfaceAccount<'info, TokenAccount>>,
     #[account(
         init_if_needed,
-        payer = creator,
+        payer = payer,
         associated_token::mint = mint,
         associated_token::authority = recipient,
         associated_token::token_program = token_program
