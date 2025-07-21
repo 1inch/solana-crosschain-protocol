@@ -189,9 +189,7 @@ impl<S: TokenVariant> EscrowVariant<S> for DstProgram {
             InstructionData::data(&cross_chain_escrow_dst::instruction::RescueFunds {
                 hashlock: test_state.hashlock.to_bytes(),
                 order_hash: test_state.order_hash.to_bytes(),
-                escrow_mint: test_state.token,
                 escrow_amount: test_state.test_arguments.escrow_amount,
-                safety_deposit: test_state.test_arguments.safety_deposit,
                 rescue_amount: test_state.test_arguments.rescue_amount,
             });
 

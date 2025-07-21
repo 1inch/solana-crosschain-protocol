@@ -158,7 +158,7 @@ pub fn get_default_testargs(nowsecs: u32) -> TestArgs {
         dutch_auction_data: cross_chain_escrow_src::AuctionData {
             start_time: nowsecs,
             duration: DEFAULT_PERIOD_DURATION,
-            initial_rate_bump: 0,
+            initial_rate_bump: 0.into(),
             points_and_time_deltas: vec![],
         },
         max_cancellation_premium: DEFAULT_ESCROW_AMOUNT.mul(50_u64 * 100).div(100_u64 * 100),
@@ -708,7 +708,6 @@ impl Clone for Wallet {
 
 pub fn get_escrow_addresses<T: EscrowVariant<S>, S: TokenVariant>(
     test_state: &TestStateBase<T, S>,
-    creator: Pubkey,
 ) -> (Pubkey, Pubkey) {
     let program_id = T::get_program_spec().0;
     let hashlock = get_escrow_hashlock(
@@ -720,17 +719,10 @@ pub fn get_escrow_addresses<T: EscrowVariant<S>, S: TokenVariant>(
             b"escrow",
             test_state.order_hash.as_ref(),
             hashlock.as_ref(),
-            creator.as_ref(),
             test_state.taker_wallet.keypair.pubkey().as_ref(),
-            test_state.token.as_ref(),
             test_state
                 .test_arguments
                 .escrow_amount
-                .to_be_bytes()
-                .as_ref(),
-            test_state
-                .test_arguments
-                .safety_deposit
                 .to_be_bytes()
                 .as_ref(),
         ],
@@ -748,8 +740,7 @@ pub fn get_escrow_addresses<T: EscrowVariant<S>, S: TokenVariant>(
 pub fn create_escrow_data<T: EscrowVariant<S>, S: TokenVariant>(
     test_state: &TestStateBase<T, S>,
 ) -> (Pubkey, Pubkey, Transaction) {
-    let (escrow_pda, escrow_ata) =
-        get_escrow_addresses(test_state, test_state.maker_wallet.keypair.pubkey());
+    let (escrow_pda, escrow_ata) = get_escrow_addresses(test_state);
     let transaction: Transaction = T::get_create_tx(test_state, &escrow_pda, &escrow_ata);
 
     (escrow_pda, escrow_ata, transaction)
