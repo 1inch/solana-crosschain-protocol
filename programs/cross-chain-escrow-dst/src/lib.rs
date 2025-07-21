@@ -171,11 +171,8 @@ pub mod cross_chain_escrow_dst {
             "escrow".as_bytes(),
             &ctx.accounts.escrow.order_hash,
             &ctx.accounts.escrow.hashlock,
-            ctx.accounts.escrow.creator.as_ref(),
             ctx.accounts.escrow.recipient.as_ref(),
-            ctx.accounts.escrow.token.as_ref(),
             &ctx.accounts.escrow.amount.to_be_bytes(),
-            &ctx.accounts.escrow.safety_deposit.to_be_bytes(),
             &[ctx.accounts.escrow.bump],
         ];
 
@@ -199,13 +196,10 @@ pub mod cross_chain_escrow_dst {
         ctx: Context<RescueFunds>,
         order_hash: [u8; 32],
         hashlock: [u8; 32],
-        escrow_mint: Pubkey,
         escrow_amount: u64,
-        safety_deposit: u64,
         rescue_amount: u64,
     ) -> Result<()> {
         let recipient_pubkey = ctx.accounts.recipient.key();
-        let creator_pubkey = ctx.accounts.creator.key();
 
         let rescue_start = if !ctx.accounts.escrow.data_is_empty() {
             let escrow_data =
@@ -219,11 +213,8 @@ pub mod cross_chain_escrow_dst {
             "escrow".as_bytes(),
             order_hash.as_ref(),
             hashlock.as_ref(),
-            creator_pubkey.as_ref(),
             recipient_pubkey.as_ref(),
-            escrow_mint.as_ref(),
             &escrow_amount.to_be_bytes(),
-            &safety_deposit.to_be_bytes(),
             &[ctx.bumps.escrow],
         ];
 
@@ -268,11 +259,8 @@ pub struct Create<'info> {
             "escrow".as_bytes(),
             order_hash.as_ref(),
             hashlock.as_ref(),
-            creator.key().as_ref(),
             recipient.as_ref(),
-            mint.key().as_ref(),
             amount.to_be_bytes().as_ref(),
-            safety_deposit.to_be_bytes().as_ref(),
             ],
         bump,
     )]
@@ -314,11 +302,8 @@ pub struct Withdraw<'info> {
             "escrow".as_bytes(),
             escrow.order_hash.as_ref(),
             escrow.hashlock.as_ref(),
-            escrow.creator.as_ref(),
             escrow.recipient.key().as_ref(),
-            mint.key().as_ref(),
             escrow.amount.to_be_bytes().as_ref(),
-            escrow.safety_deposit.to_be_bytes().as_ref(),
         ],
         bump = escrow.bump,
     )]
@@ -371,11 +356,8 @@ pub struct PublicWithdraw<'info> {
             "escrow".as_bytes(),
             escrow.order_hash.as_ref(),
             escrow.hashlock.as_ref(),
-            escrow.creator.as_ref(),
             escrow.recipient.key().as_ref(),
-            mint.key().as_ref(),
             escrow.amount.to_be_bytes().as_ref(),
-            escrow.safety_deposit.to_be_bytes().as_ref(),
         ],
         bump = escrow.bump,
     )]
@@ -414,11 +396,8 @@ pub struct Cancel<'info> {
             "escrow".as_bytes(),
             escrow.order_hash.as_ref(),
             escrow.hashlock.as_ref(),
-            escrow.creator.as_ref(),
             escrow.recipient.key().as_ref(),
-            mint.key().as_ref(),
             escrow.amount.to_be_bytes().as_ref(),
-            escrow.safety_deposit.to_be_bytes().as_ref(),
         ],
         bump = escrow.bump,
     )]
@@ -443,7 +422,7 @@ pub struct Cancel<'info> {
 }
 
 #[derive(Accounts)]
-#[instruction(order_hash: [u8; 32], hashlock: [u8; 32], escrow_mint: Pubkey, escrow_amount: u64, safety_deposit: u64)]
+#[instruction(order_hash: [u8; 32], hashlock: [u8; 32], escrow_amount: u64)]
 pub struct RescueFunds<'info> {
     #[account(
         mut, // Needed because this account receives lamports from closed token account.
@@ -458,11 +437,8 @@ pub struct RescueFunds<'info> {
             "escrow".as_bytes(),
             order_hash.as_ref(),
             hashlock.as_ref(),
-            creator.key().as_ref(),
             recipient.key().as_ref(),
-            escrow_mint.as_ref(),
             escrow_amount.to_be_bytes().as_ref(),
-            safety_deposit.to_be_bytes().as_ref(),
         ],
         bump,
     )]

@@ -222,8 +222,7 @@ run_for_tokens!(
             async fn test_escrow_creation_with_pre_existing_escrow_ata(test_state: &mut TestState) {
                 create_order(test_state).await;
                 prepare_resolvers(test_state, &[test_state.taker_wallet.keypair.pubkey()]).await;
-                let (escrow_pda, _) =
-                    get_escrow_addresses(test_state, test_state.taker_wallet.keypair.pubkey());
+                let (escrow_pda, _) = get_escrow_addresses(test_state);
 
                 let _escrow_ata =
                     <TestState as HasTokenVariant>::Token::initialize_spl_associated_account(
@@ -611,7 +610,7 @@ run_for_tokens!(
                     .client
                     .process_transaction(transaction)
                     .await
-                    .expect_error(ProgramError::Custom(ErrorCode::ConstraintSeeds.into()));
+                    .expect_error(ProgramError::Custom(ErrorCode::ConstraintAssociated.into()));
             }
 
             #[test_context(TestState)]
@@ -932,7 +931,7 @@ run_for_tokens!(
                     .client
                     .process_transaction(transaction)
                     .await
-                    .expect_error(ProgramError::Custom(ErrorCode::ConstraintSeeds.into()));
+                    .expect_error(ProgramError::Custom(ErrorCode::ConstraintAssociated.into()));
             }
         }
 
@@ -1052,7 +1051,7 @@ run_for_tokens!(
                     .client
                     .process_transaction(transaction)
                     .await
-                    .expect_error(ProgramError::Custom(ErrorCode::ConstraintSeeds.into()));
+                    .expect_error(ProgramError::Custom(ErrorCode::ConstraintAssociated.into()));
             }
 
             #[test_context(TestState)]
@@ -1408,7 +1407,7 @@ run_for_tokens!(
                     .client
                     .process_transaction(transaction)
                     .await
-                    .expect_error(ProgramError::Custom(ErrorCode::ConstraintSeeds.into()));
+                    .expect_error(ProgramError::Custom(ErrorCode::ConstraintAssociated.into()));
             }
         }
 

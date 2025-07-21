@@ -174,7 +174,7 @@ pub fn process_payout<'info>(
     recipient: &AccountInfo<'info>,
     recipient_ata: Option<&InterfaceAccount<'info, TokenAccount>>,
     rent_recipient: &AccountInfo<'info>,
-    seeds: [&[u8]; 9],
+    seeds: [&[u8]; 6],
     token_program: &Interface<'info, TokenInterface>,
 ) -> Result<()> {
     if asset_is_native {
