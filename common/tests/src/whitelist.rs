@@ -161,12 +161,12 @@ pub async fn prepare_resolvers_dst<T: EscrowVariant<S>, S: TokenVariant>(
     test_state: &TestStateBase<T, S>,
     resolvers: &[Pubkey],
 ) {
-    prepare_resolvers(test_state, &cross_chain_escrow_dst::ID_CONST, resolvers).await;
+    prepare_resolvers(test_state, &cross_chain_escrow_dst::ID, resolvers).await;
 }
 
 pub async fn prepare_resolvers_src<T: EscrowVariant<S>, S: TokenVariant>(
     test_state: &TestStateBase<T, S>,
     resolvers: &[Pubkey],
 ) {
-    prepare_resolvers(test_state, &cross_chain_escrow_src::ID_CONST, resolvers).await;
+    prepare_resolvers(test_state, &cross_chain_escrow_src::ID, resolvers).await;
 }

@@ -76,7 +76,7 @@ impl<S: TokenVariant> EscrowVariant<S> for SrcProgram {
 
         let (_, taker_ata) = find_user_ata(test_state);
         let (whitelist_access, _) =
-            get_whitelist_access_address(&cross_chain_escrow_src::ID_CONST, &withdrawer.pubkey());
+            get_whitelist_access_address(&cross_chain_escrow_src::ID, &withdrawer.pubkey());
 
         let instruction: Instruction = Instruction {
             program_id: cross_chain_escrow_src::id(),
@@ -151,7 +151,7 @@ impl<S: TokenVariant> EscrowVariant<S> for SrcProgram {
 
         let (order, order_ata) = get_order_addresses(test_state);
         let (whitelist_access, _) = get_whitelist_access_address(
-            &cross_chain_escrow_src::ID_CONST,
+            &cross_chain_escrow_src::ID,
             &test_state.taker_wallet.keypair.pubkey(),
         );
 
@@ -236,7 +236,7 @@ pub fn create_public_escrow_cancel_tx<S: TokenVariant>(
 
     let (maker_ata, _) = find_user_ata(test_state);
     let (whitelist_access, _) =
-        get_whitelist_access_address(&cross_chain_escrow_src::ID_CONST, &canceller.pubkey());
+        get_whitelist_access_address(&cross_chain_escrow_src::ID, &canceller.pubkey());
 
     let instruction: Instruction = Instruction {
         program_id: cross_chain_escrow_src::id(),
@@ -295,7 +295,7 @@ pub fn get_rescue_funds_from_order_tx<S: TokenVariant>(
         });
 
     let (whitelist_access, _) = get_whitelist_access_address(
-        &cross_chain_escrow_src::ID_CONST,
+        &cross_chain_escrow_src::ID,
         &test_state.taker_wallet.keypair.pubkey(),
     );
 
@@ -499,7 +499,7 @@ pub fn get_cancel_order_by_resolver_tx<T: EscrowVariant<S>, S: TokenVariant>(
         &cross_chain_escrow_src::instruction::CancelOrderByResolver { reward_limit },
     );
     let (whitelist_access, _) = get_whitelist_access_address(
-        &cross_chain_escrow_src::ID_CONST,
+        &cross_chain_escrow_src::ID,
         &test_state.taker_wallet.keypair.pubkey(),
     );
 

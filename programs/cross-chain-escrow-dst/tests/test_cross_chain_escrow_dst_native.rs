@@ -394,7 +394,7 @@ mod test_escrow_wrapped_native {
 
         let (escrow, escrow_ata) = create_escrow(test_state).await;
 
-        test_state.taker_wallet.native_token_account = cross_chain_escrow_dst::ID_CONST;
+        test_state.taker_wallet.native_token_account = cross_chain_escrow_dst::ID;
 
         let transaction = DstProgram::get_withdraw_tx(test_state, &escrow, &escrow_ata);
 
@@ -583,7 +583,7 @@ mod test_escrow_wrapped_native {
 
         let (escrow, escrow_ata) = create_escrow(test_state).await;
 
-        test_state.taker_wallet.native_token_account = cross_chain_escrow_dst::ID_CONST;
+        test_state.taker_wallet.native_token_account = cross_chain_escrow_dst::ID;
 
         let transaction =
             DstProgram::get_public_withdraw_tx(test_state, &escrow, &escrow_ata, &withdrawer);

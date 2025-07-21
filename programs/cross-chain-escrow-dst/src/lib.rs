@@ -321,7 +321,7 @@ pub struct PublicWithdraw<'info> {
     #[account(mut)]
     payer: Signer<'info>,
     #[account(
-        seeds = [whitelist::RESOLVER_ACCESS_SEED, ID_CONST.as_ref(), payer.key().as_ref()],
+        seeds = [whitelist::RESOLVER_ACCESS_SEED, ID.as_ref(), payer.key().as_ref()],
         bump = resolver_access.bump,
         seeds::program = whitelist::ID,
     )]
