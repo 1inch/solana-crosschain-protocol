@@ -215,6 +215,21 @@ pub trait TokenVariant {
         signer: &Keypair,
         amount: u64,
     );
+    async fn burn_tokens(
+        ctx: &mut ProgramTestContext,
+        source_ata: &Pubkey,
+        mint: &Pubkey,
+        authority: &Keypair,
+        signer: &Keypair,
+        amount: u64,
+    );
+    async fn close_ata(
+        ctx: &mut ProgramTestContext,
+        closing_account: &Pubkey,
+        dst: &Pubkey,
+        owner: &Pubkey,
+        signer: &Keypair,
+    );
 }
 
 pub struct TokenSPL;
@@ -335,6 +350,64 @@ impl TokenVariant for Token2022 {
             .await
             .unwrap();
     }
+
+    async fn burn_tokens(
+        ctx: &mut ProgramTestContext,
+        source_ata: &Pubkey,
+        mint: &Pubkey,
+        authority: &Keypair,
+        signer: &Keypair,
+        amount: u64,
+    ) {
+        let burn_ix = spl2022_instruction::burn(
+            &spl2022_program_id,
+            source_ata,
+            mint,
+            &authority.pubkey(),
+            &[&authority.pubkey(), &signer.pubkey()],
+            amount,
+        )
+        .unwrap();
+
+        let signers: Vec<&Keypair> = vec![authority, signer];
+        let client = &mut ctx.banks_client;
+        client
+            .process_transaction(Transaction::new_signed_with_payer(
+                &[burn_ix],
+                Some(&ctx.payer.pubkey()),
+                &signers,
+                ctx.last_blockhash,
+            ))
+            .await
+            .unwrap();
+    }
+
+    async fn close_ata(
+        ctx: &mut ProgramTestContext,
+        closing_account: &Pubkey,
+        dst: &Pubkey,
+        owner: &Pubkey,
+        signer: &Keypair,
+    ) {
+        let close_ix = spl2022_instruction::close_account(
+            &spl2022_program_id,
+            closing_account,
+            dst,
+            owner,
+            &[&signer.pubkey()],
+        )
+        .unwrap();
+        let client = &mut ctx.banks_client;
+        client
+            .process_transaction(Transaction::new_signed_with_payer(
+                &[close_ix],
+                Some(&ctx.payer.pubkey()),
+                &[&ctx.payer, signer],
+                ctx.last_blockhash,
+            ))
+            .await
+            .unwrap();
+    }
 }
 
 #[async_trait]
@@ -437,6 +510,64 @@ impl TokenVariant for TokenSPL {
                 &[transfer_ix],
                 Some(&ctx.payer.pubkey()),
                 &signers,
+                ctx.last_blockhash,
+            ))
+            .await
+            .unwrap();
+    }
+
+    async fn burn_tokens(
+        ctx: &mut ProgramTestContext,
+        source_ata: &Pubkey,
+        mint: &Pubkey,
+        authority: &Keypair,
+        signer: &Keypair,
+        amount: u64,
+    ) {
+        let burn_ix = spl_instruction::burn(
+            &spl_program_id,
+            source_ata,
+            mint,
+            &authority.pubkey(),
+            &[&authority.pubkey(), &signer.pubkey()],
+            amount,
+        )
+        .unwrap();
+
+        let signers: Vec<&Keypair> = vec![authority, signer];
+        let client = &mut ctx.banks_client;
+        client
+            .process_transaction(Transaction::new_signed_with_payer(
+                &[burn_ix],
+                Some(&ctx.payer.pubkey()),
+                &signers,
+                ctx.last_blockhash,
+            ))
+            .await
+            .unwrap();
+    }
+
+    async fn close_ata(
+        ctx: &mut ProgramTestContext,
+        closing_account: &Pubkey,
+        dst: &Pubkey,
+        owner: &Pubkey,
+        signer: &Keypair,
+    ) {
+        let close_ix = spl_instruction::close_account(
+            &spl_program_id,
+            closing_account,
+            dst,
+            owner,
+            &[&signer.pubkey()],
+        )
+        .unwrap();
+        let client = &mut ctx.banks_client;
+        client
+            .process_transaction(Transaction::new_signed_with_payer(
+                &[close_ix],
+                Some(&ctx.payer.pubkey()),
+                &[&ctx.payer, signer],
                 ctx.last_blockhash,
             ))
             .await
@@ -790,7 +921,6 @@ impl<T, S> TestStateBase<T, S> {
 
         // Get balances before tx
         let balances_before = get_balances(self, &balance_changes).await;
-
         // Execute transaction
         self.client.process_transaction(tx).await.expect_success();
 

@@ -156,6 +156,62 @@ run_for_tokens!(
 
             #[test_context(TestState)]
             #[tokio::test]
+            async fn test_withdraw_without_recipient_ata(test_state: &mut TestState) {
+                type S = <TestState as HasTokenVariant>::Token;
+                let balance = get_token_balance(
+                    &mut test_state.context,
+                    &test_state.taker_wallet.token_account,
+                )
+                .await;
+                S::burn_tokens(
+                    &mut test_state.context,
+                    &test_state.taker_wallet.token_account,
+                    &test_state.token,
+                    &test_state.taker_wallet.keypair,
+                    &test_state.payer_kp,
+                    balance,
+                )
+                .await;
+                S::close_ata(
+                    &mut test_state.context,
+                    &test_state.taker_wallet.token_account,
+                    &test_state.taker_wallet.keypair.pubkey(),
+                    &test_state.taker_wallet.keypair.pubkey(),
+                    &test_state.taker_wallet.keypair,
+                )
+                .await;
+
+                let (escrow, escrow_ata) = create_escrow(test_state).await;
+
+                let transaction = DstProgram::get_withdraw_tx(test_state, &escrow, &escrow_ata);
+
+                set_time(
+                    &mut test_state.context,
+                    test_state
+                        .test_arguments
+                        .dst_timelocks
+                        .get(Stage::DstWithdrawal)
+                        .unwrap(),
+                );
+
+                test_state
+                    .client
+                    .process_transaction(transaction)
+                    .await
+                    .expect_success();
+
+                assert_eq!(
+                    get_token_balance(
+                        &mut test_state.context,
+                        &test_state.taker_wallet.token_account
+                    )
+                    .await,
+                    test_state.test_arguments.escrow_amount
+                );
+            }
+
+            #[test_context(TestState)]
+            #[tokio::test]
             async fn test_withdraw_with_excess_tokens(test_state: &mut TestState) {
                 let (escrow, escrow_ata) = create_escrow(test_state).await;
                 let transaction = DstProgram::get_withdraw_tx(test_state, &escrow, &escrow_ata);
@@ -267,7 +323,7 @@ run_for_tokens!(
                     .client
                     .process_transaction(transaction)
                     .await
-                    .expect_error(ProgramError::Custom(ErrorCode::ConstraintSeeds.into()));
+                    .expect_error(ProgramError::Custom(ErrorCode::ConstraintTokenMint.into()));
             }
 
             #[test_context(TestState)]
@@ -383,6 +439,68 @@ run_for_tokens!(
                     .await
                     .unwrap()
                     .is_none());
+            }
+
+            #[test_context(TestState)]
+            #[tokio::test]
+            async fn test_public_withdraw_without_recipient_ata(test_state: &mut TestState) {
+                type S = <TestState as HasTokenVariant>::Token;
+                let balance = get_token_balance(
+                    &mut test_state.context,
+                    &test_state.taker_wallet.token_account,
+                )
+                .await;
+                S::burn_tokens(
+                    &mut test_state.context,
+                    &test_state.taker_wallet.token_account,
+                    &test_state.token,
+                    &test_state.taker_wallet.keypair,
+                    &test_state.payer_kp,
+                    balance,
+                )
+                .await;
+                S::close_ata(
+                    &mut test_state.context,
+                    &test_state.taker_wallet.token_account,
+                    &test_state.taker_wallet.keypair.pubkey(),
+                    &test_state.taker_wallet.keypair.pubkey(),
+                    &test_state.taker_wallet.keypair,
+                )
+                .await;
+
+                prepare_resolvers(test_state, &[test_state.maker_wallet.keypair.pubkey()]).await;
+                let (escrow, escrow_ata) = create_escrow(test_state).await;
+
+                let transaction = DstProgram::get_public_withdraw_tx(
+                    test_state,
+                    &escrow,
+                    &escrow_ata,
+                    &test_state.maker_wallet.keypair,
+                );
+
+                set_time(
+                    &mut test_state.context,
+                    test_state
+                        .test_arguments
+                        .dst_timelocks
+                        .get(Stage::DstPublicWithdrawal)
+                        .unwrap(),
+                );
+
+                test_state
+                    .client
+                    .process_transaction(transaction)
+                    .await
+                    .expect_success();
+
+                assert_eq!(
+                    get_token_balance(
+                        &mut test_state.context,
+                        &test_state.taker_wallet.token_account
+                    )
+                    .await,
+                    test_state.test_arguments.escrow_amount
+                );
             }
 
             #[test_context(TestState)]
@@ -588,7 +706,7 @@ run_for_tokens!(
                     .client
                     .process_transaction(transaction)
                     .await
-                    .expect_error(ProgramError::Custom(ErrorCode::ConstraintSeeds.into()));
+                    .expect_error(ProgramError::Custom(ErrorCode::ConstraintTokenMint.into()));
             }
         }
 
