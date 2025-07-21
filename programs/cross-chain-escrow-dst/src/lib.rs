@@ -316,13 +316,15 @@ pub struct Withdraw<'info> {
     )]
     escrow_ata: Box<InterfaceAccount<'info, TokenAccount>>,
     #[account(
-        mut,
+        init_if_needed,
+        payer = creator,
         associated_token::mint = mint,
         associated_token::authority = recipient,
         associated_token::token_program = token_program
     )]
     /// Optional if the token is native
     recipient_ata: Option<Box<InterfaceAccount<'info, TokenAccount>>>,
+    associated_token_program: Program<'info, AssociatedToken>,
     token_program: Interface<'info, TokenInterface>,
     system_program: Program<'info, System>,
 }
@@ -370,13 +372,15 @@ pub struct PublicWithdraw<'info> {
     )]
     escrow_ata: Box<InterfaceAccount<'info, TokenAccount>>,
     #[account(
-        mut,
+        init_if_needed,
+        payer = payer,
         associated_token::mint = mint,
         associated_token::authority = recipient,
         associated_token::token_program = token_program
     )]
     /// Optional if the token is native
     recipient_ata: Option<Box<InterfaceAccount<'info, TokenAccount>>>,
+    associated_token_program: Program<'info, AssociatedToken>,
     token_program: Interface<'info, TokenInterface>,
     system_program: Program<'info, System>,
 }
