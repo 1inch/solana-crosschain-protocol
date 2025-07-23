@@ -191,10 +191,7 @@ impl<S: TokenVariant> EscrowVariant<S> for SrcProgram {
             InstructionData::data(&cross_chain_escrow_src::instruction::RescueFundsForEscrow {
                 hashlock: test_state.hashlock.to_bytes(),
                 order_hash: test_state.order_hash.to_bytes(),
-                maker: test_state.maker_wallet.keypair.pubkey(),
-                token: test_state.token,
                 amount: test_state.test_arguments.escrow_amount,
-                safety_deposit: test_state.test_arguments.safety_deposit,
                 rescue_amount: test_state.test_arguments.rescue_amount,
             });
 

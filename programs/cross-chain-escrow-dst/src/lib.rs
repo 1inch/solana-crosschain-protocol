@@ -1,14 +1,17 @@
 use anchor_lang::prelude::*;
 use anchor_spl::associated_token::{AssociatedToken, ID as ASSOCIATED_TOKEN_PROGRAM_ID};
+use anchor_spl::token::spl_token::native_mint::ID as NATIVE_MINT;
 use anchor_spl::token_interface::{Mint, TokenAccount, TokenInterface};
 pub use common::constants;
 use common::{
     error::EscrowError,
-    escrow::{EscrowBase, EscrowType},
+    escrow::{process_payout, uni_transfer, UniTransferParams},
     timelocks::{Stage, Timelocks},
-    utils,
+    utils::get_current_timestamp,
 };
 use primitive_types::U256;
+
+mod utils;
 
 declare_id!("GveV3ToLhvRmeq1Fyg3BMkNetZuG9pZEp4uBGWLrTjve");
 
@@ -29,7 +32,7 @@ pub mod cross_chain_escrow_dst {
         asset_is_native: bool,
     ) -> Result<()> {
         let updated_timelocks =
-            Timelocks(U256(timelocks)).set_deployed_at(utils::get_current_timestamp()?);
+            Timelocks(U256(timelocks)).set_deployed_at(get_current_timestamp()?);
         let cancellation_start = updated_timelocks.get(Stage::DstCancellation)?;
 
         require!(
@@ -37,19 +40,56 @@ pub mod cross_chain_escrow_dst {
             EscrowError::InvalidCreationTime
         );
 
-        common::escrow::create(
-            EscrowDst::INIT_SPACE + constants::DISCRIMINATOR_BYTES,
-            EscrowType::Dst,
-            &ctx.accounts.creator,
-            asset_is_native,
-            &ctx.accounts.escrow_ata,
-            ctx.accounts.creator_ata.as_deref(),
-            &ctx.accounts.mint,
-            &ctx.accounts.token_program,
-            &ctx.accounts.system_program,
-            amount,
-            safety_deposit,
-        )?;
+        // TODO: Verify that safety_deposit is enough to cover public_withdraw and public_cancel methods
+        require!(
+            amount != 0 && safety_deposit != 0,
+            EscrowError::ZeroAmountOrDeposit
+        );
+
+        // Verify that safety_deposit is less than escrow rent_exempt_reserve
+        let rent_exempt_reserve =
+            Rent::get()?.minimum_balance(EscrowDst::INIT_SPACE + constants::DISCRIMINATOR_BYTES);
+        require!(
+            safety_deposit <= rent_exempt_reserve,
+            EscrowError::SafetyDepositTooLarge
+        );
+
+        require!(
+            ctx.accounts.mint.key() == NATIVE_MINT || !asset_is_native,
+            EscrowError::InconsistentNativeTrait
+        );
+
+        // Check if token is native (WSOL) and is expected to be wrapped
+        if asset_is_native {
+            // Transfer native tokens from creator to escrow_ata and wrap
+            uni_transfer(
+                &UniTransferParams::NativeTransfer {
+                    from: ctx.accounts.creator.to_account_info(),
+                    to: ctx.accounts.escrow_ata.to_account_info(),
+                    amount,
+                    program: ctx.accounts.system_program.clone(),
+                },
+                None,
+            )?;
+        } else {
+            // Do SPL token transfer
+            uni_transfer(
+                &UniTransferParams::TokenTransfer {
+                    from: ctx
+                        .accounts
+                        .creator_ata
+                        .as_ref()
+                        .ok_or(EscrowError::MissingCreatorAta)?
+                        .to_account_info(),
+                    authority: ctx.accounts.creator.to_account_info(),
+                    to: ctx.accounts.escrow_ata.to_account_info(),
+                    mint: *ctx.accounts.mint.clone(),
+                    amount,
+                    program: ctx.accounts.token_program.clone(),
+                },
+                None,
+            )?;
+        }
 
         ctx.accounts.escrow.set_inner(EscrowDst {
             order_hash,
@@ -68,22 +108,18 @@ pub mod cross_chain_escrow_dst {
     }
 
     pub fn withdraw(ctx: Context<Withdraw>, secret: [u8; 32]) -> Result<()> {
-        let now = utils::get_current_timestamp()?;
+        let now = get_current_timestamp()?;
+        let timelocks = Timelocks(U256(ctx.accounts.escrow.timelocks));
         require!(
-            now >= ctx.accounts.escrow.timelocks().get(Stage::DstWithdrawal)?
-                && now
-                    < ctx
-                        .accounts
-                        .escrow
-                        .timelocks()
-                        .get(Stage::DstCancellation)?,
+            now >= timelocks.get(Stage::DstWithdrawal)?
+                && now < timelocks.get(Stage::DstCancellation)?,
             EscrowError::InvalidTime
         );
 
         // In a standard withdrawal, the creator receives the entire rent amount, including the safety deposit,
         // because they initially covered the entire rent during escrow creation.
 
-        common::escrow::withdraw(
+        utils::withdraw(
             &ctx.accounts.escrow,
             ctx.accounts.escrow.bump,
             &ctx.accounts.escrow_ata,
@@ -98,26 +134,18 @@ pub mod cross_chain_escrow_dst {
     }
 
     pub fn public_withdraw(ctx: Context<PublicWithdraw>, secret: [u8; 32]) -> Result<()> {
-        let now = utils::get_current_timestamp()?;
+        let now = get_current_timestamp()?;
+        let timelocks = Timelocks(U256(ctx.accounts.escrow.timelocks));
         require!(
-            now >= ctx
-                .accounts
-                .escrow
-                .timelocks()
-                .get(Stage::DstPublicWithdrawal)?
-                && now
-                    < ctx
-                        .accounts
-                        .escrow
-                        .timelocks()
-                        .get(Stage::DstCancellation)?,
+            now >= timelocks.get(Stage::DstPublicWithdrawal)?
+                && now < timelocks.get(Stage::DstCancellation)?,
             EscrowError::InvalidTime
         );
 
         // In a public withdrawal, the creator receives the rent minus the safety deposit
         // while the safety deposit is awarded to the payer who executed the public withdrawal
 
-        common::escrow::withdraw(
+        utils::withdraw(
             &ctx.accounts.escrow,
             ctx.accounts.escrow.bump,
             &ctx.accounts.escrow_ata,
@@ -132,49 +160,51 @@ pub mod cross_chain_escrow_dst {
     }
 
     pub fn cancel(ctx: Context<Cancel>) -> Result<()> {
-        let now = utils::get_current_timestamp()?;
+        let now = get_current_timestamp()?;
+        let timelocks = Timelocks(U256(ctx.accounts.escrow.timelocks));
         require!(
-            now >= ctx
-                .accounts
-                .escrow
-                .timelocks()
-                .get(Stage::DstCancellation)?,
+            now >= timelocks.get(Stage::DstCancellation)?,
             EscrowError::InvalidTime
         );
 
-        common::escrow::cancel(
-            &ctx.accounts.escrow,
-            ctx.accounts.escrow.bump,
-            &ctx.accounts.escrow_ata,
-            ctx.accounts.creator_ata.as_deref(),
+        let seeds = [
+            "escrow".as_bytes(),
+            &ctx.accounts.escrow.order_hash,
+            &ctx.accounts.escrow.hashlock,
+            ctx.accounts.escrow.recipient.as_ref(),
+            &ctx.accounts.escrow.amount.to_be_bytes(),
+            &[ctx.accounts.escrow.bump],
+        ];
+
+        process_payout(
             &ctx.accounts.mint,
+            ctx.accounts.escrow.asset_is_native,
+            ctx.accounts.escrow.amount,
+            &ctx.accounts.escrow.to_account_info(),
+            &ctx.accounts.escrow_ata,
+            &ctx.accounts.creator,
+            ctx.accounts.creator_ata.as_deref(),
+            &ctx.accounts.creator,
+            seeds,
             &ctx.accounts.token_program,
-            &ctx.accounts.creator,
-            &ctx.accounts.creator,
-            &ctx.accounts.creator,
-        )
+        )?;
+
+        Ok(())
     }
 
     pub fn rescue_funds(
         ctx: Context<RescueFunds>,
         order_hash: [u8; 32],
         hashlock: [u8; 32],
-        escrow_mint: Pubkey,
         escrow_amount: u64,
-        safety_deposit: u64,
         rescue_amount: u64,
     ) -> Result<()> {
         let recipient_pubkey = ctx.accounts.recipient.key();
-        let creator_pubkey = ctx.accounts.creator.key();
 
         let rescue_start = if !ctx.accounts.escrow.data_is_empty() {
             let escrow_data =
                 EscrowDst::try_deserialize(&mut &ctx.accounts.escrow.data.borrow()[..])?;
-            Some(
-                escrow_data
-                    .timelocks()
-                    .rescue_start(constants::RESCUE_DELAY)?,
-            )
+            Some(Timelocks(U256(escrow_data.timelocks)).rescue_start(constants::RESCUE_DELAY)?)
         } else {
             None
         };
@@ -183,11 +213,8 @@ pub mod cross_chain_escrow_dst {
             "escrow".as_bytes(),
             order_hash.as_ref(),
             hashlock.as_ref(),
-            creator_pubkey.as_ref(),
             recipient_pubkey.as_ref(),
-            escrow_mint.as_ref(),
             &escrow_amount.to_be_bytes(),
-            &safety_deposit.to_be_bytes(),
             &[ctx.bumps.escrow],
         ];
 
@@ -232,11 +259,8 @@ pub struct Create<'info> {
             "escrow".as_bytes(),
             order_hash.as_ref(),
             hashlock.as_ref(),
-            creator.key().as_ref(),
             recipient.as_ref(),
-            mint.key().as_ref(),
             amount.to_be_bytes().as_ref(),
-            safety_deposit.to_be_bytes().as_ref(),
             ],
         bump,
     )]
@@ -273,15 +297,13 @@ pub struct Withdraw<'info> {
     mint: Box<InterfaceAccount<'info, Mint>>,
     #[account(
         mut,
+        close = creator,
         seeds = [
             "escrow".as_bytes(),
             escrow.order_hash.as_ref(),
             escrow.hashlock.as_ref(),
-            escrow.creator.as_ref(),
             escrow.recipient.key().as_ref(),
-            mint.key().as_ref(),
             escrow.amount.to_be_bytes().as_ref(),
-            escrow.safety_deposit.to_be_bytes().as_ref(),
         ],
         bump = escrow.bump,
     )]
@@ -294,13 +316,15 @@ pub struct Withdraw<'info> {
     )]
     escrow_ata: Box<InterfaceAccount<'info, TokenAccount>>,
     #[account(
-        mut,
+        init_if_needed,
+        payer = creator,
         associated_token::mint = mint,
         associated_token::authority = recipient,
         associated_token::token_program = token_program
     )]
     /// Optional if the token is native
     recipient_ata: Option<Box<InterfaceAccount<'info, TokenAccount>>>,
+    associated_token_program: Program<'info, AssociatedToken>,
     token_program: Interface<'info, TokenInterface>,
     system_program: Program<'info, System>,
 }
@@ -329,15 +353,13 @@ pub struct PublicWithdraw<'info> {
     mint: Box<InterfaceAccount<'info, Mint>>,
     #[account(
         mut,
+        close = creator,
         seeds = [
             "escrow".as_bytes(),
             escrow.order_hash.as_ref(),
             escrow.hashlock.as_ref(),
-            escrow.creator.as_ref(),
             escrow.recipient.key().as_ref(),
-            mint.key().as_ref(),
             escrow.amount.to_be_bytes().as_ref(),
-            escrow.safety_deposit.to_be_bytes().as_ref(),
         ],
         bump = escrow.bump,
     )]
@@ -350,13 +372,15 @@ pub struct PublicWithdraw<'info> {
     )]
     escrow_ata: Box<InterfaceAccount<'info, TokenAccount>>,
     #[account(
-        mut,
+        init_if_needed,
+        payer = payer,
         associated_token::mint = mint,
         associated_token::authority = recipient,
         associated_token::token_program = token_program
     )]
     /// Optional if the token is native
     recipient_ata: Option<Box<InterfaceAccount<'info, TokenAccount>>>,
+    associated_token_program: Program<'info, AssociatedToken>,
     token_program: Interface<'info, TokenInterface>,
     system_program: Program<'info, System>,
 }
@@ -371,15 +395,13 @@ pub struct Cancel<'info> {
     mint: Box<InterfaceAccount<'info, Mint>>,
     #[account(
         mut,
+        close = creator,
         seeds = [
             "escrow".as_bytes(),
             escrow.order_hash.as_ref(),
             escrow.hashlock.as_ref(),
-            escrow.creator.as_ref(),
             escrow.recipient.key().as_ref(),
-            mint.key().as_ref(),
             escrow.amount.to_be_bytes().as_ref(),
-            escrow.safety_deposit.to_be_bytes().as_ref(),
         ],
         bump = escrow.bump,
     )]
@@ -404,7 +426,7 @@ pub struct Cancel<'info> {
 }
 
 #[derive(Accounts)]
-#[instruction(order_hash: [u8; 32], hashlock: [u8; 32], escrow_mint: Pubkey, escrow_amount: u64, safety_deposit: u64)]
+#[instruction(order_hash: [u8; 32], hashlock: [u8; 32], escrow_amount: u64)]
 pub struct RescueFunds<'info> {
     #[account(
         mut, // Needed because this account receives lamports from closed token account.
@@ -419,11 +441,8 @@ pub struct RescueFunds<'info> {
             "escrow".as_bytes(),
             order_hash.as_ref(),
             hashlock.as_ref(),
-            creator.key().as_ref(),
             recipient.key().as_ref(),
-            escrow_mint.as_ref(),
             escrow_amount.to_be_bytes().as_ref(),
-            safety_deposit.to_be_bytes().as_ref(),
         ],
         bump,
     )]
@@ -449,56 +468,14 @@ pub struct RescueFunds<'info> {
 #[account]
 #[derive(InitSpace)]
 pub struct EscrowDst {
-    order_hash: [u8; 32],
-    hashlock: [u8; 32],
-    creator: Pubkey,
-    recipient: Pubkey,
-    token: Pubkey,
-    asset_is_native: bool,
-    amount: u64,
-    safety_deposit: u64,
-    timelocks: [u64; 4],
-    bump: u8,
-}
-
-impl EscrowBase for EscrowDst {
-    fn order_hash(&self) -> &[u8; 32] {
-        &self.order_hash
-    }
-
-    fn hashlock(&self) -> &[u8; 32] {
-        &self.hashlock
-    }
-
-    fn creator(&self) -> &Pubkey {
-        &self.creator
-    }
-
-    fn recipient(&self) -> &Pubkey {
-        &self.recipient
-    }
-
-    fn token(&self) -> &Pubkey {
-        &self.token
-    }
-
-    fn amount(&self) -> u64 {
-        self.amount
-    }
-
-    fn safety_deposit(&self) -> u64 {
-        self.safety_deposit
-    }
-
-    fn timelocks(&self) -> Timelocks {
-        Timelocks(U256(self.timelocks))
-    }
-
-    fn asset_is_native(&self) -> bool {
-        self.asset_is_native
-    }
-
-    fn escrow_type(&self) -> EscrowType {
-        EscrowType::Dst
-    }
+    pub order_hash: [u8; 32],
+    pub hashlock: [u8; 32],
+    pub creator: Pubkey,
+    pub recipient: Pubkey,
+    pub token: Pubkey,
+    pub asset_is_native: bool,
+    pub amount: u64,
+    pub safety_deposit: u64,
+    pub timelocks: [u64; 4],
+    pub bump: u8,
 }
