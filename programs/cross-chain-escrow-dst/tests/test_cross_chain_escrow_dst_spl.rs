@@ -559,7 +559,7 @@ run_for_tokens!(
                 .await;
 
                 let withdrawer = Keypair::new();
-                prepare_resolvers(test_state, &[withdrawer.pubkey()]).await;
+                prepare_resolvers_dst(test_state, &[withdrawer.pubkey()]).await;
                 transfer_lamports(
                     &mut test_state.context,
                     WALLET_DEFAULT_LAMPORTS,
