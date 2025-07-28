@@ -759,6 +759,9 @@ pub struct Withdraw<'info> {
         constraint = taker.key() == escrow.taker @ EscrowError::InvalidAccount,
     )]
     taker: Signer<'info>,
+    #[account(
+        constraint = mint.key() == escrow.token @ EscrowError::InvalidMint
+    )]
     mint: Box<InterfaceAccount<'info, Mint>>,
     #[account(
         mut,
@@ -807,6 +810,9 @@ pub struct PublicWithdraw<'info> {
         seeds::program = whitelist::ID,
     )]
     resolver_access: Account<'info, whitelist::ResolverAccess>,
+    #[account(
+        constraint = mint.key() == escrow.token @ EscrowError::InvalidMint
+    )]
     mint: Box<InterfaceAccount<'info, Mint>>,
     #[account(
         mut,
@@ -852,6 +858,9 @@ pub struct CancelEscrow<'info> {
         constraint = maker.key() == escrow.maker @ EscrowError::InvalidAccount
     )]
     maker: AccountInfo<'info>,
+    #[account(
+        constraint = mint.key() == escrow.token @ EscrowError::InvalidMint
+    )]
     mint: Box<InterfaceAccount<'info, Mint>>,
     #[account(
         mut,
@@ -899,6 +908,9 @@ pub struct PublicCancelEscrow<'info> {
     )]
     /// CHECK: this account is used only to receive lamports and to check its pubkey to match the one stored in the escrow account
     maker: AccountInfo<'info>,
+    #[account(
+        constraint = mint.key() == escrow.token @ EscrowError::InvalidMint
+    )]
     mint: Box<InterfaceAccount<'info, Mint>>,
     #[account(mut)]
     payer: Signer<'info>,
