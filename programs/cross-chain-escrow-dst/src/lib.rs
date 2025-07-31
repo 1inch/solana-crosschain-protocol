@@ -59,9 +59,11 @@ pub mod cross_chain_escrow_dst {
             EscrowError::InconsistentNativeTrait
         );
 
-        // Check if token is native (WSOL) and is expected to be wrapped
+        // Check if token is native (SOL)
         if asset_is_native {
-            // Transfer native tokens from creator to escrow_ata and wrap
+            // Transfer native tokens from creator to escrow_ata. Wrapping is not required
+            // because the protocol must return the tokens in the same form in which they were received.
+            // Therefore, there is no point in performing unnecessary wrapping/unwrapping of tokens.
             uni_transfer(
                 &UniTransferParams::NativeTransfer {
                     from: ctx.accounts.creator.to_account_info(),
@@ -72,7 +74,7 @@ pub mod cross_chain_escrow_dst {
                 None,
             )?;
         } else {
-            // Do SPL token transfer
+            // Transfer SPL tokens (WSOL included)
             uni_transfer(
                 &UniTransferParams::TokenTransfer {
                     from: ctx
