@@ -327,6 +327,44 @@ run_for_tokens!(
 
             #[test_context(TestState)]
             #[tokio::test]
+            async fn test_withdraw_fails_with_fake_escrow_ata(test_state: &mut TestState) {
+                let (escrow, _) = create_escrow(test_state).await;
+
+                type S = <TestState as HasTokenVariant>::Token;
+                test_state.token = S::deploy_spl_token(&mut test_state.context).await.pubkey();
+                let fake_escrow_ata = S::initialize_spl_associated_account(
+                    &mut test_state.context,
+                    &test_state.token,
+                    &escrow,
+                )
+                .await;
+                test_state.taker_wallet.token_account = S::initialize_spl_associated_account(
+                    &mut test_state.context,
+                    &test_state.token,
+                    &test_state.taker_wallet.keypair.pubkey(),
+                )
+                .await;
+                S::mint_spl_tokens(
+                    &mut test_state.context,
+                    &test_state.token,
+                    &test_state.taker_wallet.token_account,
+                    &test_state.payer_kp.pubkey(),
+                    &test_state.payer_kp,
+                    test_state.test_arguments.rescue_amount,
+                )
+                .await;
+
+                let transaction =
+                    DstProgram::get_withdraw_tx(test_state, &escrow, &fake_escrow_ata);
+                test_state
+                    .client
+                    .process_transaction(transaction)
+                    .await
+                    .expect_error(ProgramError::Custom(EscrowError::InvalidMint.into()));
+            }
+
+            #[test_context(TestState)]
+            #[tokio::test]
             async fn test_withdraw_fails_if_withdrawal_duration_overflows(
                 test_state: &mut TestState,
             ) {
@@ -805,7 +843,7 @@ run_for_tokens!(
                     .client
                     .process_transaction(transaction)
                     .await
-                    .expect_error(ProgramError::Custom(ErrorCode::ConstraintAssociated.into()));
+                    .expect_error(ProgramError::Custom(EscrowError::InvalidMint.into()));
             }
         }
         mod test_escrow_rescue_funds {

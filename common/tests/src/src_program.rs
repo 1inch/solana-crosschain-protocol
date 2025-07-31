@@ -217,6 +217,10 @@ impl<S: TokenVariant> EscrowVariant<S> for SrcProgram {
     fn get_escrow_data_len() -> usize {
         DEFAULT_SRC_ESCROW_SIZE
     }
+
+    fn get_escrow_creator_wallet(test_state: &TestState<S>) -> Wallet {
+        test_state.taker_wallet.clone()
+    }
 }
 
 pub fn create_public_escrow_cancel_tx<S: TokenVariant>(

@@ -26,7 +26,7 @@ pub fn withdraw<'info>(
         "escrow".as_bytes(),
         &escrow.order_hash,
         &escrow.hashlock,
-        escrow.recipient.as_ref(),
+        escrow.creator.as_ref(),
         &escrow.amount.to_be_bytes(),
         &[escrow_bump],
     ];

@@ -219,4 +219,8 @@ impl<S: TokenVariant> EscrowVariant<S> for DstProgram {
     fn get_escrow_data_len() -> usize {
         DEFAULT_DST_ESCROW_SIZE
     }
+
+    fn get_escrow_creator_wallet(test_state: &TestState<S>) -> Wallet {
+        test_state.maker_wallet.clone()
+    }
 }

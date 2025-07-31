@@ -171,7 +171,7 @@ pub mod cross_chain_escrow_dst {
             "escrow".as_bytes(),
             &ctx.accounts.escrow.order_hash,
             &ctx.accounts.escrow.hashlock,
-            ctx.accounts.escrow.recipient.as_ref(),
+            ctx.accounts.escrow.creator.as_ref(),
             &ctx.accounts.escrow.amount.to_be_bytes(),
             &[ctx.accounts.escrow.bump],
         ];
@@ -199,7 +199,7 @@ pub mod cross_chain_escrow_dst {
         escrow_amount: u64,
         rescue_amount: u64,
     ) -> Result<()> {
-        let recipient_pubkey = ctx.accounts.recipient.key();
+        let creator_pubkey = ctx.accounts.creator.key();
 
         let rescue_start = if !ctx.accounts.escrow.data_is_empty() {
             let escrow_data =
@@ -213,7 +213,7 @@ pub mod cross_chain_escrow_dst {
             "escrow".as_bytes(),
             order_hash.as_ref(),
             hashlock.as_ref(),
-            recipient_pubkey.as_ref(),
+            creator_pubkey.as_ref(),
             &escrow_amount.to_be_bytes(),
             &[ctx.bumps.escrow],
         ];
@@ -259,7 +259,7 @@ pub struct Create<'info> {
             "escrow".as_bytes(),
             order_hash.as_ref(),
             hashlock.as_ref(),
-            recipient.as_ref(),
+            creator.key().as_ref(),
             amount.to_be_bytes().as_ref(),
             ],
         bump,
@@ -294,6 +294,7 @@ pub struct Withdraw<'info> {
         mut, // Needed because this account receives lamports if asset is native
         constraint = recipient.key() == escrow.recipient @ EscrowError::InvalidAccount)]
     recipient: AccountInfo<'info>,
+    #[account(constraint = mint.key() == escrow.token @ EscrowError::InvalidMint)]
     mint: Box<InterfaceAccount<'info, Mint>>,
     #[account(
         mut,
@@ -302,7 +303,7 @@ pub struct Withdraw<'info> {
             "escrow".as_bytes(),
             escrow.order_hash.as_ref(),
             escrow.hashlock.as_ref(),
-            escrow.recipient.key().as_ref(),
+            escrow.creator.key().as_ref(),
             escrow.amount.to_be_bytes().as_ref(),
         ],
         bump = escrow.bump,
@@ -350,6 +351,7 @@ pub struct PublicWithdraw<'info> {
         seeds::program = whitelist::ID,
     )]
     resolver_access: Account<'info, whitelist::ResolverAccess>,
+    #[account(constraint = mint.key() == escrow.token @ EscrowError::InvalidMint)]
     mint: Box<InterfaceAccount<'info, Mint>>,
     #[account(
         mut,
@@ -358,7 +360,7 @@ pub struct PublicWithdraw<'info> {
             "escrow".as_bytes(),
             escrow.order_hash.as_ref(),
             escrow.hashlock.as_ref(),
-            escrow.recipient.key().as_ref(),
+            escrow.creator.key().as_ref(),
             escrow.amount.to_be_bytes().as_ref(),
         ],
         bump = escrow.bump,
@@ -392,6 +394,7 @@ pub struct Cancel<'info> {
         constraint = creator.key() == escrow.creator @ EscrowError::InvalidAccount
     )]
     creator: Signer<'info>,
+    #[account(constraint = mint.key() == escrow.token @ EscrowError::InvalidMint)]
     mint: Box<InterfaceAccount<'info, Mint>>,
     #[account(
         mut,
@@ -400,7 +403,7 @@ pub struct Cancel<'info> {
             "escrow".as_bytes(),
             escrow.order_hash.as_ref(),
             escrow.hashlock.as_ref(),
-            escrow.recipient.key().as_ref(),
+            escrow.creator.key().as_ref(),
             escrow.amount.to_be_bytes().as_ref(),
         ],
         bump = escrow.bump,
@@ -441,7 +444,7 @@ pub struct RescueFunds<'info> {
             "escrow".as_bytes(),
             order_hash.as_ref(),
             hashlock.as_ref(),
-            recipient.key().as_ref(),
+            creator.key().as_ref(),
             escrow_amount.to_be_bytes().as_ref(),
         ],
         bump,

@@ -612,6 +612,8 @@ pub trait EscrowVariant<S: TokenVariant> {
     ) -> Transaction;
 
     fn get_escrow_data_len() -> usize;
+
+    fn get_escrow_creator_wallet(test_state: &TestStateBase<Self, S>) -> Wallet;
 }
 
 impl<T, S> AsyncTestContext for TestStateBase<T, S>
@@ -719,7 +721,10 @@ pub fn get_escrow_addresses<T: EscrowVariant<S>, S: TokenVariant>(
             b"escrow",
             test_state.order_hash.as_ref(),
             hashlock.as_ref(),
-            test_state.taker_wallet.keypair.pubkey().as_ref(),
+            T::get_escrow_creator_wallet(test_state)
+                .keypair
+                .pubkey()
+                .as_ref(),
             test_state
                 .test_arguments
                 .escrow_amount
