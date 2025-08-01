@@ -162,8 +162,8 @@ pub mod cross_chain_escrow_src {
     pub fn create_escrow(
         ctx: Context<CreateEscrow>,
         amount: u64,
-        dutch_auction_data: AuctionData,
         merkle_proof: Option<MerkleProof>,
+        dutch_auction_data: AuctionData,
     ) -> Result<()> {
         let order = &mut ctx.accounts.order;
 
@@ -676,7 +676,7 @@ pub struct Create<'info> {
 }
 
 #[derive(Accounts)]
-#[instruction(amount: u64, dutch_auction_data: AuctionData, merkle_proof: Option<MerkleProof>)]
+#[instruction(amount: u64, merkle_proof: Option<MerkleProof>)]
 pub struct CreateEscrow<'info> {
     #[account(mut)]
     taker: Signer<'info>,

@@ -235,7 +235,7 @@ pub mod cross_chain_escrow_dst {
 }
 
 #[derive(Accounts)]
-#[instruction(order_hash: [u8; 32], hashlock: [u8; 32], amount: u64, safety_deposit: u64, recipient: Pubkey)]
+#[instruction(order_hash: [u8; 32], hashlock: [u8; 32], amount: u64)]
 pub struct Create<'info> {
     /// Puts tokens into escrow
     #[account(
