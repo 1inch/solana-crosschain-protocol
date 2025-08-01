@@ -996,7 +996,7 @@ pub struct CancelOrder<'info> {
 #[derive(Accounts)]
 pub struct CancelOrderbyResolver<'info> {
     /// Account that cancels the escrow
-    #[account(mut, signer)]
+    #[account(mut)]
     resolver: Signer<'info>,
     #[account(
         seeds = [whitelist::RESOLVER_ACCESS_SEED, resolver.key().as_ref()],
