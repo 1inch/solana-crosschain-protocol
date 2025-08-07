@@ -1191,15 +1191,15 @@ pub struct EscrowSrc {
 
 fn get_dst_amount(dst_amount: [u64; 4], data: &AuctionData) -> Result<[u64; 4]> {
     let rate_bump = calculate_rate_bump(Clock::get()?.unix_timestamp as u64, data);
-    let multiplier = constants::BASE_1E5 + rate_bump;
+    let multiplier = constants::BASE_1E7 + rate_bump;
 
     let result = U256(dst_amount)
         .checked_mul(U256::from(multiplier))
         .expect("Overflow when multiplying destination amount with rate bump")
-        .checked_add(U256::from(constants::BASE_1E5 - 1)) // To ensure rounding up
-        .expect("Overflow when adding BASE_1E5 - 1")
-        .checked_div(U256::from(constants::BASE_1E5))
-        .expect("Overflow when dividing by BASE_1E5");
+        .checked_add(U256::from(constants::BASE_1E7 - 1)) // To ensure rounding up
+        .expect("Overflow when adding BASE_1E7 - 1")
+        .checked_div(U256::from(constants::BASE_1E7))
+        .expect("Overflow when dividing by BASE_1E7");
     Ok(result.0)
 }
 

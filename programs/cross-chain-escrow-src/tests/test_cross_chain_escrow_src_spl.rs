@@ -203,8 +203,8 @@ run_for_tokens!(
 
             const AUCTION_START_OFFSET: u32 = 250;
             const AUCTION_DURATION: u32 = 1000;
-            const INITIAL_RATE_BUMP: u32 = 10_000; // 10%
-            const INTERMEDIATE_RATE_BUMP: u32 = 9_000; // 9%
+            const INITIAL_RATE_BUMP: u32 = 1_000_000; // 10%
+            const INTERMEDIATE_RATE_BUMP: u32 = 900_000; // 9%
             const INTERMEDIATE_TIME_DELTA: u16 = 500;
             const EXPECTED_MULTIPLIER_NUMERATOR: u64 = 1095;
             const EXPECTED_MULTIPLIER_DENOMINATOR: u64 = 1000;
