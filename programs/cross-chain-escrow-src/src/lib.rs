@@ -383,11 +383,6 @@ pub mod cross_chain_escrow_src {
         let order = &ctx.accounts.order;
 
         require!(
-            ctx.accounts.mint.key() == NATIVE_MINT || !order.asset_is_native,
-            EscrowError::InconsistentNativeTrait
-        );
-
-        require!(
             order.asset_is_native == ctx.accounts.creator_ata.is_none(),
             EscrowError::InconsistentNativeTrait
         );
