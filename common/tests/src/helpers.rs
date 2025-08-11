@@ -158,7 +158,7 @@ pub fn get_default_testargs(nowsecs: u32) -> TestArgs {
         dutch_auction_data: cross_chain_escrow_src::AuctionData {
             start_time: nowsecs,
             duration: DEFAULT_PERIOD_DURATION,
-            initial_rate_bump: 0,
+            initial_rate_bump: 0.into(),
             points_and_time_deltas: vec![],
         },
         max_cancellation_premium: DEFAULT_ESCROW_AMOUNT.mul(50_u64 * 100).div(100_u64 * 100),
@@ -214,6 +214,21 @@ pub trait TokenVariant {
         owner: &Pubkey,
         signer: &Keypair,
         amount: u64,
+    );
+    async fn burn_tokens(
+        ctx: &mut ProgramTestContext,
+        source_ata: &Pubkey,
+        mint: &Pubkey,
+        authority: &Keypair,
+        signer: &Keypair,
+        amount: u64,
+    );
+    async fn close_ata(
+        ctx: &mut ProgramTestContext,
+        closing_account: &Pubkey,
+        dst: &Pubkey,
+        owner: &Pubkey,
+        signer: &Keypair,
     );
 }
 
@@ -335,6 +350,64 @@ impl TokenVariant for Token2022 {
             .await
             .unwrap();
     }
+
+    async fn burn_tokens(
+        ctx: &mut ProgramTestContext,
+        source_ata: &Pubkey,
+        mint: &Pubkey,
+        authority: &Keypair,
+        signer: &Keypair,
+        amount: u64,
+    ) {
+        let burn_ix = spl2022_instruction::burn(
+            &spl2022_program_id,
+            source_ata,
+            mint,
+            &authority.pubkey(),
+            &[&authority.pubkey(), &signer.pubkey()],
+            amount,
+        )
+        .unwrap();
+
+        let signers: Vec<&Keypair> = vec![authority, signer];
+        let client = &mut ctx.banks_client;
+        client
+            .process_transaction(Transaction::new_signed_with_payer(
+                &[burn_ix],
+                Some(&ctx.payer.pubkey()),
+                &signers,
+                ctx.last_blockhash,
+            ))
+            .await
+            .unwrap();
+    }
+
+    async fn close_ata(
+        ctx: &mut ProgramTestContext,
+        closing_account: &Pubkey,
+        dst: &Pubkey,
+        owner: &Pubkey,
+        signer: &Keypair,
+    ) {
+        let close_ix = spl2022_instruction::close_account(
+            &spl2022_program_id,
+            closing_account,
+            dst,
+            owner,
+            &[&signer.pubkey()],
+        )
+        .unwrap();
+        let client = &mut ctx.banks_client;
+        client
+            .process_transaction(Transaction::new_signed_with_payer(
+                &[close_ix],
+                Some(&ctx.payer.pubkey()),
+                &[&ctx.payer, signer],
+                ctx.last_blockhash,
+            ))
+            .await
+            .unwrap();
+    }
 }
 
 #[async_trait]
@@ -442,6 +515,64 @@ impl TokenVariant for TokenSPL {
             .await
             .unwrap();
     }
+
+    async fn burn_tokens(
+        ctx: &mut ProgramTestContext,
+        source_ata: &Pubkey,
+        mint: &Pubkey,
+        authority: &Keypair,
+        signer: &Keypair,
+        amount: u64,
+    ) {
+        let burn_ix = spl_instruction::burn(
+            &spl_program_id,
+            source_ata,
+            mint,
+            &authority.pubkey(),
+            &[&authority.pubkey(), &signer.pubkey()],
+            amount,
+        )
+        .unwrap();
+
+        let signers: Vec<&Keypair> = vec![authority, signer];
+        let client = &mut ctx.banks_client;
+        client
+            .process_transaction(Transaction::new_signed_with_payer(
+                &[burn_ix],
+                Some(&ctx.payer.pubkey()),
+                &signers,
+                ctx.last_blockhash,
+            ))
+            .await
+            .unwrap();
+    }
+
+    async fn close_ata(
+        ctx: &mut ProgramTestContext,
+        closing_account: &Pubkey,
+        dst: &Pubkey,
+        owner: &Pubkey,
+        signer: &Keypair,
+    ) {
+        let close_ix = spl_instruction::close_account(
+            &spl_program_id,
+            closing_account,
+            dst,
+            owner,
+            &[&signer.pubkey()],
+        )
+        .unwrap();
+        let client = &mut ctx.banks_client;
+        client
+            .process_transaction(Transaction::new_signed_with_payer(
+                &[close_ix],
+                Some(&ctx.payer.pubkey()),
+                &[&ctx.payer, signer],
+                ctx.last_blockhash,
+            ))
+            .await
+            .unwrap();
+    }
 }
 
 // A trait that is used to specify procedures during testing, that
@@ -481,6 +612,8 @@ pub trait EscrowVariant<S: TokenVariant> {
     ) -> Transaction;
 
     fn get_escrow_data_len() -> usize;
+
+    fn get_escrow_creator_wallet(test_state: &TestStateBase<Self, S>) -> Wallet;
 }
 
 impl<T, S> AsyncTestContext for TestStateBase<T, S>
@@ -577,7 +710,6 @@ impl Clone for Wallet {
 
 pub fn get_escrow_addresses<T: EscrowVariant<S>, S: TokenVariant>(
     test_state: &TestStateBase<T, S>,
-    creator: Pubkey,
 ) -> (Pubkey, Pubkey) {
     let program_id = T::get_program_spec().0;
     let hashlock = get_escrow_hashlock(
@@ -589,17 +721,13 @@ pub fn get_escrow_addresses<T: EscrowVariant<S>, S: TokenVariant>(
             b"escrow",
             test_state.order_hash.as_ref(),
             hashlock.as_ref(),
-            creator.as_ref(),
-            test_state.taker_wallet.keypair.pubkey().as_ref(),
-            test_state.token.as_ref(),
-            test_state
-                .test_arguments
-                .escrow_amount
-                .to_be_bytes()
+            T::get_escrow_creator_wallet(test_state)
+                .keypair
+                .pubkey()
                 .as_ref(),
             test_state
                 .test_arguments
-                .safety_deposit
+                .escrow_amount
                 .to_be_bytes()
                 .as_ref(),
         ],
@@ -617,8 +745,7 @@ pub fn get_escrow_addresses<T: EscrowVariant<S>, S: TokenVariant>(
 pub fn create_escrow_data<T: EscrowVariant<S>, S: TokenVariant>(
     test_state: &TestStateBase<T, S>,
 ) -> (Pubkey, Pubkey, Transaction) {
-    let (escrow_pda, escrow_ata) =
-        get_escrow_addresses(test_state, test_state.maker_wallet.keypair.pubkey());
+    let (escrow_pda, escrow_ata) = get_escrow_addresses(test_state);
     let transaction: Transaction = T::get_create_tx(test_state, &escrow_pda, &escrow_ata);
 
     (escrow_pda, escrow_ata, transaction)
@@ -790,7 +917,6 @@ impl<T, S> TestStateBase<T, S> {
 
         // Get balances before tx
         let balances_before = get_balances(self, &balance_changes).await;
-
         // Execute transaction
         self.client.process_transaction(tx).await.expect_success();
 

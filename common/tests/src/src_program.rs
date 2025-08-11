@@ -144,8 +144,8 @@ impl<S: TokenVariant> EscrowVariant<S> for SrcProgram {
         let instruction_data =
             InstructionData::data(&cross_chain_escrow_src::instruction::CreateEscrow {
                 amount: test_state.test_arguments.escrow_amount,
-                dutch_auction_data: test_state.test_arguments.dutch_auction_data.clone(),
                 merkle_proof: test_state.test_arguments.merkle_proof.clone(),
+                dutch_auction_data: test_state.test_arguments.dutch_auction_data.clone(),
             });
 
         let (order, order_ata) = get_order_addresses(test_state);
@@ -188,10 +188,7 @@ impl<S: TokenVariant> EscrowVariant<S> for SrcProgram {
             InstructionData::data(&cross_chain_escrow_src::instruction::RescueFundsForEscrow {
                 hashlock: test_state.hashlock.to_bytes(),
                 order_hash: test_state.order_hash.to_bytes(),
-                maker: test_state.maker_wallet.keypair.pubkey(),
-                token: test_state.token,
                 amount: test_state.test_arguments.escrow_amount,
-                safety_deposit: test_state.test_arguments.safety_deposit,
                 rescue_amount: test_state.test_arguments.rescue_amount,
             });
 
@@ -219,6 +216,10 @@ impl<S: TokenVariant> EscrowVariant<S> for SrcProgram {
 
     fn get_escrow_data_len() -> usize {
         DEFAULT_SRC_ESCROW_SIZE
+    }
+
+    fn get_escrow_creator_wallet(test_state: &TestState<S>) -> Wallet {
+        test_state.taker_wallet.clone()
     }
 }
 

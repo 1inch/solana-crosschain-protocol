@@ -162,8 +162,8 @@ pub mod cross_chain_escrow_src {
     pub fn create_escrow(
         ctx: Context<CreateEscrow>,
         amount: u64,
-        dutch_auction_data: AuctionData,
         merkle_proof: Option<MerkleProof>,
+        dutch_auction_data: AuctionData,
     ) -> Result<()> {
         let order = &mut ctx.accounts.order;
 
@@ -383,11 +383,6 @@ pub mod cross_chain_escrow_src {
         let order = &ctx.accounts.order;
 
         require!(
-            ctx.accounts.mint.key() == NATIVE_MINT || !order.asset_is_native,
-            EscrowError::InconsistentNativeTrait
-        );
-
-        require!(
             order.asset_is_native == ctx.accounts.creator_ata.is_none(),
             EscrowError::InconsistentNativeTrait
         );
@@ -509,10 +504,7 @@ pub mod cross_chain_escrow_src {
         ctx: Context<RescueFundsForEscrow>,
         order_hash: [u8; 32],
         hashlock: [u8; 32],
-        maker: Pubkey,
-        token: Pubkey,
         amount: u64,
-        safety_deposit: u64,
         rescue_amount: u64,
     ) -> Result<()> {
         let rescue_start = if !ctx.accounts.escrow.data_is_empty() {
@@ -528,11 +520,8 @@ pub mod cross_chain_escrow_src {
             "escrow".as_bytes(),
             order_hash.as_ref(),
             hashlock.as_ref(),
-            maker.as_ref(),
             taker_pubkey.as_ref(),
-            token.as_ref(),
             &amount.to_be_bytes(),
-            &safety_deposit.to_be_bytes(),
             &[ctx.bumps.escrow],
         ];
 
@@ -682,7 +671,7 @@ pub struct Create<'info> {
 }
 
 #[derive(Accounts)]
-#[instruction(amount: u64, dutch_auction_data: AuctionData, merkle_proof: Option<MerkleProof>)]
+#[instruction(amount: u64, merkle_proof: Option<MerkleProof>)]
 pub struct CreateEscrow<'info> {
     #[account(mut)]
     taker: Signer<'info>,
@@ -735,11 +724,8 @@ pub struct CreateEscrow<'info> {
                 order.hashlock,
                 merkle_proof.clone()
             ),
-            order.creator.as_ref(),
             taker.key().as_ref(),
-            mint.key().as_ref(),
             amount.to_be_bytes().as_ref(),
-            order.safety_deposit.to_be_bytes().as_ref(),
         ],
         bump,
     )]
@@ -768,6 +754,9 @@ pub struct Withdraw<'info> {
         constraint = taker.key() == escrow.taker @ EscrowError::InvalidAccount,
     )]
     taker: Signer<'info>,
+    #[account(
+        constraint = mint.key() == escrow.token @ EscrowError::InvalidMint
+    )]
     mint: Box<InterfaceAccount<'info, Mint>>,
     #[account(
         mut,
@@ -776,11 +765,8 @@ pub struct Withdraw<'info> {
             "escrow".as_bytes(),
             escrow.order_hash.as_ref(),
             escrow.hashlock.as_ref(),
-            escrow.maker.as_ref(),
             escrow.taker.as_ref(),
-            mint.key().as_ref(),
             escrow.amount.to_be_bytes().as_ref(),
-            escrow.safety_deposit.to_be_bytes().as_ref(),
         ],
         bump = escrow.bump,
     )]
@@ -819,6 +805,9 @@ pub struct PublicWithdraw<'info> {
         seeds::program = whitelist::ID,
     )]
     resolver_access: Account<'info, whitelist::ResolverAccess>,
+    #[account(
+        constraint = mint.key() == escrow.token @ EscrowError::InvalidMint
+    )]
     mint: Box<InterfaceAccount<'info, Mint>>,
     #[account(
         mut,
@@ -827,11 +816,8 @@ pub struct PublicWithdraw<'info> {
             "escrow".as_bytes(),
             escrow.order_hash.as_ref(),
             escrow.hashlock.as_ref(),
-            escrow.maker.as_ref(),
             escrow.taker.as_ref(),
-            mint.key().as_ref(),
             escrow.amount.to_be_bytes().as_ref(),
-            escrow.safety_deposit.to_be_bytes().as_ref(),
         ],
         bump = escrow.bump,
     )]
@@ -867,6 +853,9 @@ pub struct CancelEscrow<'info> {
         constraint = maker.key() == escrow.maker @ EscrowError::InvalidAccount
     )]
     maker: AccountInfo<'info>,
+    #[account(
+        constraint = mint.key() == escrow.token @ EscrowError::InvalidMint
+    )]
     mint: Box<InterfaceAccount<'info, Mint>>,
     #[account(
         mut,
@@ -875,11 +864,8 @@ pub struct CancelEscrow<'info> {
             "escrow".as_bytes(),
             escrow.order_hash.as_ref(),
             escrow.hashlock.as_ref(),
-            escrow.maker.as_ref(),
             taker.key().as_ref(),
-            mint.key().as_ref(),
             escrow.amount.to_be_bytes().as_ref(),
-            escrow.safety_deposit.to_be_bytes().as_ref(),
         ],
         bump = escrow.bump,
     )]
@@ -917,6 +903,9 @@ pub struct PublicCancelEscrow<'info> {
     )]
     /// CHECK: this account is used only to receive lamports and to check its pubkey to match the one stored in the escrow account
     maker: AccountInfo<'info>,
+    #[account(
+        constraint = mint.key() == escrow.token @ EscrowError::InvalidMint
+    )]
     mint: Box<InterfaceAccount<'info, Mint>>,
     #[account(mut)]
     payer: Signer<'info>,
@@ -933,11 +922,8 @@ pub struct PublicCancelEscrow<'info> {
             "escrow".as_bytes(),
             escrow.order_hash.as_ref(),
             escrow.hashlock.as_ref(),
-            escrow.maker.as_ref(),
             taker.key().as_ref(),
-            mint.key().as_ref(),
             escrow.amount.to_be_bytes().as_ref(),
-            escrow.safety_deposit.to_be_bytes().as_ref(),
         ],
         bump = escrow.bump,
     )]
@@ -1005,7 +991,7 @@ pub struct CancelOrder<'info> {
 #[derive(Accounts)]
 pub struct CancelOrderbyResolver<'info> {
     /// Account that cancels the escrow
-    #[account(mut, signer)]
+    #[account(mut)]
     resolver: Signer<'info>,
     #[account(
         seeds = [whitelist::RESOLVER_ACCESS_SEED, resolver.key().as_ref()],
@@ -1053,7 +1039,7 @@ pub struct CancelOrderbyResolver<'info> {
 }
 
 #[derive(Accounts)]
-#[instruction(order_hash: [u8; 32], hashlock: [u8; 32], maker: Pubkey, token: Pubkey, amount: u64, safety_deposit: u64)]
+#[instruction(order_hash: [u8; 32], hashlock: [u8; 32], amount: u64)]
 pub struct RescueFundsForEscrow<'info> {
     #[account(
         mut, // Needed because this account receives lamports from closed token account.
@@ -1066,11 +1052,8 @@ pub struct RescueFundsForEscrow<'info> {
             "escrow".as_bytes(),
             order_hash.as_ref(),
             hashlock.as_ref(),
-            maker.as_ref(),
             taker.key().as_ref(),
-            token.as_ref(),
             amount.to_be_bytes().as_ref(),
-            safety_deposit.to_be_bytes().as_ref(),
         ],
         bump,
     )]
@@ -1203,15 +1186,15 @@ pub struct EscrowSrc {
 
 fn get_dst_amount(dst_amount: [u64; 4], data: &AuctionData) -> Result<[u64; 4]> {
     let rate_bump = calculate_rate_bump(Clock::get()?.unix_timestamp as u64, data);
-    let multiplier = constants::BASE_1E5 + rate_bump;
+    let multiplier = constants::BASE_1E7 + rate_bump;
 
     let result = U256(dst_amount)
         .checked_mul(U256::from(multiplier))
         .expect("Overflow when multiplying destination amount with rate bump")
-        .checked_add(U256::from(constants::BASE_1E5 - 1)) // To ensure rounding up
-        .expect("Overflow when adding BASE_1E5 - 1")
-        .checked_div(U256::from(constants::BASE_1E5))
-        .expect("Overflow when dividing by BASE_1E5");
+        .checked_add(U256::from(constants::BASE_1E7 - 1)) // To ensure rounding up
+        .expect("Overflow when adding BASE_1E7 - 1")
+        .checked_div(U256::from(constants::BASE_1E7))
+        .expect("Overflow when dividing by BASE_1E7");
     Ok(result.0)
 }
 

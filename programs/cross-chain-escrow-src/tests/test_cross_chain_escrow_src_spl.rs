@@ -203,8 +203,8 @@ run_for_tokens!(
 
             const AUCTION_START_OFFSET: u32 = 250;
             const AUCTION_DURATION: u32 = 1000;
-            const INITIAL_RATE_BUMP: u16 = 10_000; // 10%
-            const INTERMEDIATE_RATE_BUMP: u16 = 9_000; // 9%
+            const INITIAL_RATE_BUMP: u32 = 1_000_000; // 10%
+            const INTERMEDIATE_RATE_BUMP: u32 = 900_000; // 9%
             const INTERMEDIATE_TIME_DELTA: u16 = 500;
             const EXPECTED_MULTIPLIER_NUMERATOR: u64 = 1095;
             const EXPECTED_MULTIPLIER_DENOMINATOR: u64 = 1000;
@@ -222,8 +222,7 @@ run_for_tokens!(
             async fn test_escrow_creation_with_pre_existing_escrow_ata(test_state: &mut TestState) {
                 create_order(test_state).await;
                 prepare_resolvers(test_state, &[test_state.taker_wallet.keypair.pubkey()]).await;
-                let (escrow_pda, _) =
-                    get_escrow_addresses(test_state, test_state.taker_wallet.keypair.pubkey());
+                let (escrow_pda, _) = get_escrow_addresses(test_state);
 
                 let _escrow_ata =
                     <TestState as HasTokenVariant>::Token::initialize_spl_associated_account(
@@ -242,10 +241,10 @@ run_for_tokens!(
                     cross_chain_escrow_src::AuctionData {
                         start_time: test_state.init_timestamp - AUCTION_START_OFFSET,
                         duration: AUCTION_DURATION,
-                        initial_rate_bump: INITIAL_RATE_BUMP,
+                        initial_rate_bump: INITIAL_RATE_BUMP.into(),
                         points_and_time_deltas: vec![
                             cross_chain_escrow_src::auction::PointAndTimeDelta {
-                                rate_bump: INTERMEDIATE_RATE_BUMP,
+                                rate_bump: INTERMEDIATE_RATE_BUMP.into(),
                                 time_delta: INTERMEDIATE_TIME_DELTA,
                             },
                         ],
@@ -296,10 +295,10 @@ run_for_tokens!(
                     cross_chain_escrow_src::AuctionData {
                         start_time: test_state.init_timestamp - AUCTION_START_OFFSET,
                         duration: AUCTION_DURATION,
-                        initial_rate_bump: INITIAL_RATE_BUMP,
+                        initial_rate_bump: INITIAL_RATE_BUMP.into(),
                         points_and_time_deltas: vec![
                             cross_chain_escrow_src::auction::PointAndTimeDelta {
-                                rate_bump: INTERMEDIATE_RATE_BUMP,
+                                rate_bump: INTERMEDIATE_RATE_BUMP.into(),
                                 time_delta: INTERMEDIATE_TIME_DELTA,
                             },
                         ],
@@ -310,10 +309,10 @@ run_for_tokens!(
                     cross_chain_escrow_src::AuctionData {
                         start_time: test_state.init_timestamp - AUCTION_START_OFFSET,
                         duration: AUCTION_DURATION,
-                        initial_rate_bump: INITIAL_RATE_BUMP,
+                        initial_rate_bump: INITIAL_RATE_BUMP.into(),
                         points_and_time_deltas: vec![
                             cross_chain_escrow_src::auction::PointAndTimeDelta {
-                                rate_bump: INTERMEDIATE_RATE_BUMP * 2, // Incorrect rate bump
+                                rate_bump: (INTERMEDIATE_RATE_BUMP * 2).into(), // Incorrect rate bump
                                 time_delta: INTERMEDIATE_TIME_DELTA,
                             },
                         ],
@@ -336,10 +335,10 @@ run_for_tokens!(
                     cross_chain_escrow_src::AuctionData {
                         start_time: test_state.init_timestamp - AUCTION_START_OFFSET,
                         duration: AUCTION_DURATION,
-                        initial_rate_bump: INITIAL_RATE_BUMP,
+                        initial_rate_bump: INITIAL_RATE_BUMP.into(),
                         points_and_time_deltas: vec![
                             cross_chain_escrow_src::auction::PointAndTimeDelta {
-                                rate_bump: INTERMEDIATE_RATE_BUMP, // 9%
+                                rate_bump: INTERMEDIATE_RATE_BUMP.into(), // 9%
                                 time_delta: INTERMEDIATE_TIME_DELTA,
                             },
                         ],
@@ -611,7 +610,7 @@ run_for_tokens!(
                     .client
                     .process_transaction(transaction)
                     .await
-                    .expect_error(ProgramError::Custom(ErrorCode::ConstraintSeeds.into()));
+                    .expect_error(ProgramError::Custom(EscrowError::InvalidMint.into()));
             }
 
             #[test_context(TestState)]
@@ -932,7 +931,7 @@ run_for_tokens!(
                     .client
                     .process_transaction(transaction)
                     .await
-                    .expect_error(ProgramError::Custom(ErrorCode::ConstraintSeeds.into()));
+                    .expect_error(ProgramError::Custom(EscrowError::InvalidMint.into()));
             }
         }
 
@@ -1052,7 +1051,7 @@ run_for_tokens!(
                     .client
                     .process_transaction(transaction)
                     .await
-                    .expect_error(ProgramError::Custom(ErrorCode::ConstraintSeeds.into()));
+                    .expect_error(ProgramError::Custom(EscrowError::InvalidMint.into()));
             }
 
             #[test_context(TestState)]
@@ -1408,7 +1407,7 @@ run_for_tokens!(
                     .client
                     .process_transaction(transaction)
                     .await
-                    .expect_error(ProgramError::Custom(ErrorCode::ConstraintSeeds.into()));
+                    .expect_error(ProgramError::Custom(EscrowError::InvalidMint.into()));
             }
         }
 

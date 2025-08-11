@@ -59,9 +59,11 @@ pub mod cross_chain_escrow_dst {
             EscrowError::InconsistentNativeTrait
         );
 
-        // Check if token is native (WSOL) and is expected to be wrapped
+        // Check if token is native (SOL)
         if asset_is_native {
-            // Transfer native tokens from creator to escrow_ata and wrap
+            // Transfer native tokens from creator to escrow_ata. Wrapping is not required
+            // because the protocol must return the tokens in the same form in which they were received.
+            // Therefore, there is no point in performing unnecessary wrapping/unwrapping of tokens.
             uni_transfer(
                 &UniTransferParams::NativeTransfer {
                     from: ctx.accounts.creator.to_account_info(),
@@ -72,7 +74,7 @@ pub mod cross_chain_escrow_dst {
                 None,
             )?;
         } else {
-            // Do SPL token transfer
+            // Transfer SPL tokens (WSOL included)
             uni_transfer(
                 &UniTransferParams::TokenTransfer {
                     from: ctx
@@ -172,10 +174,7 @@ pub mod cross_chain_escrow_dst {
             &ctx.accounts.escrow.order_hash,
             &ctx.accounts.escrow.hashlock,
             ctx.accounts.escrow.creator.as_ref(),
-            ctx.accounts.escrow.recipient.as_ref(),
-            ctx.accounts.escrow.token.as_ref(),
             &ctx.accounts.escrow.amount.to_be_bytes(),
-            &ctx.accounts.escrow.safety_deposit.to_be_bytes(),
             &[ctx.accounts.escrow.bump],
         ];
 
@@ -199,12 +198,9 @@ pub mod cross_chain_escrow_dst {
         ctx: Context<RescueFunds>,
         order_hash: [u8; 32],
         hashlock: [u8; 32],
-        escrow_mint: Pubkey,
         escrow_amount: u64,
-        safety_deposit: u64,
         rescue_amount: u64,
     ) -> Result<()> {
-        let recipient_pubkey = ctx.accounts.recipient.key();
         let creator_pubkey = ctx.accounts.creator.key();
 
         let rescue_start = if !ctx.accounts.escrow.data_is_empty() {
@@ -220,10 +216,7 @@ pub mod cross_chain_escrow_dst {
             order_hash.as_ref(),
             hashlock.as_ref(),
             creator_pubkey.as_ref(),
-            recipient_pubkey.as_ref(),
-            escrow_mint.as_ref(),
             &escrow_amount.to_be_bytes(),
-            &safety_deposit.to_be_bytes(),
             &[ctx.bumps.escrow],
         ];
 
@@ -242,7 +235,7 @@ pub mod cross_chain_escrow_dst {
 }
 
 #[derive(Accounts)]
-#[instruction(order_hash: [u8; 32], hashlock: [u8; 32], amount: u64, safety_deposit: u64, recipient: Pubkey)]
+#[instruction(order_hash: [u8; 32], hashlock: [u8; 32], amount: u64)]
 pub struct Create<'info> {
     /// Puts tokens into escrow
     #[account(
@@ -269,10 +262,7 @@ pub struct Create<'info> {
             order_hash.as_ref(),
             hashlock.as_ref(),
             creator.key().as_ref(),
-            recipient.as_ref(),
-            mint.key().as_ref(),
             amount.to_be_bytes().as_ref(),
-            safety_deposit.to_be_bytes().as_ref(),
             ],
         bump,
     )]
@@ -306,6 +296,7 @@ pub struct Withdraw<'info> {
         mut, // Needed because this account receives lamports if asset is native
         constraint = recipient.key() == escrow.recipient @ EscrowError::InvalidAccount)]
     recipient: AccountInfo<'info>,
+    #[account(constraint = mint.key() == escrow.token @ EscrowError::InvalidMint)]
     mint: Box<InterfaceAccount<'info, Mint>>,
     #[account(
         mut,
@@ -314,11 +305,8 @@ pub struct Withdraw<'info> {
             "escrow".as_bytes(),
             escrow.order_hash.as_ref(),
             escrow.hashlock.as_ref(),
-            escrow.creator.as_ref(),
-            escrow.recipient.key().as_ref(),
-            mint.key().as_ref(),
+            escrow.creator.key().as_ref(),
             escrow.amount.to_be_bytes().as_ref(),
-            escrow.safety_deposit.to_be_bytes().as_ref(),
         ],
         bump = escrow.bump,
     )]
@@ -331,13 +319,15 @@ pub struct Withdraw<'info> {
     )]
     escrow_ata: Box<InterfaceAccount<'info, TokenAccount>>,
     #[account(
-        mut,
+        init_if_needed,
+        payer = creator,
         associated_token::mint = mint,
         associated_token::authority = recipient,
         associated_token::token_program = token_program
     )]
     /// Optional if the token is native
     recipient_ata: Option<Box<InterfaceAccount<'info, TokenAccount>>>,
+    associated_token_program: Program<'info, AssociatedToken>,
     token_program: Interface<'info, TokenInterface>,
     system_program: Program<'info, System>,
 }
@@ -363,6 +353,7 @@ pub struct PublicWithdraw<'info> {
         seeds::program = whitelist::ID,
     )]
     resolver_access: Account<'info, whitelist::ResolverAccess>,
+    #[account(constraint = mint.key() == escrow.token @ EscrowError::InvalidMint)]
     mint: Box<InterfaceAccount<'info, Mint>>,
     #[account(
         mut,
@@ -371,11 +362,8 @@ pub struct PublicWithdraw<'info> {
             "escrow".as_bytes(),
             escrow.order_hash.as_ref(),
             escrow.hashlock.as_ref(),
-            escrow.creator.as_ref(),
-            escrow.recipient.key().as_ref(),
-            mint.key().as_ref(),
+            escrow.creator.key().as_ref(),
             escrow.amount.to_be_bytes().as_ref(),
-            escrow.safety_deposit.to_be_bytes().as_ref(),
         ],
         bump = escrow.bump,
     )]
@@ -388,13 +376,15 @@ pub struct PublicWithdraw<'info> {
     )]
     escrow_ata: Box<InterfaceAccount<'info, TokenAccount>>,
     #[account(
-        mut,
+        init_if_needed,
+        payer = payer,
         associated_token::mint = mint,
         associated_token::authority = recipient,
         associated_token::token_program = token_program
     )]
     /// Optional if the token is native
     recipient_ata: Option<Box<InterfaceAccount<'info, TokenAccount>>>,
+    associated_token_program: Program<'info, AssociatedToken>,
     token_program: Interface<'info, TokenInterface>,
     system_program: Program<'info, System>,
 }
@@ -406,6 +396,7 @@ pub struct Cancel<'info> {
         constraint = creator.key() == escrow.creator @ EscrowError::InvalidAccount
     )]
     creator: Signer<'info>,
+    #[account(constraint = mint.key() == escrow.token @ EscrowError::InvalidMint)]
     mint: Box<InterfaceAccount<'info, Mint>>,
     #[account(
         mut,
@@ -414,11 +405,8 @@ pub struct Cancel<'info> {
             "escrow".as_bytes(),
             escrow.order_hash.as_ref(),
             escrow.hashlock.as_ref(),
-            escrow.creator.as_ref(),
-            escrow.recipient.key().as_ref(),
-            mint.key().as_ref(),
+            escrow.creator.key().as_ref(),
             escrow.amount.to_be_bytes().as_ref(),
-            escrow.safety_deposit.to_be_bytes().as_ref(),
         ],
         bump = escrow.bump,
     )]
@@ -443,7 +431,7 @@ pub struct Cancel<'info> {
 }
 
 #[derive(Accounts)]
-#[instruction(order_hash: [u8; 32], hashlock: [u8; 32], escrow_mint: Pubkey, escrow_amount: u64, safety_deposit: u64)]
+#[instruction(order_hash: [u8; 32], hashlock: [u8; 32], escrow_amount: u64)]
 pub struct RescueFunds<'info> {
     #[account(
         mut, // Needed because this account receives lamports from closed token account.
@@ -459,10 +447,7 @@ pub struct RescueFunds<'info> {
             order_hash.as_ref(),
             hashlock.as_ref(),
             creator.key().as_ref(),
-            recipient.key().as_ref(),
-            escrow_mint.as_ref(),
             escrow_amount.to_be_bytes().as_ref(),
-            safety_deposit.to_be_bytes().as_ref(),
         ],
         bump,
     )]
