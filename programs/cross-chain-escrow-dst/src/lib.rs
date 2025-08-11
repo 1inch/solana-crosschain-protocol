@@ -13,7 +13,7 @@ use primitive_types::U256;
 
 mod utils;
 
-declare_id!("GveV3ToLhvRmeq1Fyg3BMkNetZuG9pZEp4uBGWLrTjve");
+declare_id!("AMEAktCrii7mVFQKCM9i5hKES4YrV3zFagrawr8BY8pb");
 
 #[program]
 pub mod cross_chain_escrow_dst {

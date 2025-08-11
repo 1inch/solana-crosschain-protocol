@@ -8,12 +8,9 @@ resolution = true
 skip-lint = false
 
 [programs.localnet]
-cross_chain_escrow_dst = "GveV3ToLhvRmeq1Fyg3BMkNetZuG9pZEp4uBGWLrTjve"
-cross_chain_escrow_src = "2g4JDRMD7G3dK1PHmCnDAycKzd6e5sdhxqGBbs264zwz"
-dutch_auction_taking_amount = "6Y87E6QNyrsVZbQSRapcYcXUi9fpFrMiC16C5nLmCCHV"
-mocks = "5Jvn87vo6XzejGMBhTss4kYDJC7D7JxkKuN3zG1fZnk6"
-non_custodial_escrow = "AKEVm47qyu5E2LgBDrXifJjS2WJ7i4D1f9REzYvJEsLg"
-whitelist_validator = "3zPcYCrngDJQjzTd7vN1povXWtxwKR1BbofWoaHYxPhv"
+cross_chain_escrow_dst = "AMEAktCrii7mVFQKCM9i5hKES4YrV3zFagrawr8BY8pb"
+cross_chain_escrow_src = "4yBT18tBcWqCDK8p3RMXdmZMjHr3wJM7jM6HVYemEqGh"
+whitelist = "5XYZ3LMWECpC6u7BWLskMMNx4xWbXF44dpDxvkVqkHtA"
 
 [registry]
 url = "https://api.apr.dev"

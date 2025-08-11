@@ -21,7 +21,7 @@ pub mod auction;
 pub mod merkle_tree;
 pub mod utils;
 
-declare_id!("2g4JDRMD7G3dK1PHmCnDAycKzd6e5sdhxqGBbs264zwz");
+declare_id!("4yBT18tBcWqCDK8p3RMXdmZMjHr3wJM7jM6HVYemEqGh");
 
 #[program]
 pub mod cross_chain_escrow_src {
