@@ -246,6 +246,8 @@ pub mod cross_chain_escrow_src {
                 U256(order.dst_amount)
                     .checked_mul(U256::from(amount))
                     .expect("Overflow during multiplication in dst_amount calculation")
+                    .checked_add(U256::from(order.amount - 1)) // Add (divisor - 1) for ceiling division
+                    .expect("Overflow when adding divisor - 1 for ceiling division")
                     .checked_div(U256::from(order.amount))
                     .expect(
                         "Division by zero or overflow during division in dst_amount calculation",
