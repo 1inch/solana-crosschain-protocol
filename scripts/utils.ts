@@ -5,7 +5,8 @@ import path from "path";
 import os from "os";
 import yargs from "yargs";
 import { hideBin } from "yargs/helpers";
-const prompt = require("prompt-sync")({ sigint: true });
+import promptSync from "prompt-sync";
+const prompt = promptSync({ sigint: true });
 
 export async function connectTo<T extends anchor.Idl>(idl: T) {
   const clusterUrl = getClusterUrlEnv();
