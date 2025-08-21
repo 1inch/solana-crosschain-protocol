@@ -174,6 +174,41 @@ run_for_tokens!(
 
             #[test_context(TestState)]
             #[tokio::test]
+            async fn test_dst_amount_rounding_calculation_for_partial_fill(
+                test_state: &mut TestState,
+            ) {
+                test_state.test_arguments.dst_amount = U256::from(3).0;
+                create_order_for_partial_fill(test_state).await;
+
+                let escrow_amount = 33334;
+                prepare_resolvers(test_state, &[test_state.taker_wallet.keypair.pubkey()]).await;
+                let (escrow, _) =
+                    test_escrow_creation_for_partial_fill(test_state, escrow_amount).await;
+
+                let escrow_account_data = test_state
+                    .client
+                    .get_account(escrow)
+                    .await
+                    .unwrap()
+                    .unwrap()
+                    .data;
+
+                let dst_amount = helpers_src::get_dst_amount(&escrow_account_data)
+                    .expect("Failed to read dst_amount from escrow account data");
+
+                let expected = U256(test_state.test_arguments.dst_amount)
+                    .checked_mul(U256::from(escrow_amount))
+                    .unwrap()
+                    .checked_add(U256::from(test_state.test_arguments.order_amount - 1))
+                    .unwrap()
+                    .checked_div(U256::from(test_state.test_arguments.order_amount))
+                    .unwrap();
+
+                assert_eq!(U256(dst_amount), expected);
+            }
+
+            #[test_context(TestState)]
+            #[tokio::test]
             async fn test_create_escrow_fails_if_second_escrow_amount_too_large(
                 test_state: &mut TestState,
             ) {
