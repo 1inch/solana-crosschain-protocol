@@ -53,10 +53,10 @@ async function main() {
     "Enter authority keypair path: "
   );
   const authorityKeypair = await loadKeypairFromFile(authorityKeypairPath);
-  const user = new PublicKey(prompt_("user-key", "Enter user public key: "));
   if (!authorityKeypair) {
     throw new Error("Failed to load authority keypair.");
   }
+  const user = new PublicKey(prompt_("user-key", "Enter user public key: "));
   await deregister(connection, whitelist, authorityKeypair, user);
 }
 
