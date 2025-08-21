@@ -22,10 +22,10 @@ pub fn get_whitelist_state_address() -> (Pubkey, Pubkey) {
     (whitelist_state, program_id)
 }
 
-pub fn get_whitelist_access_address(user: &Pubkey) -> (Pubkey, u8) {
+pub fn get_whitelist_access_address(client_program: &Pubkey, user: &Pubkey) -> (Pubkey, u8) {
     let program_id = whitelist::id();
     let (whitelist_access, bump) =
-        Pubkey::find_program_address(&[b"resolver_access", user.as_ref()], &program_id);
+        Pubkey::find_program_address(&[client_program.as_ref(), user.as_ref()], &program_id);
     (whitelist_access, bump)
 }
 
@@ -69,11 +69,12 @@ pub async fn init_whitelist<T: EscrowVariant<S>, S: TokenVariant>(
 
 pub fn register_deregister_data<T: EscrowVariant<S>, S: TokenVariant>(
     test_state: &TestStateBase<T, S>,
+    client_program: Pubkey,
     whitelisted_account: Pubkey,
     instruction_data: Vec<u8>,
 ) -> (Pubkey, Transaction) {
     let (whitelist_state, program_id) = get_whitelist_state_address();
-    let (whitelist_access, _) = get_whitelist_access_address(&whitelisted_account);
+    let (whitelist_access, _) = get_whitelist_access_address(&client_program, &whitelisted_account);
 
     let instruction: Instruction = Instruction {
         program_id,
@@ -96,14 +97,20 @@ pub fn register_deregister_data<T: EscrowVariant<S>, S: TokenVariant>(
 
 pub async fn register<T: EscrowVariant<S>, S: TokenVariant>(
     test_state: &TestStateBase<T, S>,
+    client_program: Pubkey,
     whitelisted_account: Pubkey,
 ) -> Pubkey {
     let instruction_data = InstructionData::data(&whitelist::instruction::Register {
         _user: whitelisted_account,
+        _client: client_program,
     });
 
-    let (whitelist_access, tx) =
-        register_deregister_data(test_state, whitelisted_account, instruction_data);
+    let (whitelist_access, tx) = register_deregister_data(
+        test_state,
+        client_program,
+        whitelisted_account,
+        instruction_data,
+    );
     test_state
         .client
         .process_transaction(tx)
@@ -114,14 +121,20 @@ pub async fn register<T: EscrowVariant<S>, S: TokenVariant>(
 
 pub async fn deregister<T: EscrowVariant<S>, S: TokenVariant>(
     test_state: &TestStateBase<T, S>,
+    client_program: Pubkey,
     whitelisted_account: Pubkey,
 ) -> Pubkey {
     let instruction_data = InstructionData::data(&whitelist::instruction::Deregister {
         _user: whitelisted_account,
+        _client: client_program,
     });
 
-    let (whitelist_access, tx) =
-        register_deregister_data(test_state, whitelisted_account, instruction_data);
+    let (whitelist_access, tx) = register_deregister_data(
+        test_state,
+        client_program,
+        whitelisted_account,
+        instruction_data,
+    );
     test_state
         .client
         .process_transaction(tx)
@@ -132,11 +145,26 @@ pub async fn deregister<T: EscrowVariant<S>, S: TokenVariant>(
 
 pub async fn prepare_resolvers<T: EscrowVariant<S>, S: TokenVariant>(
     test_state: &TestStateBase<T, S>,
+    client_program: &Pubkey,
     resolvers: &[Pubkey],
 ) {
     init_whitelist(test_state).await;
 
     for resolver in resolvers {
-        register(test_state, *resolver).await;
+        register(test_state, *client_program, *resolver).await;
     }
+}
+
+pub async fn prepare_resolvers_dst<T: EscrowVariant<S>, S: TokenVariant>(
+    test_state: &TestStateBase<T, S>,
+    resolvers: &[Pubkey],
+) {
+    prepare_resolvers(test_state, &cross_chain_escrow_dst::ID, resolvers).await;
+}
+
+pub async fn prepare_resolvers_src<T: EscrowVariant<S>, S: TokenVariant>(
+    test_state: &TestStateBase<T, S>,
+    resolvers: &[Pubkey],
+) {
+    prepare_resolvers(test_state, &cross_chain_escrow_src::ID, resolvers).await;
 }

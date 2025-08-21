@@ -3,7 +3,7 @@ use common::{error::EscrowError, timelocks::Stage};
 use common_tests::dst_program::DstProgram;
 use common_tests::helpers::*;
 use common_tests::tests as common_escrow_tests;
-use common_tests::whitelist::prepare_resolvers;
+use common_tests::whitelist::prepare_resolvers_dst;
 use solana_program::program_error::ProgramError;
 use solana_program_test::tokio;
 use solana_sdk::{signature::Signer, signer::keypair::Keypair};
@@ -126,7 +126,7 @@ mod test_escrow_native {
         test_state.token = NATIVE_MINT;
         test_state.test_arguments.asset_is_native = true;
         let withdrawer = test_state.maker_wallet.keypair.insecure_clone();
-        prepare_resolvers(test_state, &[withdrawer.pubkey()]).await;
+        prepare_resolvers_dst(test_state, &[withdrawer.pubkey()]).await;
         let (escrow, escrow_ata) = create_escrow(test_state).await;
 
         let transaction =
@@ -188,7 +188,7 @@ mod test_escrow_native {
         test_state.token = NATIVE_MINT;
         test_state.test_arguments.asset_is_native = true;
         let withdrawer = Keypair::new();
-        prepare_resolvers(test_state, &[withdrawer.pubkey()]).await;
+        prepare_resolvers_dst(test_state, &[withdrawer.pubkey()]).await;
         let payer_kp = &test_state.payer_kp;
         {
             let context = &mut test_state.context;
@@ -301,7 +301,7 @@ mod test_escrow_native {
     #[test_context(TestState)]
     #[tokio::test]
     async fn test_rescue_all_tokens_and_close_ata(test_state: &mut TestState) {
-        prepare_resolvers(test_state, &[test_state.taker_wallet.keypair.pubkey()]).await;
+        prepare_resolvers_dst(test_state, &[test_state.taker_wallet.keypair.pubkey()]).await;
         test_state.token = NATIVE_MINT;
         test_state.test_arguments.asset_is_native = true;
         common_escrow_tests::test_rescue_all_tokens_and_close_ata(test_state).await
@@ -310,7 +310,7 @@ mod test_escrow_native {
     #[test_context(TestState)]
     #[tokio::test]
     async fn test_rescue_part_of_tokens_and_not_close_ata(test_state: &mut TestState) {
-        prepare_resolvers(test_state, &[test_state.taker_wallet.keypair.pubkey()]).await;
+        prepare_resolvers_dst(test_state, &[test_state.taker_wallet.keypair.pubkey()]).await;
         test_state.token = NATIVE_MINT;
         test_state.test_arguments.asset_is_native = true;
         common_escrow_tests::test_rescue_part_of_tokens_and_not_close_ata(test_state).await
@@ -394,7 +394,7 @@ mod test_escrow_wrapped_native {
 
         let (escrow, escrow_ata) = create_escrow(test_state).await;
 
-        test_state.taker_wallet.native_token_account = cross_chain_escrow_dst::ID_CONST;
+        test_state.taker_wallet.native_token_account = cross_chain_escrow_dst::ID;
 
         let transaction = DstProgram::get_withdraw_tx(test_state, &escrow, &escrow_ata);
 
@@ -421,7 +421,7 @@ mod test_escrow_wrapped_native {
     async fn test_public_withdraw_by_maker(test_state: &mut TestState) {
         test_state.token = NATIVE_MINT;
         let withdrawer = test_state.maker_wallet.keypair.insecure_clone();
-        prepare_resolvers(test_state, &[withdrawer.pubkey()]).await;
+        prepare_resolvers_dst(test_state, &[withdrawer.pubkey()]).await;
         let (escrow, escrow_ata) = create_escrow(test_state).await;
 
         let transaction =
@@ -496,7 +496,7 @@ mod test_escrow_wrapped_native {
             &withdrawer.pubkey(),
         )
         .await;
-        prepare_resolvers(test_state, &[withdrawer.pubkey()]).await;
+        prepare_resolvers_dst(test_state, &[withdrawer.pubkey()]).await;
         let (escrow, escrow_ata) = create_escrow(test_state).await;
 
         let transaction =
@@ -569,7 +569,7 @@ mod test_escrow_wrapped_native {
     async fn test_public_withdraw_fails_with_no_taker_ata(test_state: &mut TestState) {
         test_state.token = NATIVE_MINT;
         let withdrawer = Keypair::new();
-        prepare_resolvers(test_state, &[withdrawer.pubkey()]).await;
+        prepare_resolvers_dst(test_state, &[withdrawer.pubkey()]).await;
         let payer_kp = &test_state.payer_kp;
         let context = &mut test_state.context;
 
@@ -583,7 +583,7 @@ mod test_escrow_wrapped_native {
 
         let (escrow, escrow_ata) = create_escrow(test_state).await;
 
-        test_state.taker_wallet.native_token_account = cross_chain_escrow_dst::ID_CONST;
+        test_state.taker_wallet.native_token_account = cross_chain_escrow_dst::ID;
 
         let transaction =
             DstProgram::get_public_withdraw_tx(test_state, &escrow, &escrow_ata, &withdrawer);
@@ -617,7 +617,7 @@ mod test_escrow_wrapped_native {
     #[test_context(TestState)]
     #[tokio::test]
     async fn test_rescue_all_tokens_and_close_ata(test_state: &mut TestState) {
-        prepare_resolvers(test_state, &[test_state.taker_wallet.keypair.pubkey()]).await;
+        prepare_resolvers_dst(test_state, &[test_state.taker_wallet.keypair.pubkey()]).await;
         test_state.token = NATIVE_MINT;
         common_escrow_tests::test_rescue_all_tokens_and_close_ata(test_state).await
     }
@@ -625,7 +625,7 @@ mod test_escrow_wrapped_native {
     #[test_context(TestState)]
     #[tokio::test]
     async fn test_rescue_part_of_tokens_and_not_close_ata(test_state: &mut TestState) {
-        prepare_resolvers(test_state, &[test_state.taker_wallet.keypair.pubkey()]).await;
+        prepare_resolvers_dst(test_state, &[test_state.taker_wallet.keypair.pubkey()]).await;
         test_state.token = NATIVE_MINT;
         common_escrow_tests::test_rescue_part_of_tokens_and_not_close_ata(test_state).await
     }

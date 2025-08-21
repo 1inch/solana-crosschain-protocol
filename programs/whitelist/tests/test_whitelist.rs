@@ -52,7 +52,7 @@ mod test_whitelist {
     async fn test_register_deregister_user(test_state: &mut TestState) {
         init_whitelist(test_state).await;
 
-        let whitelist_access_address = register(test_state).await;
+        let whitelist_access_address = register(test_state, whitelist::id()).await;
 
         let whitelist_data_len = DISCRIMINATOR_BYTES + whitelist::ResolverAccess::INIT_SPACE;
         let rent_lamports = get_min_rent_for_size(&mut test_state.client, whitelist_data_len).await;
@@ -65,7 +65,7 @@ mod test_whitelist {
                 .unwrap()
         );
 
-        deregister(test_state).await;
+        deregister(test_state, whitelist::id()).await;
 
         assert!(test_state
             .client
@@ -79,9 +79,10 @@ mod test_whitelist {
     #[tokio::test]
     async fn test_register_bump(test_state: &mut TestState) {
         init_whitelist(test_state).await;
-        let (_, canonical_bump) = get_whitelist_access_address(&test_state.whitelisted_kp.pubkey());
+        let (_, canonical_bump) =
+            get_whitelist_access_address(&whitelist::id(), &test_state.whitelisted_kp.pubkey());
 
-        let whitelist_access_address = register(test_state).await;
+        let whitelist_access_address = register(test_state, whitelist::id()).await;
 
         let whitelist_access_account = test_state
             .client
@@ -102,11 +103,12 @@ mod test_whitelist {
     async fn test_register_twice(test_state: &mut TestState) {
         init_whitelist(test_state).await;
 
-        register(test_state).await;
+        register(test_state, whitelist::id()).await;
         // Update the last blockhash to execute the next identical transaction
         test_state.context.last_blockhash = test_state.client.get_latest_blockhash().await.unwrap();
         let instruction_data = InstructionData::data(&whitelist::instruction::Register {
             _user: test_state.whitelisted_kp.pubkey(),
+            _client: whitelist::id(),
         });
         let (_, tx) = register_deregister_data(test_state, instruction_data);
         test_state
@@ -144,7 +146,7 @@ mod test_whitelist {
         set_authority(test_state).await;
 
         test_state.authority_kp = test_state.someone_kp.insecure_clone();
-        let whitelist_access_address = register(test_state).await;
+        let whitelist_access_address = register(test_state, whitelist::id()).await;
 
         let whitelist_data_len = DISCRIMINATOR_BYTES + whitelist::ResolverAccess::INIT_SPACE;
         let rent_lamports = get_min_rent_for_size(&mut test_state.client, whitelist_data_len).await;
@@ -157,7 +159,7 @@ mod test_whitelist {
                 .unwrap()
         );
 
-        deregister(test_state).await;
+        deregister(test_state, whitelist::id()).await;
 
         assert!(test_state
             .client
@@ -174,6 +176,7 @@ mod test_whitelist {
 
         let instruction_data = InstructionData::data(&whitelist::instruction::Register {
             _user: test_state.whitelisted_kp.pubkey(),
+            _client: whitelist::id(),
         });
 
         test_state.authority_kp = test_state.someone_kp.insecure_clone();
@@ -190,10 +193,11 @@ mod test_whitelist {
     #[tokio::test]
     async fn test_deregister_wrong_authority(test_state: &mut TestState) {
         init_whitelist(test_state).await;
-        register(test_state).await;
+        register(test_state, whitelist::id()).await;
 
         let instruction_data = InstructionData::data(&whitelist::instruction::Deregister {
             _user: test_state.whitelisted_kp.pubkey(),
+            _client: whitelist::id(),
         });
 
         test_state.authority_kp = test_state.someone_kp.insecure_clone();
@@ -214,6 +218,7 @@ mod test_whitelist {
 
         let instruction_data = InstructionData::data(&whitelist::instruction::Register {
             _user: test_state.whitelisted_kp.pubkey(),
+            _client: whitelist::id(),
         });
         let (_, tx) = register_deregister_data(test_state, instruction_data);
 
@@ -226,11 +231,12 @@ mod test_whitelist {
         // Register user and then try to deregister with previous authority
         let previous_kp = test_state.authority_kp.insecure_clone();
         test_state.authority_kp = test_state.someone_kp.insecure_clone();
-        register(test_state).await;
+        register(test_state, whitelist::id()).await;
         test_state.authority_kp = previous_kp.insecure_clone();
 
         let instruction_data = InstructionData::data(&whitelist::instruction::Deregister {
             _user: test_state.whitelisted_kp.pubkey(),
+            _client: whitelist::id(),
         });
         let (_, tx) = register_deregister_data(test_state, instruction_data);
 

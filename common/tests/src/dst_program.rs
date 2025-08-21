@@ -40,7 +40,8 @@ impl<S: TokenVariant> EscrowVariant<S> for DstProgram {
             });
 
         let (_, taker_ata) = find_user_ata(test_state);
-        let (whitelist_access, _) = get_whitelist_access_address(&withdrawer.pubkey());
+        let (whitelist_access, _) =
+            get_whitelist_access_address(&cross_chain_escrow_dst::ID, &withdrawer.pubkey());
 
         let instruction: Instruction = Instruction {
             program_id: cross_chain_escrow_dst::id(),

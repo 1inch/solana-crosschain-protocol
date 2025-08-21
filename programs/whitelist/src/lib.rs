@@ -7,7 +7,6 @@ use error::WhitelistError;
 declare_id!("CShaLBTQn6xbwq9behWTZuDuYY7APeWvXchsHkTw3DcZ");
 
 pub const WHITELIST_STATE_SEED: &[u8] = b"whitelist_state";
-pub const RESOLVER_ACCESS_SEED: &[u8] = b"resolver_access";
 
 /// Program for managing whitelisted users for the Fusion Swap
 #[program]
@@ -22,13 +21,13 @@ pub mod whitelist {
     }
 
     /// Registers a new user to the whitelist
-    pub fn register(ctx: Context<Register>, _user: Pubkey) -> Result<()> {
+    pub fn register(ctx: Context<Register>, _user: Pubkey, _client: Pubkey) -> Result<()> {
         ctx.accounts.resolver_access.bump = ctx.bumps.resolver_access;
         Ok(())
     }
 
     /// Removes a user from the whitelist
-    pub fn deregister(_ctx: Context<Deregister>, _user: Pubkey) -> Result<()> {
+    pub fn deregister(_ctx: Context<Deregister>, _user: Pubkey, _client: Pubkey) -> Result<()> {
         Ok(())
     }
 
@@ -58,7 +57,7 @@ pub struct Initialize<'info> {
 }
 
 #[derive(Accounts)]
-#[instruction(user: Pubkey)]
+#[instruction(user: Pubkey, client_program: Pubkey)]
 pub struct Register<'info> {
     #[account(mut)]
     pub authority: Signer<'info>,
@@ -75,7 +74,7 @@ pub struct Register<'info> {
         init,
         payer = authority,
         space = DISCRIMINATOR_BYTES + ResolverAccess::INIT_SPACE,
-        seeds = [RESOLVER_ACCESS_SEED, user.key().as_ref()],
+        seeds = [client_program.key().as_ref(), user.key().as_ref()],
         bump,
     )]
     pub resolver_access: Account<'info, ResolverAccess>,
@@ -84,7 +83,7 @@ pub struct Register<'info> {
 }
 
 #[derive(Accounts)]
-#[instruction(user: Pubkey)]
+#[instruction(user: Pubkey, client_program: Pubkey)]
 pub struct Deregister<'info> {
     #[account(mut)]
     pub authority: Signer<'info>,
@@ -100,7 +99,7 @@ pub struct Deregister<'info> {
     #[account(
         mut,
         close = authority,
-        seeds = [RESOLVER_ACCESS_SEED, user.key().as_ref()],
+        seeds = [client_program.key().as_ref(), user.key().as_ref()],
         bump = resolver_access.bump,
     )]
     pub resolver_access: Account<'info, ResolverAccess>,

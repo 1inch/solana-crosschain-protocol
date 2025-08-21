@@ -115,7 +115,8 @@ pub fn register_deregister_data(
     instruction_data: Vec<u8>,
 ) -> (Pubkey, Transaction) {
     let (whitelist_state, program_id) = get_whitelist_state_address();
-    let (whitelist_access, _) = get_whitelist_access_address(&test_state.whitelisted_kp.pubkey());
+    let (whitelist_access, _) =
+        get_whitelist_access_address(&whitelist::id(), &test_state.whitelisted_kp.pubkey());
 
     let instruction: Instruction = Instruction {
         program_id,
@@ -136,9 +137,10 @@ pub fn register_deregister_data(
     (whitelist_access, transaction)
 }
 
-pub async fn register(test_state: &TestState) -> Pubkey {
+pub async fn register(test_state: &TestState, client_program: Pubkey) -> Pubkey {
     let instruction_data = InstructionData::data(&whitelist::instruction::Register {
         _user: test_state.whitelisted_kp.pubkey(),
+        _client: client_program,
     });
 
     let (whitelist_access, tx) = register_deregister_data(test_state, instruction_data);
@@ -150,9 +152,10 @@ pub async fn register(test_state: &TestState) -> Pubkey {
     whitelist_access
 }
 
-pub async fn deregister(test_state: &TestState) -> Pubkey {
+pub async fn deregister(test_state: &TestState, client_program: Pubkey) -> Pubkey {
     let instruction_data = InstructionData::data(&whitelist::instruction::Deregister {
         _user: test_state.whitelisted_kp.pubkey(),
+        _client: client_program,
     });
 
     let (whitelist_access, tx) = register_deregister_data(test_state, instruction_data);
