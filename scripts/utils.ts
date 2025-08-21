@@ -1,4 +1,4 @@
-import { PublicKey, Keypair } from "@solana/web3.js";
+import { PublicKey, Keypair, Connection } from "@solana/web3.js";
 import * as anchor from "@coral-xyz/anchor";
 import fs from "fs";
 import path from "path";
@@ -6,6 +6,15 @@ import os from "os";
 import yargs from "yargs";
 import { hideBin } from "yargs/helpers";
 const prompt = require("prompt-sync")({ sigint: true });
+
+export async function connectTo<T extends anchor.Idl>(idl: T) {
+  const clusterUrl = getClusterUrlEnv();
+  const connection = new Connection(clusterUrl, "confirmed");
+  return {
+    connection,
+    program: new anchor.Program<T>(idl, { connection })
+  };
+}
 
 export async function loadKeypairFromFile(
   filePath: string

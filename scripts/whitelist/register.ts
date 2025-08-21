@@ -13,7 +13,7 @@ import { Whitelist } from "../../target/types/whitelist";
 import {
   findResolverAccessAddress,
   findWhitelistStateAddress,
-  getClusterUrlEnv,
+  connectTo,
   loadKeypairFromFile,
   prompt_,
 } from "../utils";
@@ -47,10 +47,7 @@ async function register(
 }
 
 async function main() {
-  const clusterUrl = getClusterUrlEnv();
-
-  const connection = new Connection(clusterUrl, "confirmed");
-  const whitelist = new Program<Whitelist>(WHITELIST_IDL, { connection });
+  const {connection, program: whitelist} = await connectTo<Whitelist>(WHITELIST_IDL as any);
 
 const authorityKeypairPath = prompt_(
   "authority-kp",
