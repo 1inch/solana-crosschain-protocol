@@ -5,7 +5,7 @@ use common_tests::dst_program::DstProgram;
 use common_tests::helpers::*;
 use common_tests::run_for_tokens;
 use common_tests::tests as common_escrow_tests;
-use common_tests::whitelist::prepare_resolvers;
+use common_tests::whitelist::{deregister, prepare_resolvers};
 use solana_program::program_error::ProgramError;
 use solana_program_test::tokio;
 use solana_sdk::{signature::Signer, signer::keypair::Keypair, sysvar::clock::Clock};
@@ -591,6 +591,45 @@ run_for_tokens!(
                     .await
                     .expect_error(ProgramError::Custom(ErrorCode::ConstraintSeeds.into()));
             }
+        }
+
+        #[test_context(TestState)]
+        #[tokio::test]
+        async fn test_public_withdraw_fail_with_unwhitelisted_resolver(test_state: &mut TestState) {
+            let withdrawer = Keypair::new();
+            prepare_resolvers(test_state, &[withdrawer.pubkey()]).await;
+            let payer_kp = &test_state.payer_kp;
+            let context = &mut test_state.context;
+
+            transfer_lamports(
+                context,
+                WALLET_DEFAULT_LAMPORTS,
+                payer_kp,
+                &withdrawer.pubkey(),
+            )
+            .await;
+            let (escrow, escrow_ata) = create_escrow(test_state).await;
+
+            deregister(test_state, withdrawer.pubkey()).await;
+            let transaction =
+                DstProgram::get_public_withdraw_tx(test_state, &escrow, &escrow_ata, &withdrawer);
+
+            set_time(
+                &mut test_state.context,
+                test_state
+                    .test_arguments
+                    .dst_timelocks
+                    .get(Stage::DstPublicWithdrawal)
+                    .unwrap(),
+            );
+
+            test_state
+                .client
+                .process_transaction(transaction)
+                .await
+                .expect_error(ProgramError::Custom(
+                    ErrorCode::AccountNotInitialized.into(),
+                ));
         }
 
         mod test_escrow_cancel {
