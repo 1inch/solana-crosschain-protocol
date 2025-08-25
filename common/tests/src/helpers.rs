@@ -467,7 +467,7 @@ fn mock_pg(
     let safety_deposit: u64 = 20;
     let rescue_start: u32 = 0;
 
-    let (expected_pda, bump) = Pubkey::find_program_address(&["order".as_bytes()], &program_id);
+    let (expected_pda, bump) = Pubkey::find_program_address(&["order".as_bytes()], program_id);
     // Validate the PDA matches what's passed
     let pda_account = &accounts[3];
     assert_eq!(*pda_account.key, expected_pda);

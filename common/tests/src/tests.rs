@@ -4,7 +4,7 @@ use crate::{dst_program::DstProgram, helpers::*, src_program::SrcProgram};
 use anchor_lang::error::ErrorCode;
 use anchor_lang::prelude::AccountMeta;
 use anchor_lang::InstructionData;
-use anchor_spl::associated_token::{spl_associated_token_account, ID};
+use anchor_spl::associated_token::spl_associated_token_account;
 use anchor_spl::token::spl_token::{error::TokenError, native_mint::ID as NATIVE_MINT};
 use common::{constants::RESCUE_DELAY, error::EscrowError};
 use cross_chain_escrow_src::get_escrow_hashlock;
@@ -15,10 +15,6 @@ use solana_sdk::{
     pubkey::Pubkey, signature::Signer, signer::keypair::Keypair, system_instruction::SystemError,
     transaction::Transaction,
 };
-
-use anchor_spl::associated_token::ID as spl_associated_token_id;
-
-use solana_program::sysvar::rent::ID as rent_id;
 
 pub async fn test_escrow_creation_tx_cost<T: EscrowVariant<S>, S: TokenVariant>(
     test_state: &mut TestStateBase<T, S>,
@@ -65,33 +61,297 @@ pub async fn test_escrow_creation_tx_cost<T: EscrowVariant<S>, S: TokenVariant>(
     );
 
     let instruction_data = InstructionData::data(&cross_chain_escrow_mock::instruction::Create {
-        amount: test_state.test_arguments.escrow_amount,
-        order_hash: test_state.order_hash.to_bytes(),
-        hashlock: test_state.hashlock.to_bytes(),
-        recipient: test_state.recipient_wallet.keypair.pubkey(),
-        safety_deposit: test_state.test_arguments.safety_deposit,
-        finality_duration: test_state.test_arguments.finality_duration,
-        public_withdrawal_duration: test_state.test_arguments.public_withdrawal_duration,
-        withdrawal_duration: test_state.test_arguments.withdrawal_duration,
-        src_cancellation_timestamp: test_state.test_arguments.src_cancellation_timestamp,
-        rescue_start: test_state.test_arguments.rescue_start,
-        asset_is_native: test_state.test_arguments.asset_is_native,
-        escrow_bump: bump,
+        _amount: test_state.test_arguments.escrow_amount,
+        _order_hash: test_state.order_hash.to_bytes(),
+        _hashlock: test_state.hashlock.to_bytes(),
+        _recipient: test_state.recipient_wallet.keypair.pubkey(),
+        _safety_deposit: test_state.test_arguments.safety_deposit,
+        _finality_duration: test_state.test_arguments.finality_duration,
+        _public_withdrawal_duration: test_state.test_arguments.public_withdrawal_duration,
+        _withdrawal_duration: test_state.test_arguments.withdrawal_duration,
+        _src_cancellation_timestamp: test_state.test_arguments.src_cancellation_timestamp,
+        _rescue_start: test_state.test_arguments.rescue_start,
+        _asset_is_native: test_state.test_arguments.asset_is_native,
+        _escrow_bump: bump,
     });
-
-    let (creator_ata, _) = find_user_ata(test_state);
 
     let instruction: Instruction = Instruction {
         program_id: cross_chain_escrow_mock::id(),
         accounts: vec![
             AccountMeta::new(test_state.creator_wallet.keypair.pubkey(), true),
             AccountMeta::new_readonly(test_state.token, false),
-            AccountMeta::new(creator_ata, false),
             AccountMeta::new(escrow_pda, false),
-        //    AccountMeta::new(escrow_ata, false),
-            AccountMeta::new_readonly(spl_associated_token_id, false),
-            AccountMeta::new_readonly(S::get_token_program_id(), false),
-            AccountMeta::new_readonly(rent_id, false),
+            AccountMeta::new_readonly(system_program_id, false),
+        ],
+        data: instruction_data,
+    };
+
+    let tx = Transaction::new_signed_with_payer(
+        &[instruction],
+        Some(&test_state.payer_kp.pubkey()),
+        &[
+            &test_state.context.payer,
+            &test_state.creator_wallet.keypair,
+        ],
+        test_state.context.last_blockhash,
+    );
+
+    println!(
+        "CU cost for create: {:?}, BUMP: {}",
+        measure_tx_compute_units(test_state, tx).await,
+        bump
+    );
+}
+
+pub async fn test_escrow_creation_tx_with_setting_fields_cost<
+    T: EscrowVariant<S>,
+    S: TokenVariant,
+>(
+    test_state: &mut TestStateBase<T, S>,
+) {
+    // NOTE: To actually see the output from this test, use the `--show-output` flag as shown below
+    // `cargo test -- --show-output` or
+    // `cargo test test_escrow_creation_cost -- --show-output`
+
+    let program_id = cross_chain_escrow_mock::ID;
+    let hashlock = get_escrow_hashlock(
+        test_state.hashlock.to_bytes(),
+        test_state.test_arguments.merkle_proof.clone(),
+    );
+    let (escrow_pda, bump) = Pubkey::find_program_address(
+        &[
+            b"escrow",
+            test_state.order_hash.as_ref(),
+            hashlock.as_ref(),
+            test_state.creator_wallet.keypair.pubkey().as_ref(),
+            test_state.recipient_wallet.keypair.pubkey().as_ref(),
+            test_state.token.as_ref(),
+            test_state
+                .test_arguments
+                .escrow_amount
+                .to_be_bytes()
+                .as_ref(),
+            test_state
+                .test_arguments
+                .safety_deposit
+                .to_be_bytes()
+                .as_ref(),
+            test_state
+                .test_arguments
+                .rescue_start
+                .to_be_bytes()
+                .as_ref(),
+        ],
+        &program_id,
+    );
+    let escrow_ata = spl_associated_token_account::get_associated_token_address_with_program_id(
+        &escrow_pda,
+        &test_state.token,
+        &S::get_token_program_id(),
+    );
+
+    let instruction_data =
+        InstructionData::data(&cross_chain_escrow_mock::instruction::CreateAndSetFields {
+            amount: test_state.test_arguments.escrow_amount,
+            order_hash: test_state.order_hash.to_bytes(),
+            hashlock: test_state.hashlock.to_bytes(),
+            recipient: test_state.recipient_wallet.keypair.pubkey(),
+            safety_deposit: test_state.test_arguments.safety_deposit,
+            finality_duration: test_state.test_arguments.finality_duration,
+            public_withdrawal_duration: test_state.test_arguments.public_withdrawal_duration,
+            withdrawal_duration: test_state.test_arguments.withdrawal_duration,
+            src_cancellation_timestamp: test_state.test_arguments.src_cancellation_timestamp,
+            rescue_start: test_state.test_arguments.rescue_start,
+            asset_is_native: test_state.test_arguments.asset_is_native,
+            _escrow_bump: bump,
+        });
+
+    let instruction: Instruction = Instruction {
+        program_id: cross_chain_escrow_mock::id(),
+        accounts: vec![
+            AccountMeta::new(test_state.creator_wallet.keypair.pubkey(), true),
+            AccountMeta::new_readonly(test_state.token, false),
+            AccountMeta::new(escrow_pda, false),
+            AccountMeta::new_readonly(system_program_id, false),
+        ],
+        data: instruction_data,
+    };
+
+    let tx = Transaction::new_signed_with_payer(
+        &[instruction],
+        Some(&test_state.payer_kp.pubkey()),
+        &[
+            &test_state.context.payer,
+            &test_state.creator_wallet.keypair,
+        ],
+        test_state.context.last_blockhash,
+    );
+
+    println!(
+        "CU cost for create: {:?}, BUMP: {}",
+        measure_tx_compute_units(test_state, tx).await,
+        bump
+    );
+}
+
+pub async fn test_escrow_creation_tx_cost_no_pda<T: EscrowVariant<S>, S: TokenVariant>(
+    test_state: &mut TestStateBase<T, S>,
+) {
+    // NOTE: To actually see the output from this test, use the `--show-output` flag as shown below
+    // `cargo test -- --show-output` or
+    // `cargo test test_escrow_creation_cost -- --show-output`
+
+    let program_id = cross_chain_escrow_mock::ID;
+    let hashlock = get_escrow_hashlock(
+        test_state.hashlock.to_bytes(),
+        test_state.test_arguments.merkle_proof.clone(),
+    );
+    let (escrow_pda, bump) = Pubkey::find_program_address(
+        &[
+            b"escrow",
+            test_state.order_hash.as_ref(),
+            hashlock.as_ref(),
+            test_state.creator_wallet.keypair.pubkey().as_ref(),
+            test_state.recipient_wallet.keypair.pubkey().as_ref(),
+            test_state.token.as_ref(),
+            test_state
+                .test_arguments
+                .escrow_amount
+                .to_be_bytes()
+                .as_ref(),
+            test_state
+                .test_arguments
+                .safety_deposit
+                .to_be_bytes()
+                .as_ref(),
+            test_state
+                .test_arguments
+                .rescue_start
+                .to_be_bytes()
+                .as_ref(),
+        ],
+        &program_id,
+    );
+
+    let instruction_data =
+        InstructionData::data(&cross_chain_escrow_mock::instruction::CreateNoPda {
+            _amount: test_state.test_arguments.escrow_amount,
+            _order_hash: test_state.order_hash.to_bytes(),
+            _hashlock: test_state.hashlock.to_bytes(),
+            _recipient: test_state.recipient_wallet.keypair.pubkey(),
+            _safety_deposit: test_state.test_arguments.safety_deposit,
+            _finality_duration: test_state.test_arguments.finality_duration,
+            _public_withdrawal_duration: test_state.test_arguments.public_withdrawal_duration,
+            _withdrawal_duration: test_state.test_arguments.withdrawal_duration,
+            _src_cancellation_timestamp: test_state.test_arguments.src_cancellation_timestamp,
+            _rescue_start: test_state.test_arguments.rescue_start,
+            _asset_is_native: test_state.test_arguments.asset_is_native,
+            _escrow_bump: bump,
+        });
+
+    let instruction: Instruction = Instruction {
+        program_id: cross_chain_escrow_mock::id(),
+        accounts: vec![
+            AccountMeta::new(test_state.creator_wallet.keypair.pubkey(), true),
+            AccountMeta::new_readonly(test_state.token, false),
+            // AccountMeta::new(creator_ata, false),
+            AccountMeta::new(escrow_pda, false),
+            //    AccountMeta::new(escrow_ata, false),
+            // AccountMeta::new_readonly(spl_associated_token_id, false),
+            // AccountMeta::new_readonly(S::get_token_program_id(), false),
+            // AccountMeta::new_readonly(rent_id, false),
+            AccountMeta::new_readonly(system_program_id, false),
+        ],
+        data: instruction_data,
+    };
+
+    let tx = Transaction::new_signed_with_payer(
+        &[instruction],
+        Some(&test_state.payer_kp.pubkey()),
+        &[
+            &test_state.context.payer,
+            &test_state.creator_wallet.keypair,
+        ],
+        test_state.context.last_blockhash,
+    );
+
+    println!(
+        "CU cost for create: {:?}, BUMP: {}",
+        measure_tx_compute_units(test_state, tx).await,
+        bump
+    );
+}
+
+pub async fn test_escrow_creation_tx_cost_no_pda_with_timestamp_checks<
+    T: EscrowVariant<S>,
+    S: TokenVariant,
+>(
+    test_state: &mut TestStateBase<T, S>,
+) {
+    // NOTE: To actually see the output from this test, use the `--show-output` flag as shown below
+    // `cargo test -- --show-output` or
+    // `cargo test test_escrow_creation_cost -- --show-output`
+
+    let program_id = cross_chain_escrow_mock::ID;
+    let hashlock = get_escrow_hashlock(
+        test_state.hashlock.to_bytes(),
+        test_state.test_arguments.merkle_proof.clone(),
+    );
+    let (escrow_pda, bump) = Pubkey::find_program_address(
+        &[
+            b"escrow",
+            test_state.order_hash.as_ref(),
+            hashlock.as_ref(),
+            test_state.creator_wallet.keypair.pubkey().as_ref(),
+            test_state.recipient_wallet.keypair.pubkey().as_ref(),
+            test_state.token.as_ref(),
+            test_state
+                .test_arguments
+                .escrow_amount
+                .to_be_bytes()
+                .as_ref(),
+            test_state
+                .test_arguments
+                .safety_deposit
+                .to_be_bytes()
+                .as_ref(),
+            test_state
+                .test_arguments
+                .rescue_start
+                .to_be_bytes()
+                .as_ref(),
+        ],
+        &program_id,
+    );
+
+    let instruction_data = InstructionData::data(
+        &cross_chain_escrow_mock::instruction::CreateNoPdaWithTimestampChecks {
+            _amount: test_state.test_arguments.escrow_amount,
+            _order_hash: test_state.order_hash.to_bytes(),
+            _hashlock: test_state.hashlock.to_bytes(),
+            _recipient: test_state.recipient_wallet.keypair.pubkey(),
+            _safety_deposit: test_state.test_arguments.safety_deposit,
+            finality_duration: test_state.test_arguments.finality_duration,
+            public_withdrawal_duration: test_state.test_arguments.public_withdrawal_duration,
+            withdrawal_duration: test_state.test_arguments.withdrawal_duration,
+            src_cancellation_timestamp: test_state.test_arguments.src_cancellation_timestamp,
+            _rescue_start: test_state.test_arguments.rescue_start,
+            _asset_is_native: test_state.test_arguments.asset_is_native,
+            _escrow_bump: bump,
+        },
+    );
+
+    let instruction: Instruction = Instruction {
+        program_id: cross_chain_escrow_mock::id(),
+        accounts: vec![
+            AccountMeta::new(test_state.creator_wallet.keypair.pubkey(), true),
+            AccountMeta::new_readonly(test_state.token, false),
+            // AccountMeta::new(creator_ata, false),
+            AccountMeta::new(escrow_pda, false),
+            //    AccountMeta::new(escrow_ata, false),
+            // AccountMeta::new_readonly(spl_associated_token_id, false),
+            // AccountMeta::new_readonly(S::get_token_program_id(), false),
+            // AccountMeta::new_readonly(rent_id, false),
             AccountMeta::new_readonly(system_program_id, false),
         ],
         data: instruction_data,

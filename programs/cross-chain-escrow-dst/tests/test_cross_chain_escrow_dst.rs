@@ -892,6 +892,29 @@ mod test_escrow_creation_cost {
     #[tokio::test]
     async fn test_escrow_creation_tx_cost(test_state: &mut TestState) {
         common_escrow_tests::test_escrow_creation_tx_cost(test_state).await
+        // 268 CU
+    }
+
+    #[test_context(TestState)]
+    #[tokio::test]
+    async fn test_escrow_creation_tx_with_setting_fields_cost(test_state: &mut TestState) {
+        common_escrow_tests::test_escrow_creation_tx_with_setting_fields_cost(test_state).await
+        // 408 CU
+    }
+
+    #[test_context(TestState)]
+    #[tokio::test]
+    async fn test_escrow_creation_tx_cost_no_pda(test_state: &mut TestState) {
+        common_escrow_tests::test_escrow_creation_tx_cost_no_pda(test_state).await
+        // 1 CU
+    }
+
+    #[test_context(TestState)]
+    #[tokio::test]
+    async fn test_escrow_creation_tx_cost_no_pda_with_timestamp_checks(test_state: &mut TestState) {
+        common_escrow_tests::test_escrow_creation_tx_cost_no_pda_with_timestamp_checks(test_state)
+            .await
+        // 141 CU
     }
 }
 
