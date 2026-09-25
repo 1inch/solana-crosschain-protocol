@@ -1218,8 +1218,7 @@ fn is_valid_partial_fill(
         return calculated_index + 1 == validated_index;
     } else if order_making_amount != remaining_making_amount {
         // Calculate the previous fill index only if this is not the first fill.
-        let prev_calculated_index = ((order_making_amount - remaining_making_amount - 1)
-            as u128
+        let prev_calculated_index = ((order_making_amount - remaining_making_amount - 1) as u128
             * parts_amount as u128
             / order_making_amount as u128) as u64;
         if calculated_index == prev_calculated_index {
