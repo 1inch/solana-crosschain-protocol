@@ -1,10 +1,14 @@
 use anchor_lang::prelude::*;
 use anchor_spl::token_interface::{Mint, TokenAccount, TokenInterface};
-use common::{error::EscrowError, escrow::process_payout};
+use common::{
+    error::EscrowError,
+    escrow::{process_payout, FeePayout},
+};
 use solana_keccak_hasher::hash;
 
 use crate::EscrowDst;
 
+#[allow(clippy::too_many_arguments)]
 pub fn withdraw<'info>(
     escrow: &Account<'info, EscrowDst>,
     escrow_bump: u8,
@@ -16,6 +20,7 @@ pub fn withdraw<'info>(
     rent_recipient: &AccountInfo<'info>,
     safety_deposit_recipient: &AccountInfo<'info>,
     secret: [u8; 32],
+    fees: &[FeePayout<'_, 'info>],
 ) -> Result<()> {
     // Verify that the secret matches the hashlock
     require!(
@@ -43,6 +48,7 @@ pub fn withdraw<'info>(
         rent_recipient,
         seeds,
         token_program,
+        fees,
     )?;
 
     // Disrtibute the safety deposit if needed

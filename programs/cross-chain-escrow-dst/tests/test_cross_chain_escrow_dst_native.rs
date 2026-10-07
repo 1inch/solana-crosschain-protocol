@@ -122,6 +122,122 @@ mod test_escrow_native {
 
     #[test_context(TestState)]
     #[tokio::test]
+    async fn test_withdraw_pays_fees(test_state: &mut TestState) {
+        const PROTOCOL_FEE_AMOUNT: u64 = 70;
+        const INTEGRATOR_FEE_AMOUNT: u64 = 30;
+
+        test_state.token = NATIVE_MINT;
+        test_state.test_arguments.asset_is_native = true;
+
+        // Fee recipients are funded so that receiving the fee does not leave them rent-paying
+        let protocol_fee_recipient = Keypair::new().pubkey();
+        let integrator_fee_recipient = Keypair::new().pubkey();
+        for recipient in [&protocol_fee_recipient, &integrator_fee_recipient] {
+            transfer_lamports(
+                &mut test_state.context,
+                WALLET_DEFAULT_LAMPORTS,
+                &test_state.payer_kp,
+                recipient,
+            )
+            .await;
+        }
+        test_state.test_arguments.dst_fee_params = cross_chain_escrow_dst::FeeParams {
+            protocol_fee_amount: PROTOCOL_FEE_AMOUNT,
+            integrator_fee_amount: INTEGRATOR_FEE_AMOUNT,
+            protocol_fee_recipient,
+            integrator_fee_recipient,
+        };
+
+        let (escrow, escrow_ata) = create_escrow(test_state).await;
+        let transaction = DstProgram::get_withdraw_tx(test_state, &escrow, &escrow_ata);
+
+        let token_account_rent = get_min_rent_for_size(
+            &mut test_state.client,
+            <TestState as HasTokenVariant>::Token::get_token_account_size(),
+        )
+        .await;
+
+        let escrow_rent =
+            get_min_rent_for_size(&mut test_state.client, DEFAULT_DST_ESCROW_SIZE).await;
+
+        set_time(
+            &mut test_state.context,
+            test_state
+                .test_arguments
+                .dst_timelocks
+                .get(Stage::DstWithdrawal)
+                .unwrap(),
+        );
+
+        test_state
+            .expect_state_change(
+                transaction,
+                &[
+                    native_change(
+                        test_state.maker_wallet.keypair.pubkey(),
+                        token_account_rent + escrow_rent,
+                    ),
+                    native_change(
+                        test_state.taker_wallet.keypair.pubkey(),
+                        test_state.test_arguments.escrow_amount
+                            - PROTOCOL_FEE_AMOUNT
+                            - INTEGRATOR_FEE_AMOUNT,
+                    ),
+                    native_change(protocol_fee_recipient, PROTOCOL_FEE_AMOUNT),
+                    native_change(integrator_fee_recipient, INTEGRATOR_FEE_AMOUNT),
+                    account_closure(escrow_ata, true),
+                    account_closure(escrow, true),
+                ],
+            )
+            .await;
+    }
+
+    #[test_context(TestState)]
+    #[tokio::test]
+    async fn test_withdraw_fails_without_fee_recipient(test_state: &mut TestState) {
+        use common_tests::dst_program::get_withdraw_tx_with_fee_metas;
+        use solana_program::instruction::AccountMeta;
+
+        test_state.token = NATIVE_MINT;
+        test_state.test_arguments.asset_is_native = true;
+        test_state.test_arguments.dst_fee_params = cross_chain_escrow_dst::FeeParams {
+            protocol_fee_amount: 70,
+            integrator_fee_amount: 30,
+            protocol_fee_recipient: Keypair::new().pubkey(),
+            integrator_fee_recipient: Keypair::new().pubkey(),
+        };
+
+        let (escrow, escrow_ata) = create_escrow(test_state).await;
+
+        // Pass `None` (the program id) for all fee recipient accounts
+        let none = AccountMeta::new_readonly(cross_chain_escrow_dst::id(), false);
+        let transaction = get_withdraw_tx_with_fee_metas(
+            test_state,
+            &escrow,
+            &escrow_ata,
+            vec![none.clone(), none.clone(), none.clone(), none],
+        );
+
+        set_time(
+            &mut test_state.context,
+            test_state
+                .test_arguments
+                .dst_timelocks
+                .get(Stage::DstWithdrawal)
+                .unwrap(),
+        );
+
+        test_state
+            .client
+            .process_transaction(transaction)
+            .await
+            .expect_error(ProgramError::Custom(
+                EscrowError::MissingFeeRecipient.into(),
+            ));
+    }
+
+    #[test_context(TestState)]
+    #[tokio::test]
     async fn test_public_withdraw_by_maker(test_state: &mut TestState) {
         test_state.token = NATIVE_MINT;
         test_state.test_arguments.asset_is_native = true;

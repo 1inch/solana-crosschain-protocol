@@ -41,6 +41,7 @@ pub fn withdraw<'info>(
         mint,
         token_program,
         rent_recipient,
+        escrow_ata.amount,
         &seeds,
     )?;
 
@@ -84,6 +85,7 @@ pub fn cancel<'info>(
         rent_recipient,
         seeds,
         token_program,
+        &[],
     )?;
 
     // Disrtibute the safety deposit if needed

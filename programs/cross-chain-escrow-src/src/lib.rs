@@ -43,6 +43,7 @@ pub mod cross_chain_escrow_src {
         cancellation_auction_duration: u32,
         allow_multiple_fills: bool,
         salt: u64,
+        fee: FeeConfig,
         _dst_chain_params: DstChainParams,
     ) -> Result<()> {
         require!(
@@ -55,6 +56,11 @@ pub mod cross_chain_escrow_src {
 
             require!(parts_amount > 1, EscrowError::InvalidPartsAmount);
         }
+
+        require!(
+            u64::from(fee.integrator_share) <= constants::BASE_1E2,
+            EscrowError::InvalidIntegratorShare
+        );
 
         let now = get_current_timestamp()?;
 
@@ -75,6 +81,7 @@ pub mod cross_chain_escrow_src {
             cancellation_auction_duration,
             allow_multiple_fills,
             salt,
+            &fee,
         );
 
         // TODO: Verify that safety_deposit is enough to cover public_withdraw and public_cancel methods
@@ -153,6 +160,7 @@ pub mod cross_chain_escrow_src {
             max_cancellation_premium,
             cancellation_auction_duration,
             allow_multiple_fills,
+            fee,
             bump: ctx.bumps.order,
         });
 
@@ -232,6 +240,22 @@ pub mod cross_chain_escrow_src {
 
         let updated_timelocks = Timelocks(U256(order.timelocks)).set_deployed_at(now);
 
+        // The amount the maker should receive on the destination chain for this fill
+        let dst_amount = get_dst_amount(
+            U256(order.dst_amount)
+                .checked_mul(U256::from(amount))
+                .expect("Overflow during multiplication in dst_amount calculation")
+                .checked_add(U256::from(order.amount - 1)) // Add (divisor - 1) for ceiling division
+                .expect("Overflow when adding divisor - 1 for ceiling division")
+                .checked_div(U256::from(order.amount))
+                .expect("Division by zero or overflow during division in dst_amount calculation")
+                .0,
+            &dutch_auction_data,
+        )?;
+
+        // The fees are added on top of the maker's amount, the taker deposits the total on the destination chain
+        let fee_amounts = get_fee_amounts(dst_amount, &order.fee)?;
+
         ctx.accounts.escrow.set_inner(EscrowSrc {
             order_hash: order.order_hash,
             hashlock,
@@ -242,19 +266,9 @@ pub mod cross_chain_escrow_src {
             safety_deposit: order.safety_deposit,
             timelocks: updated_timelocks.get_timelocks(),
             asset_is_native: order.asset_is_native,
-            dst_amount: get_dst_amount(
-                U256(order.dst_amount)
-                    .checked_mul(U256::from(amount))
-                    .expect("Overflow during multiplication in dst_amount calculation")
-                    .checked_add(U256::from(order.amount - 1)) // Add (divisor - 1) for ceiling division
-                    .expect("Overflow when adding divisor - 1 for ceiling division")
-                    .checked_div(U256::from(order.amount))
-                    .expect(
-                        "Division by zero or overflow during division in dst_amount calculation",
-                    )
-                    .0,
-                &dutch_auction_data,
-            )?,
+            dst_amount: fee_amounts.dst_amount,
+            protocol_fee_amount: fee_amounts.protocol_fee_amount,
+            integrator_fee_amount: fee_amounts.integrator_fee_amount,
             bump: ctx.bumps.escrow,
         });
 
@@ -557,6 +571,7 @@ pub mod cross_chain_escrow_src {
         cancellation_auction_duration: u32,
         allow_multiple_fills: bool,
         salt: u64,
+        fee: FeeConfig,
         rescue_amount: u64,
     ) -> Result<()> {
         let rescue_start = if !ctx.accounts.order.data_is_empty() {
@@ -581,6 +596,7 @@ pub mod cross_chain_escrow_src {
             cancellation_auction_duration,
             allow_multiple_fills,
             salt,
+            &fee,
         );
 
         let seeds = ["order".as_bytes(), order_hash.as_ref(), &[ctx.bumps.order]];
@@ -612,6 +628,7 @@ pub mod cross_chain_escrow_src {
               cancellation_auction_duration: u32,
               allow_multiple_fills: bool,
               salt: u64,
+              fee: FeeConfig,
             )]
 pub struct Create<'info> {
     #[account(
@@ -650,6 +667,7 @@ pub struct Create<'info> {
                 cancellation_auction_duration,
                 allow_multiple_fills,
                 salt,
+                &fee,
             )
             ],
         bump,
@@ -1094,6 +1112,7 @@ pub struct RescueFundsForEscrow<'info> {
         cancellation_auction_duration: u32,
         allow_multiple_fills: bool,
         salt: u64,
+        fee: FeeConfig,
 )]
 pub struct RescueFundsForOrder<'info> {
     #[account(
@@ -1126,6 +1145,7 @@ pub struct RescueFundsForOrder<'info> {
                 cancellation_auction_duration,
                 allow_multiple_fills,
                 salt,
+                &fee,
             )
         ],
         bump,
@@ -1167,6 +1187,7 @@ pub struct Order {
     max_cancellation_premium: u64,
     cancellation_auction_duration: u32,
     allow_multiple_fills: bool,
+    fee: FeeConfig,
     bump: u8,
 }
 
@@ -1182,8 +1203,142 @@ pub struct EscrowSrc {
     pub safety_deposit: u64,
     pub timelocks: [u64; 4],
     pub asset_is_native: bool,
+    /// Total amount the taker has to deposit on the destination chain, fees included
     pub dst_amount: [u64; 4],
+    /// Part of `dst_amount` that goes to the protocol fee recipient on the destination chain
+    pub protocol_fee_amount: [u64; 4],
+    /// Part of `dst_amount` that goes to the integrator fee recipient on the destination chain
+    pub integrator_fee_amount: [u64; 4],
     pub bump: u8,
+}
+
+/// Fee configuration of an order. Mirrors the fee section of the EVM `FeeTaker` extension data.
+#[derive(
+    AnchorSerialize, AnchorDeserialize, Clone, Copy, Debug, Default, PartialEq, Eq, InitSpace,
+)]
+pub struct FeeConfig {
+    /// Protocol (resolver) fee, 100% = `constants::BASE_1E5`
+    pub protocol_fee: u16,
+    /// Integrator fee, 100% = `constants::BASE_1E5`
+    pub integrator_fee: u16,
+    /// Share of the integrator fee that goes to the integrator, 100% = `constants::BASE_1E2`.
+    /// The rest of the integrator fee goes to the protocol.
+    pub integrator_share: u8,
+}
+
+/// Amounts the taker has to deposit on the destination chain for a fill.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub struct FeeAmounts {
+    /// Total amount, fees included
+    pub dst_amount: [u64; 4],
+    pub protocol_fee_amount: [u64; 4],
+    pub integrator_fee_amount: [u64; 4],
+}
+
+/// Adds the fees on top of `dst_amount` and splits them the same way the EVM `FeeTaker` does:
+/// the total is `dst_amount * (1e5 + integrator_fee + protocol_fee) / 1e5` rounded up
+/// (`AmountGetterWithFee._getTakingAmount`), the fee amounts are then taken from the total
+/// (`FeeTaker._getFeeAmounts`). The maker receives `dst_amount - protocol_fee_amount - integrator_fee_amount`.
+pub fn get_fee_amounts(dst_amount: [u64; 4], fee: &FeeConfig) -> Result<FeeAmounts> {
+    if fee.protocol_fee == 0 && fee.integrator_fee == 0 {
+        return Ok(FeeAmounts {
+            dst_amount,
+            protocol_fee_amount: [0; 4],
+            integrator_fee_amount: [0; 4],
+        });
+    }
+
+    let base = U256::from(constants::BASE_1E5);
+    let integrator_fee = U256::from(fee.integrator_fee);
+    let protocol_fee = U256::from(fee.protocol_fee);
+    let denominator = base + integrator_fee + protocol_fee;
+
+    let total = U256(dst_amount)
+        .checked_mul(denominator)
+        .ok_or(ProgramError::ArithmeticOverflow)?
+        .checked_add(base - 1) // To ensure rounding up
+        .ok_or(ProgramError::ArithmeticOverflow)?
+        / base;
+
+    let integrator_fee_total = total * integrator_fee / denominator;
+    let integrator_fee_amount =
+        integrator_fee_total * U256::from(fee.integrator_share) / U256::from(constants::BASE_1E2);
+    let protocol_fee_amount =
+        total * protocol_fee / denominator + integrator_fee_total - integrator_fee_amount;
+
+    Ok(FeeAmounts {
+        dst_amount: total.0,
+        protocol_fee_amount: protocol_fee_amount.0,
+        integrator_fee_amount: integrator_fee_amount.0,
+    })
+}
+
+#[cfg(test)]
+mod fee_amounts_tests {
+    use super::*;
+
+    fn amounts(dst_amount: u64, fee: FeeConfig) -> (u64, u64, u64) {
+        let result = get_fee_amounts(U256::from(dst_amount).0, &fee).unwrap();
+        (
+            U256(result.dst_amount).as_u64(),
+            U256(result.protocol_fee_amount).as_u64(),
+            U256(result.integrator_fee_amount).as_u64(),
+        )
+    }
+
+    #[test]
+    fn zero_fees_keep_dst_amount() {
+        assert_eq!(amounts(1000, FeeConfig::default()), (1000, 0, 0));
+    }
+
+    #[test]
+    fn fees_are_added_on_top_and_split_like_evm_fee_taker() {
+        let fee = FeeConfig {
+            protocol_fee: 1000,
+            integrator_fee: 500,
+            integrator_share: 50,
+        };
+        // total = ceil(1000 * 101500 / 1e5) = 1015; integrator total = 5, integrator gets 2,
+        // protocol gets 10 + (5 - 2) = 13; the maker still gets 1015 - 13 - 2 = 1000
+        assert_eq!(amounts(1000, fee), (1015, 13, 2));
+    }
+
+    #[test]
+    fn whole_integrator_fee_goes_to_integrator_with_full_share() {
+        let fee = FeeConfig {
+            protocol_fee: 0,
+            integrator_fee: 10_000,
+            integrator_share: 100,
+        };
+        assert_eq!(amounts(1_000_000, fee), (1_100_000, 0, 100_000));
+    }
+
+    #[test]
+    fn whole_integrator_fee_goes_to_protocol_with_zero_share() {
+        let fee = FeeConfig {
+            protocol_fee: 0,
+            integrator_fee: 10_000,
+            integrator_share: 0,
+        };
+        assert_eq!(amounts(1_000_000, fee), (1_100_000, 100_000, 0));
+    }
+
+    #[test]
+    fn total_is_rounded_up_and_maker_amount_is_never_below_dst_amount() {
+        let fee = FeeConfig {
+            protocol_fee: 1,
+            integrator_fee: 1,
+            integrator_share: 33,
+        };
+        // The total may exceed u64 for the largest inputs, so compare in U256
+        for dst_amount in [1u64, 7, 99_999, 100_001, u64::MAX] {
+            let result = get_fee_amounts(U256::from(dst_amount).0, &fee).unwrap();
+            let maker_amount = U256(result.dst_amount)
+                - U256(result.protocol_fee_amount)
+                - U256(result.integrator_fee_amount);
+            assert!(maker_amount >= U256::from(dst_amount));
+        }
+    }
 }
 
 fn get_dst_amount(dst_amount: [u64; 4], data: &AuctionData) -> Result<[u64; 4]> {
@@ -1240,12 +1395,18 @@ pub fn get_escrow_hashlock(
     }
 }
 
+/// Parameters of the destination chain escrow. They are not stored on chain, the resolver
+/// reads them from the `create` instruction data.
 #[account]
 pub struct DstChainParams {
     pub chain_id: u32,
     pub maker_address: [u8; 32],
     pub token: [u8; 32],
     pub safety_deposit: u128,
+    /// Receives `EscrowSrc::protocol_fee_amount` on the destination chain
+    pub protocol_fee_recipient: [u8; 32],
+    /// Receives `EscrowSrc::integrator_fee_amount` on the destination chain
+    pub integrator_fee_recipient: [u8; 32],
 }
 
 #[allow(clippy::too_many_arguments)]
@@ -1264,6 +1425,7 @@ fn get_order_hash(
     cancellation_auction_duration: u32,
     allow_multiple_fills: bool,
     salt: u64,
+    fee: &FeeConfig,
 ) -> [u8; 32] {
     keccak::hashv(&[
         &hashlock,
@@ -1280,6 +1442,9 @@ fn get_order_hash(
         &cancellation_auction_duration.to_be_bytes(),
         &[allow_multiple_fills as u8],
         &salt.to_be_bytes(),
+        &fee.protocol_fee.to_be_bytes(),
+        &fee.integrator_fee.to_be_bytes(),
+        &[fee.integrator_share],
     ])
     .to_bytes()
 }

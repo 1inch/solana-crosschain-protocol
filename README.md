@@ -89,6 +89,7 @@ pub fn create(
     cancellation_auction_duration: u32,
     allow_multiple_fills: bool,
     salt: u64,
+    fee: FeeConfig, // protocol_fee, integrator_fee (1e5 = 100%), integrator_share (1e2 = 100%)
     _dst_chain_params: DstChainParams,
 );
 ```
@@ -119,6 +120,7 @@ pub fn create(
         timelocks: [u64; 4],
         src_cancellation_timestamp: u32,
         asset_is_native: bool,
+        fees: FeeParams, // protocol_fee_amount, integrator_fee_amount, protocol_fee_recipient, integrator_fee_recipient
 )
 ```
 
@@ -128,6 +130,23 @@ pub fn create(
 // Withdraw by revealing the secret
 pub fn withdraw(ctx: Context<Withdraw>, secret: [u8; 32])
 ```
+
+### Protocol and Integrator Fees
+
+Fees work the same way as in the EVM [cross-chain-swap](https://github.com/1inch/cross-chain-swap) contracts:
+
+- The order carries a `FeeConfig`. It is part of the order hash, so it cannot be changed after the order is created.
+- When the taker fills the order (`create_escrow`), the fees are added on top of the maker's destination amount
+  (`dst_amount * (1e5 + protocol_fee + integrator_fee) / 1e5`, rounded up) and split into
+  `protocol_fee_amount` and `integrator_fee_amount` the same way the EVM `FeeTaker` does. The three amounts
+  are stored in `EscrowSrc`; the fee recipients travel in `DstChainParams`.
+- On the destination chain the taker deposits the total `dst_amount` and passes the fee amounts and recipients
+  as `FeeParams` of `create`. They are stored in `EscrowDst`.
+- `withdraw` / `public_withdraw` pay the integrator fee, then the protocol fee, then the rest to the recipient.
+  For SPL assets the fee recipients' associated token accounts have to exist and are passed as
+  `protocol_fee_recipient_ata` / `integrator_fee_recipient_ata`; for native SOL the wallets are passed as
+  `protocol_fee_recipient` / `integrator_fee_recipient`. Accounts for a zero fee are omitted (program id).
+- `cancel` returns the whole amount, fees included, to the escrow creator.
 
 ## Timelock Stages
 
