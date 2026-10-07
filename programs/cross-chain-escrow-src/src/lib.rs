@@ -1,6 +1,5 @@
 use crate::merkle_tree::MerkleProof;
 use anchor_lang::prelude::*;
-use anchor_lang::solana_program::keccak;
 use anchor_spl::associated_token::{AssociatedToken, ID as ASSOCIATED_TOKEN_PROGRAM_ID};
 use anchor_spl::token::spl_token::native_mint::ID as NATIVE_MINT;
 use anchor_spl::token_interface::{
@@ -14,6 +13,7 @@ use common::{
     timelocks::{Stage, Timelocks},
     utils::get_current_timestamp,
 };
+use solana_keccak_hasher as keccak;
 
 use primitive_types::U256;
 

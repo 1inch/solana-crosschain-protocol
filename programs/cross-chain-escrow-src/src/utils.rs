@@ -1,9 +1,10 @@
-use anchor_lang::{prelude::*, solana_program::keccak::hash};
+use anchor_lang::prelude::*;
 use anchor_spl::token_interface::{Mint, TokenAccount, TokenInterface};
 use common::{
     error::EscrowError,
     escrow::{process_payout, withdraw_and_close_token_ata},
 };
+use solana_keccak_hasher::hash;
 
 use crate::EscrowSrc;
 

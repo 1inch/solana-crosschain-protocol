@@ -1,5 +1,5 @@
 use anchor_lang::prelude::*;
-use solana_program::keccak::hashv;
+use solana_keccak_hasher::hashv;
 #[account]
 pub struct MerkleProof {
     pub proof: Vec<[u8; 32]>,
