@@ -3,8 +3,8 @@
   "scripts": {
     "lint:fix": "cargo fmt && cargo clippy --fix --allow-dirty --allow-staged",
     "lint": "cargo fmt -- --check && cargo clippy",
-    "test": "RUST_LOG=error cargo test",
-    "coverage": "zest coverage --output-type lcov",
+    "test": "anchor build && RUST_LOG=error cargo test",
+    "coverage": "anchor build && zest coverage --output-type lcov",
     "clean": "anchor clean",
     "build": "anchor build",
     "new": "anchor new",

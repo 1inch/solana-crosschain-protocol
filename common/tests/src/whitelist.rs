@@ -1,7 +1,6 @@
-use anchor_lang::prelude::{AccountInfo, AccountMeta};
+use anchor_lang::prelude::AccountMeta;
 use anchor_lang::InstructionData;
 use solana_program::{instruction::Instruction, pubkey::Pubkey};
-use solana_program_test::processor;
 
 use solana_sdk::{
     signer::Signer, system_program::ID as system_program_id, transaction::Transaction,
@@ -10,10 +9,9 @@ use solana_sdk::{
 use solana_program_runtime::invoke_context::BuiltinFunctionWithContext;
 
 use crate::helpers::{EscrowVariant, Expectation, TestStateBase, TokenVariant};
-use crate::wrap_entry;
 
 pub fn get_program_whitelist_spec() -> (Pubkey, Option<BuiltinFunctionWithContext>) {
-    (whitelist::id(), wrap_entry!(whitelist::entry))
+    (whitelist::id(), None)
 }
 
 pub fn get_whitelist_state_address() -> (Pubkey, Pubkey) {

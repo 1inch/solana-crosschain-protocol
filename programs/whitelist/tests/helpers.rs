@@ -28,6 +28,7 @@ pub struct TestState {
 
 impl AsyncTestContext for TestState {
     async fn setup() -> TestState {
+        configure_sbf_out_dir();
         let mut program_test: ProgramTest = ProgramTest::default();
         add_program_to_test(&mut program_test, "whitelist", || {
             get_program_whitelist_spec()

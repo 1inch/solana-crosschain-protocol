@@ -40,6 +40,7 @@ use solana_sdk::{
 };
 use std::marker::PhantomData;
 use std::ops::{Div, Mul};
+use std::path::PathBuf;
 use std::time::{SystemTime, UNIX_EPOCH};
 use test_context::AsyncTestContext;
 
@@ -578,6 +579,7 @@ impl TokenVariant for TokenSPL {
 // A trait that is used to specify procedures during testing, that
 // has to be different between variants.
 pub trait EscrowVariant<S: TokenVariant> {
+    fn sbf_program_name() -> &'static str;
     fn get_program_spec() -> (Pubkey, Option<BuiltinFunctionWithContext>);
 
     // All the instruction creation procedures differ slightly
@@ -622,8 +624,13 @@ where
     S: TokenVariant,
 {
     async fn setup() -> TestStateBase<T, S> {
+        configure_sbf_out_dir();
         let mut program_test: ProgramTest = ProgramTest::default();
-        add_program_to_test(&mut program_test, "escrow_contract", T::get_program_spec);
+        add_program_to_test(
+            &mut program_test,
+            T::sbf_program_name(),
+            T::get_program_spec,
+        );
         add_program_to_test(&mut program_test, "whitelist", || {
             get_program_whitelist_spec()
         });
@@ -809,6 +816,31 @@ pub async fn sync_native_ata(ctx: &mut ProgramTestContext, ata: &Pubkey) {
     ctx.banks_client.process_transaction(tx).await.unwrap();
 }
 
+/// Point ProgramTest at `target/deploy` so tests load SBF `.so` files instead of
+/// native processors. Anchor 0.32 CPI (`solana-invoke`) only works on Solana VM.
+pub fn configure_sbf_out_dir() {
+    if std::env::var_os("SBF_OUT_DIR").is_some() || std::env::var_os("BPF_OUT_DIR").is_some() {
+        return;
+    }
+
+    let manifest_dir = PathBuf::from(env!("CARGO_MANIFEST_DIR"));
+    let cargo_target_dir = std::env::var_os("CARGO_TARGET_DIR").map(PathBuf::from);
+    let candidates = [
+        cargo_target_dir.as_ref().map(|dir| dir.join("deploy")),
+        Some(manifest_dir.join("../../target/deploy")),
+        Some(manifest_dir.join("target/deploy")),
+    ];
+    let candidates = candidates.into_iter().flatten();
+    for dir in candidates {
+        if dir.join("whitelist.so").exists() {
+            std::env::set_var("SBF_OUT_DIR", &dir);
+            return;
+        }
+    }
+
+    panic!("SBF programs not found; run `anchor build` before `cargo test`");
+}
+
 pub fn add_program_to_test<F>(
     program_test: &mut ProgramTest,
     program_name: &'static str,
@@ -816,8 +848,8 @@ pub fn add_program_to_test<F>(
 ) where
     F: Fn() -> (Pubkey, Option<BuiltinFunctionWithContext>),
 {
-    let (program_id, entry_point) = get_program_spec();
-    program_test.add_program(program_name, program_id, entry_point);
+    let (program_id, _entry_point) = get_program_spec();
+    program_test.add_program(program_name, program_id, None);
 }
 
 pub fn set_time(ctx: &mut ProgramTestContext, timestamp: u32) {
