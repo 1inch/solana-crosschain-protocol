@@ -5,7 +5,7 @@ use anchor_spl::token_interface::{Mint, TokenAccount, TokenInterface};
 pub use common::constants;
 use common::{
     error::EscrowError,
-    escrow::{process_payout, uni_transfer, UniTransferParams},
+    escrow::{process_payout, uni_transfer, FeePayout, UniTransferParams},
     timelocks::{Stage, Timelocks},
     utils::get_current_timestamp,
 };
@@ -30,6 +30,7 @@ pub mod cross_chain_escrow_dst {
         timelocks: [u64; 4],
         src_cancellation_timestamp: u32,
         asset_is_native: bool,
+        fees: FeeParams,
     ) -> Result<()> {
         let updated_timelocks =
             Timelocks(U256(timelocks)).set_deployed_at(get_current_timestamp()?);
@@ -45,6 +46,13 @@ pub mod cross_chain_escrow_dst {
             amount != 0 && safety_deposit != 0,
             EscrowError::ZeroAmountOrDeposit
         );
+
+        // The fees are taken from the escrowed amount on withdrawal, so they must leave something for the recipient
+        let total_fees = fees
+            .protocol_fee_amount
+            .checked_add(fees.integrator_fee_amount)
+            .ok_or(ProgramError::ArithmeticOverflow)?;
+        require!(total_fees < amount, EscrowError::InvalidFeeAmounts);
 
         // Verify that safety_deposit is less than escrow rent_exempt_reserve
         let rent_exempt_reserve =
@@ -103,6 +111,7 @@ pub mod cross_chain_escrow_dst {
             safety_deposit,
             timelocks: updated_timelocks.get_timelocks(),
             asset_is_native,
+            fees,
             bump: ctx.bumps.escrow,
         });
 
@@ -121,6 +130,14 @@ pub mod cross_chain_escrow_dst {
         // In a standard withdrawal, the creator receives the entire rent amount, including the safety deposit,
         // because they initially covered the entire rent during escrow creation.
 
+        let fees = get_fee_payouts(
+            &ctx.accounts.escrow.fees,
+            ctx.accounts.protocol_fee_recipient.as_deref(),
+            ctx.accounts.protocol_fee_recipient_ata.as_deref(),
+            ctx.accounts.integrator_fee_recipient.as_deref(),
+            ctx.accounts.integrator_fee_recipient_ata.as_deref(),
+        );
+
         utils::withdraw(
             &ctx.accounts.escrow,
             ctx.accounts.escrow.bump,
@@ -132,6 +149,7 @@ pub mod cross_chain_escrow_dst {
             &ctx.accounts.creator,
             &ctx.accounts.creator,
             secret,
+            &fees,
         )
     }
 
@@ -147,6 +165,14 @@ pub mod cross_chain_escrow_dst {
         // In a public withdrawal, the creator receives the rent minus the safety deposit
         // while the safety deposit is awarded to the payer who executed the public withdrawal
 
+        let fees = get_fee_payouts(
+            &ctx.accounts.escrow.fees,
+            ctx.accounts.protocol_fee_recipient.as_deref(),
+            ctx.accounts.protocol_fee_recipient_ata.as_deref(),
+            ctx.accounts.integrator_fee_recipient.as_deref(),
+            ctx.accounts.integrator_fee_recipient_ata.as_deref(),
+        );
+
         utils::withdraw(
             &ctx.accounts.escrow,
             ctx.accounts.escrow.bump,
@@ -158,6 +184,7 @@ pub mod cross_chain_escrow_dst {
             &ctx.accounts.creator,
             &ctx.accounts.payer,
             secret,
+            &fees,
         )
     }
 
@@ -178,6 +205,7 @@ pub mod cross_chain_escrow_dst {
             &[ctx.accounts.escrow.bump],
         ];
 
+        // On cancellation the whole amount, fees included, goes back to the creator
         process_payout(
             &ctx.accounts.mint,
             ctx.accounts.escrow.asset_is_native,
@@ -189,6 +217,7 @@ pub mod cross_chain_escrow_dst {
             &ctx.accounts.creator,
             seeds,
             &ctx.accounts.token_program,
+            &[],
         )?;
 
         Ok(())
@@ -327,6 +356,36 @@ pub struct Withdraw<'info> {
     )]
     /// Optional if the token is native
     recipient_ata: Option<Box<InterfaceAccount<'info, TokenAccount>>>,
+    /// CHECK: This account is used to check its pubkey to match the one stored in the escrow account
+    #[account(
+        mut, // Needed because this account receives lamports if asset is native
+        constraint = protocol_fee_recipient.key() == escrow.fees.protocol_fee_recipient @ EscrowError::InvalidAccount
+    )]
+    /// Receives the protocol fee if the asset is native. Required if the protocol fee is not zero and the asset is native
+    protocol_fee_recipient: Option<UncheckedAccount<'info>>,
+    #[account(
+        mut,
+        associated_token::mint = mint,
+        associated_token::authority = escrow.fees.protocol_fee_recipient,
+        associated_token::token_program = token_program
+    )]
+    /// Receives the protocol fee if the asset is not native. Required if the protocol fee is not zero and the asset is not native
+    protocol_fee_recipient_ata: Option<Box<InterfaceAccount<'info, TokenAccount>>>,
+    /// CHECK: This account is used to check its pubkey to match the one stored in the escrow account
+    #[account(
+        mut, // Needed because this account receives lamports if asset is native
+        constraint = integrator_fee_recipient.key() == escrow.fees.integrator_fee_recipient @ EscrowError::InvalidAccount
+    )]
+    /// Receives the integrator fee if the asset is native. Required if the integrator fee is not zero and the asset is native
+    integrator_fee_recipient: Option<UncheckedAccount<'info>>,
+    #[account(
+        mut,
+        associated_token::mint = mint,
+        associated_token::authority = escrow.fees.integrator_fee_recipient,
+        associated_token::token_program = token_program
+    )]
+    /// Receives the integrator fee if the asset is not native. Required if the integrator fee is not zero and the asset is not native
+    integrator_fee_recipient_ata: Option<Box<InterfaceAccount<'info, TokenAccount>>>,
     associated_token_program: Program<'info, AssociatedToken>,
     token_program: Interface<'info, TokenInterface>,
     system_program: Program<'info, System>,
@@ -384,6 +443,36 @@ pub struct PublicWithdraw<'info> {
     )]
     /// Optional if the token is native
     recipient_ata: Option<Box<InterfaceAccount<'info, TokenAccount>>>,
+    /// CHECK: This account is used to check its pubkey to match the one stored in the escrow account
+    #[account(
+        mut, // Needed because this account receives lamports if asset is native
+        constraint = protocol_fee_recipient.key() == escrow.fees.protocol_fee_recipient @ EscrowError::InvalidAccount
+    )]
+    /// Receives the protocol fee if the asset is native. Required if the protocol fee is not zero and the asset is native
+    protocol_fee_recipient: Option<UncheckedAccount<'info>>,
+    #[account(
+        mut,
+        associated_token::mint = mint,
+        associated_token::authority = escrow.fees.protocol_fee_recipient,
+        associated_token::token_program = token_program
+    )]
+    /// Receives the protocol fee if the asset is not native. Required if the protocol fee is not zero and the asset is not native
+    protocol_fee_recipient_ata: Option<Box<InterfaceAccount<'info, TokenAccount>>>,
+    /// CHECK: This account is used to check its pubkey to match the one stored in the escrow account
+    #[account(
+        mut, // Needed because this account receives lamports if asset is native
+        constraint = integrator_fee_recipient.key() == escrow.fees.integrator_fee_recipient @ EscrowError::InvalidAccount
+    )]
+    /// Receives the integrator fee if the asset is native. Required if the integrator fee is not zero and the asset is native
+    integrator_fee_recipient: Option<UncheckedAccount<'info>>,
+    #[account(
+        mut,
+        associated_token::mint = mint,
+        associated_token::authority = escrow.fees.integrator_fee_recipient,
+        associated_token::token_program = token_program
+    )]
+    /// Receives the integrator fee if the asset is not native. Required if the integrator fee is not zero and the asset is not native
+    integrator_fee_recipient_ata: Option<Box<InterfaceAccount<'info, TokenAccount>>>,
     associated_token_program: Program<'info, AssociatedToken>,
     token_program: Interface<'info, TokenInterface>,
     system_program: Program<'info, System>,
@@ -482,5 +571,42 @@ pub struct EscrowDst {
     pub amount: u64,
     pub safety_deposit: u64,
     pub timelocks: [u64; 4],
+    pub fees: FeeParams,
     pub bump: u8,
+}
+
+/// Fees taken from `amount` on withdrawal. The fee amounts are computed on the source chain
+/// when the source escrow is created and are forwarded here as is.
+/// Mirrors the `parameters` field of the EVM escrow immutables
+/// (`protocolFeeAmount`, `integratorFeeAmount`, `protocolFeeRecipient`, `integratorFeeRecipient`).
+#[derive(
+    AnchorSerialize, AnchorDeserialize, Clone, Copy, Debug, Default, PartialEq, Eq, InitSpace,
+)]
+pub struct FeeParams {
+    pub protocol_fee_amount: u64,
+    pub integrator_fee_amount: u64,
+    pub protocol_fee_recipient: Pubkey,
+    pub integrator_fee_recipient: Pubkey,
+}
+
+fn get_fee_payouts<'a, 'info>(
+    fees: &FeeParams,
+    protocol_fee_recipient: Option<&'a AccountInfo<'info>>,
+    protocol_fee_recipient_ata: Option<&'a InterfaceAccount<'info, TokenAccount>>,
+    integrator_fee_recipient: Option<&'a AccountInfo<'info>>,
+    integrator_fee_recipient_ata: Option<&'a InterfaceAccount<'info, TokenAccount>>,
+) -> [FeePayout<'a, 'info>; 2] {
+    // Same payout order as EscrowDst._withdraw on EVM: integrator fee, protocol fee, then the recipient
+    [
+        FeePayout {
+            amount: fees.integrator_fee_amount,
+            recipient: integrator_fee_recipient,
+            recipient_ata: integrator_fee_recipient_ata,
+        },
+        FeePayout {
+            amount: fees.protocol_fee_amount,
+            recipient: protocol_fee_recipient,
+            recipient_ata: protocol_fee_recipient_ata,
+        },
+    ]
 }

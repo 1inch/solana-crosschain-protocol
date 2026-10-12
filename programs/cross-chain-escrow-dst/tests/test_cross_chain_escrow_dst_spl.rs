@@ -97,6 +97,354 @@ run_for_tokens!(
                     ))
             }
         }
+        mod test_escrow_fees {
+            use super::*;
+            use common_tests::dst_program::{
+                get_fee_recipient_ata, get_withdraw_tx_with_fee_metas,
+            };
+            use solana_program::{instruction::AccountMeta, pubkey::Pubkey};
+
+            const PROTOCOL_FEE_AMOUNT: u64 = 70;
+            const INTEGRATOR_FEE_AMOUNT: u64 = 30;
+
+            /// Sets non-zero fees with fresh recipients and creates their ATAs.
+            /// Returns `(protocol_fee_recipient_ata, integrator_fee_recipient_ata)`.
+            async fn setup_fees(test_state: &mut TestState) -> (Pubkey, Pubkey) {
+                type S = <TestState as HasTokenVariant>::Token;
+                let protocol_fee_recipient = Keypair::new().pubkey();
+                let integrator_fee_recipient = Keypair::new().pubkey();
+                let protocol_fee_recipient_ata = S::initialize_spl_associated_account(
+                    &mut test_state.context,
+                    &test_state.token,
+                    &protocol_fee_recipient,
+                )
+                .await;
+                let integrator_fee_recipient_ata = S::initialize_spl_associated_account(
+                    &mut test_state.context,
+                    &test_state.token,
+                    &integrator_fee_recipient,
+                )
+                .await;
+                test_state.test_arguments.dst_fee_params = cross_chain_escrow_dst::FeeParams {
+                    protocol_fee_amount: PROTOCOL_FEE_AMOUNT,
+                    integrator_fee_amount: INTEGRATOR_FEE_AMOUNT,
+                    protocol_fee_recipient,
+                    integrator_fee_recipient,
+                };
+                (protocol_fee_recipient_ata, integrator_fee_recipient_ata)
+            }
+
+            #[test_context(TestState)]
+            #[tokio::test]
+            async fn test_escrow_creation_stores_fees(test_state: &mut TestState) {
+                setup_fees(test_state).await;
+                let (escrow, _) = create_escrow(test_state).await;
+
+                let escrow_data = test_state
+                    .client
+                    .get_account(escrow)
+                    .await
+                    .unwrap()
+                    .unwrap()
+                    .data;
+                let escrow_account: cross_chain_escrow_dst::EscrowDst =
+                    anchor_lang::AccountDeserialize::try_deserialize(&mut &escrow_data[..])
+                        .unwrap();
+                assert_eq!(
+                    escrow_account.fees,
+                    test_state.test_arguments.dst_fee_params
+                );
+            }
+
+            #[test_context(TestState)]
+            #[tokio::test]
+            async fn test_escrow_creation_fails_if_fees_exceed_amount(test_state: &mut TestState) {
+                setup_fees(test_state).await;
+                // protocol_fee_amount + integrator_fee_amount == amount leaves nothing for the recipient
+                test_state.test_arguments.dst_fee_params.protocol_fee_amount =
+                    test_state.test_arguments.escrow_amount - INTEGRATOR_FEE_AMOUNT;
+                let (_, _, transaction) = create_escrow_data(test_state);
+
+                test_state
+                    .client
+                    .process_transaction(transaction)
+                    .await
+                    .expect_error(ProgramError::Custom(EscrowError::InvalidFeeAmounts.into()));
+            }
+
+            #[test_context(TestState)]
+            #[tokio::test]
+            async fn test_withdraw_pays_fees(test_state: &mut TestState) {
+                let (protocol_fee_recipient_ata, integrator_fee_recipient_ata) =
+                    setup_fees(test_state).await;
+                let (escrow, escrow_ata) = create_escrow(test_state).await;
+                let transaction = DstProgram::get_withdraw_tx(test_state, &escrow, &escrow_ata);
+
+                set_time(
+                    &mut test_state.context,
+                    test_state
+                        .test_arguments
+                        .dst_timelocks
+                        .get(Stage::DstWithdrawal)
+                        .unwrap(),
+                );
+
+                let (_, taker_ata) = find_user_ata(test_state);
+
+                test_state
+                    .expect_state_change(
+                        transaction,
+                        &[
+                            token_change(
+                                taker_ata,
+                                test_state.test_arguments.escrow_amount
+                                    - PROTOCOL_FEE_AMOUNT
+                                    - INTEGRATOR_FEE_AMOUNT,
+                            ),
+                            token_change(protocol_fee_recipient_ata, PROTOCOL_FEE_AMOUNT),
+                            token_change(integrator_fee_recipient_ata, INTEGRATOR_FEE_AMOUNT),
+                            account_closure(escrow_ata, true),
+                            account_closure(escrow, true),
+                        ],
+                    )
+                    .await;
+            }
+
+            #[test_context(TestState)]
+            #[tokio::test]
+            async fn test_withdraw_pays_only_protocol_fee(test_state: &mut TestState) {
+                let (protocol_fee_recipient_ata, integrator_fee_recipient_ata) =
+                    setup_fees(test_state).await;
+                test_state
+                    .test_arguments
+                    .dst_fee_params
+                    .integrator_fee_amount = 0;
+                let (escrow, escrow_ata) = create_escrow(test_state).await;
+                let transaction = DstProgram::get_withdraw_tx(test_state, &escrow, &escrow_ata);
+
+                set_time(
+                    &mut test_state.context,
+                    test_state
+                        .test_arguments
+                        .dst_timelocks
+                        .get(Stage::DstWithdrawal)
+                        .unwrap(),
+                );
+
+                let (_, taker_ata) = find_user_ata(test_state);
+
+                test_state
+                    .expect_state_change(
+                        transaction,
+                        &[
+                            token_change(
+                                taker_ata,
+                                test_state.test_arguments.escrow_amount - PROTOCOL_FEE_AMOUNT,
+                            ),
+                            token_change(protocol_fee_recipient_ata, PROTOCOL_FEE_AMOUNT),
+                            token_change(integrator_fee_recipient_ata, 0),
+                            account_closure(escrow_ata, true),
+                            account_closure(escrow, true),
+                        ],
+                    )
+                    .await;
+            }
+
+            #[test_context(TestState)]
+            #[tokio::test]
+            async fn test_withdraw_pays_fees_with_excess_tokens(test_state: &mut TestState) {
+                let (protocol_fee_recipient_ata, integrator_fee_recipient_ata) =
+                    setup_fees(test_state).await;
+                let (escrow, escrow_ata) = create_escrow(test_state).await;
+                let transaction = DstProgram::get_withdraw_tx(test_state, &escrow, &escrow_ata);
+
+                set_time(
+                    &mut test_state.context,
+                    test_state
+                        .test_arguments
+                        .dst_timelocks
+                        .get(Stage::DstWithdrawal)
+                        .unwrap(),
+                );
+
+                let (_, taker_ata) = find_user_ata(test_state);
+
+                let excess_amount = 1000;
+                mint_excess_tokens(test_state, &escrow_ata, excess_amount).await;
+
+                // The excess goes to the recipient, the fees stay as stored in the escrow
+                test_state
+                    .expect_state_change(
+                        transaction,
+                        &[
+                            token_change(
+                                taker_ata,
+                                test_state.test_arguments.escrow_amount + excess_amount
+                                    - PROTOCOL_FEE_AMOUNT
+                                    - INTEGRATOR_FEE_AMOUNT,
+                            ),
+                            token_change(protocol_fee_recipient_ata, PROTOCOL_FEE_AMOUNT),
+                            token_change(integrator_fee_recipient_ata, INTEGRATOR_FEE_AMOUNT),
+                            account_closure(escrow_ata, true),
+                            account_closure(escrow, true),
+                        ],
+                    )
+                    .await;
+            }
+
+            #[test_context(TestState)]
+            #[tokio::test]
+            async fn test_withdraw_fails_without_fee_recipient_ata(test_state: &mut TestState) {
+                setup_fees(test_state).await;
+                let (escrow, escrow_ata) = create_escrow(test_state).await;
+
+                // Pass `None` (the program id) for all fee recipient accounts
+                let none = AccountMeta::new_readonly(cross_chain_escrow_dst::id(), false);
+                let transaction = get_withdraw_tx_with_fee_metas(
+                    test_state,
+                    &escrow,
+                    &escrow_ata,
+                    vec![none.clone(), none.clone(), none.clone(), none],
+                );
+
+                set_time(
+                    &mut test_state.context,
+                    test_state
+                        .test_arguments
+                        .dst_timelocks
+                        .get(Stage::DstWithdrawal)
+                        .unwrap(),
+                );
+
+                test_state
+                    .client
+                    .process_transaction(transaction)
+                    .await
+                    .expect_error(ProgramError::Custom(
+                        EscrowError::MissingFeeRecipientAta.into(),
+                    ));
+            }
+
+            #[test_context(TestState)]
+            #[tokio::test]
+            async fn test_withdraw_fails_with_wrong_fee_recipient_ata(test_state: &mut TestState) {
+                setup_fees(test_state).await;
+                let (escrow, escrow_ata) = create_escrow(test_state).await;
+
+                // Pass the taker's ATA instead of the protocol fee recipient's ATA
+                let none = AccountMeta::new_readonly(cross_chain_escrow_dst::id(), false);
+                let integrator_fee_recipient_ata = get_fee_recipient_ata(
+                    test_state,
+                    &test_state
+                        .test_arguments
+                        .dst_fee_params
+                        .integrator_fee_recipient,
+                );
+                let transaction = get_withdraw_tx_with_fee_metas(
+                    test_state,
+                    &escrow,
+                    &escrow_ata,
+                    vec![
+                        none.clone(),
+                        AccountMeta::new(test_state.taker_wallet.token_account, false),
+                        none,
+                        AccountMeta::new(integrator_fee_recipient_ata, false),
+                    ],
+                );
+
+                set_time(
+                    &mut test_state.context,
+                    test_state
+                        .test_arguments
+                        .dst_timelocks
+                        .get(Stage::DstWithdrawal)
+                        .unwrap(),
+                );
+
+                test_state
+                    .client
+                    .process_transaction(transaction)
+                    .await
+                    .expect_error(ProgramError::Custom(ErrorCode::ConstraintTokenOwner.into()));
+            }
+
+            #[test_context(TestState)]
+            #[tokio::test]
+            async fn test_public_withdraw_pays_fees(test_state: &mut TestState) {
+                let (protocol_fee_recipient_ata, integrator_fee_recipient_ata) =
+                    setup_fees(test_state).await;
+                let withdrawer = Keypair::new();
+                prepare_resolvers_dst(test_state, &[withdrawer.pubkey()]).await;
+                transfer_lamports(
+                    &mut test_state.context,
+                    WALLET_DEFAULT_LAMPORTS,
+                    &test_state.payer_kp,
+                    &withdrawer.pubkey(),
+                )
+                .await;
+
+                let (escrow, escrow_ata) = create_escrow(test_state).await;
+                let transaction = DstProgram::get_public_withdraw_tx(
+                    test_state,
+                    &escrow,
+                    &escrow_ata,
+                    &withdrawer,
+                );
+
+                set_time(
+                    &mut test_state.context,
+                    test_state
+                        .test_arguments
+                        .dst_timelocks
+                        .get(Stage::DstPublicWithdrawal)
+                        .unwrap(),
+                );
+
+                let (_, taker_ata) = find_user_ata(test_state);
+
+                test_state
+                    .expect_state_change(
+                        transaction,
+                        &[
+                            native_change(
+                                withdrawer.pubkey(),
+                                test_state.test_arguments.safety_deposit,
+                            ),
+                            token_change(
+                                taker_ata,
+                                test_state.test_arguments.escrow_amount
+                                    - PROTOCOL_FEE_AMOUNT
+                                    - INTEGRATOR_FEE_AMOUNT,
+                            ),
+                            token_change(protocol_fee_recipient_ata, PROTOCOL_FEE_AMOUNT),
+                            token_change(integrator_fee_recipient_ata, INTEGRATOR_FEE_AMOUNT),
+                            account_closure(escrow_ata, true),
+                            account_closure(escrow, true),
+                        ],
+                    )
+                    .await;
+            }
+
+            #[test_context(TestState)]
+            #[tokio::test]
+            async fn test_cancel_returns_full_amount_with_fees(test_state: &mut TestState) {
+                let (protocol_fee_recipient_ata, integrator_fee_recipient_ata) =
+                    setup_fees(test_state).await;
+                let (escrow, escrow_ata) = create_escrow(test_state).await;
+
+                // The whole amount, fees included, goes back to the creator
+                common_escrow_tests::test_cancel(test_state, &escrow, &escrow_ata).await;
+
+                assert_eq!(
+                    get_token_balance(&mut test_state.context, &protocol_fee_recipient_ata).await,
+                    0
+                );
+                assert_eq!(
+                    get_token_balance(&mut test_state.context, &integrator_fee_recipient_ata).await,
+                    0
+                );
+            }
+        }
         mod test_escrow_withdraw {
             use super::*;
 

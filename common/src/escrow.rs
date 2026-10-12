@@ -130,6 +130,22 @@ pub fn uni_transfer(
     }
 }
 
+/// A fee taken from the escrowed amount during a payout. Mirrors the protocol and integrator
+/// fees stored in the `parameters` of the EVM escrow immutables.
+pub struct FeePayout<'a, 'info> {
+    pub amount: u64,
+    /// Wallet that receives the fee in lamports if the asset is native.
+    pub recipient: Option<&'a AccountInfo<'info>>,
+    /// Token account that receives the fee if the asset is not native.
+    pub recipient_ata: Option<&'a InterfaceAccount<'info, TokenAccount>>,
+}
+
+impl FeePayout<'_, '_> {
+    pub fn total(fees: &[Self]) -> u64 {
+        fees.iter().map(|fee| fee.amount).sum()
+    }
+}
+
 pub fn withdraw_and_close_token_ata<'info>(
     escrow_ata: &InterfaceAccount<'info, TokenAccount>,
     authority: &AccountInfo<'info>,
@@ -137,6 +153,7 @@ pub fn withdraw_and_close_token_ata<'info>(
     mint: &InterfaceAccount<'info, Mint>,
     token_program: &Interface<'info, TokenInterface>,
     rent_recipient: &AccountInfo<'info>,
+    amount: u64,
     seeds: &[&[u8]],
 ) -> Result<()> {
     // Transfer tokens
@@ -146,7 +163,7 @@ pub fn withdraw_and_close_token_ata<'info>(
             authority: authority.clone(),
             to: to.to_account_info(),
             mint: mint.clone(),
-            amount: escrow_ata.amount,
+            amount,
             program: token_program.clone(),
         },
         Some(&[seeds]),
@@ -165,6 +182,9 @@ pub fn withdraw_and_close_token_ata<'info>(
     Ok(())
 }
 
+/// Pays out the escrowed asset: the fees go to their recipients, the rest goes to `recipient`.
+/// With an empty `fees` slice the whole amount goes to `recipient`.
+#[allow(clippy::too_many_arguments)]
 pub fn process_payout<'info>(
     mint: &InterfaceAccount<'info, Mint>,
     asset_is_native: bool,
@@ -176,7 +196,10 @@ pub fn process_payout<'info>(
     rent_recipient: &AccountInfo<'info>,
     seeds: [&[u8]; 6],
     token_program: &Interface<'info, TokenInterface>,
+    fees: &[FeePayout<'_, 'info>],
 ) -> Result<()> {
+    let total_fees = FeePayout::total(fees);
+
     if asset_is_native {
         // Using escrow pda as an intermediate account to transfer native tokens
         // the leftover lamports from ata's rent will be transferred to the rent recipient
@@ -191,10 +214,36 @@ pub fn process_payout<'info>(
             &[&seeds],
         ))?;
 
+        // Transfer the fees from escrow pda to the fee recipients
+        for fee in fees.iter().filter(|fee| fee.amount > 0) {
+            let fee_recipient = fee.recipient.ok_or(EscrowError::MissingFeeRecipient)?;
+            escrow.sub_lamports(fee.amount)?;
+            fee_recipient.add_lamports(fee.amount)?;
+        }
+
         // Transfer the native tokens from escrow pda to recipient
-        escrow.sub_lamports(escrow_amount)?;
-        recipient.add_lamports(escrow_amount)?;
+        escrow.sub_lamports(escrow_amount - total_fees)?;
+        recipient.add_lamports(escrow_amount - total_fees)?;
     } else {
+        // Transfer the fees from escrow ata to the fee recipients
+        for fee in fees.iter().filter(|fee| fee.amount > 0) {
+            let fee_recipient_ata = fee
+                .recipient_ata
+                .ok_or(EscrowError::MissingFeeRecipientAta)?;
+            uni_transfer(
+                &UniTransferParams::TokenTransfer {
+                    from: escrow_ata.to_account_info(),
+                    authority: escrow.to_account_info(),
+                    to: fee_recipient_ata.to_account_info(),
+                    mint: mint.clone(),
+                    amount: fee.amount,
+                    program: token_program.clone(),
+                },
+                Some(&[&seeds]),
+            )?;
+        }
+
+        // Transfer the rest of the escrow ata balance to the recipient and close the ata
         withdraw_and_close_token_ata(
             escrow_ata,
             &escrow.to_account_info(),
@@ -204,6 +253,7 @@ pub fn process_payout<'info>(
             mint,
             token_program,
             rent_recipient,
+            escrow_ata.amount - total_fees,
             &seeds,
         )?;
     }

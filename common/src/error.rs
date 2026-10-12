@@ -44,4 +44,12 @@ pub enum EscrowError {
     InvalidPartialFill,
     #[msg("Inconsistent merkle proof trait")]
     InconsistentMerkleProofTrait,
+    #[msg("Invalid fee amounts")]
+    InvalidFeeAmounts,
+    #[msg("Invalid integrator share")]
+    InvalidIntegratorShare,
+    #[msg("Missing fee recipient")]
+    MissingFeeRecipient,
+    #[msg("Missing fee recipient ata")]
+    MissingFeeRecipientAta,
 }

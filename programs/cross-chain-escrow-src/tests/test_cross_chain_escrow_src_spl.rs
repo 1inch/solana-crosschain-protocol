@@ -198,6 +198,116 @@ run_for_tokens!(
             }
         }
 
+        mod test_order_fees {
+            use super::*;
+            use cross_chain_escrow_src::{get_fee_amounts, EscrowSrc, FeeAmounts, FeeConfig};
+
+            // 1% protocol fee, 0.5% integrator fee, half of the integrator fee goes to the integrator
+            const FEE_CONFIG: FeeConfig = FeeConfig {
+                protocol_fee: 1000,
+                integrator_fee: 500,
+                integrator_share: 50,
+            };
+
+            async fn get_escrow_account(
+                test_state: &mut TestState,
+                escrow: &solana_program::pubkey::Pubkey,
+            ) -> EscrowSrc {
+                let escrow_account_data = test_state
+                    .client
+                    .get_account(*escrow)
+                    .await
+                    .unwrap()
+                    .unwrap()
+                    .data;
+                anchor_lang::AccountDeserialize::try_deserialize(&mut &escrow_account_data[..])
+                    .unwrap()
+            }
+
+            #[test_context(TestState)]
+            #[tokio::test]
+            async fn test_order_creation_with_fees(test_state: &mut TestState) {
+                test_state.test_arguments.fee_config = FEE_CONFIG;
+                helpers_src::test_order_creation(test_state).await;
+            }
+
+            #[test_context(TestState)]
+            #[tokio::test]
+            async fn test_order_creation_fails_with_invalid_integrator_share(
+                test_state: &mut TestState,
+            ) {
+                test_state.test_arguments.fee_config = FeeConfig {
+                    integrator_share: 101,
+                    ..FEE_CONFIG
+                };
+                let (_, _, transaction) = create_order_data(test_state);
+
+                test_state
+                    .client
+                    .process_transaction(transaction)
+                    .await
+                    .expect_error(ProgramError::Custom(
+                        EscrowError::InvalidIntegratorShare.into(),
+                    ));
+            }
+
+            #[test_context(TestState)]
+            #[tokio::test]
+            async fn test_escrow_creation_without_fees(test_state: &mut TestState) {
+                create_order(test_state).await;
+                prepare_resolvers_src(test_state, &[test_state.taker_wallet.keypair.pubkey()])
+                    .await;
+                let (escrow, _) = create_escrow(test_state).await;
+
+                let escrow_account = get_escrow_account(test_state, &escrow).await;
+                assert_eq!(
+                    escrow_account.dst_amount,
+                    test_state.test_arguments.dst_amount
+                );
+                assert_eq!(escrow_account.protocol_fee_amount, [0; 4]);
+                assert_eq!(escrow_account.integrator_fee_amount, [0; 4]);
+            }
+
+            #[test_context(TestState)]
+            #[tokio::test]
+            async fn test_escrow_creation_computes_fee_amounts(test_state: &mut TestState) {
+                test_state.test_arguments.fee_config = FEE_CONFIG;
+                create_order(test_state).await;
+                prepare_resolvers_src(test_state, &[test_state.taker_wallet.keypair.pubkey()])
+                    .await;
+                let (escrow, _) = create_escrow(test_state).await;
+
+                // The order is filled completely without a rate bump, so the maker amount is
+                // DEFAULT_DST_ESCROW_AMOUNT = 1000. Same math as the EVM FeeTaker:
+                // total = ceil(1000 * 101500 / 100000) = 1015
+                // integrator_fee_total = 1015 * 500 / 101500 = 5, integrator gets 5 * 50 / 100 = 2
+                // protocol_fee_amount = 1015 * 1000 / 101500 + (5 - 2) = 13
+                let escrow_account = get_escrow_account(test_state, &escrow).await;
+                assert_eq!(U256(escrow_account.dst_amount), U256::from(1015));
+                assert_eq!(U256(escrow_account.protocol_fee_amount), U256::from(13));
+                assert_eq!(U256(escrow_account.integrator_fee_amount), U256::from(2));
+
+                assert_eq!(
+                    get_fee_amounts(test_state.test_arguments.dst_amount, &FEE_CONFIG).unwrap(),
+                    FeeAmounts {
+                        dst_amount: escrow_account.dst_amount,
+                        protocol_fee_amount: escrow_account.protocol_fee_amount,
+                        integrator_fee_amount: escrow_account.integrator_fee_amount,
+                    }
+                );
+            }
+
+            #[test_context(TestState)]
+            #[tokio::test]
+            async fn test_rescue_funds_for_order_with_fees(test_state: &mut TestState) {
+                // The fee config is part of the order hash the order PDA is derived from
+                test_state.test_arguments.fee_config = FEE_CONFIG;
+                prepare_resolvers_src(test_state, &[test_state.taker_wallet.keypair.pubkey()])
+                    .await;
+                helpers_src::test_rescue_all_tokens_from_order_and_close_ata(test_state).await
+            }
+        }
+
         mod test_escrow_creation {
             use super::*;
 

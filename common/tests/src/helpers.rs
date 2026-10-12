@@ -122,6 +122,10 @@ pub struct TestArgs {
     pub dst_chain_params: DstChainParams,
     pub salt: u64,
     pub partial_secrets: Vec<[u8; 32]>,
+    /// Fee configuration of the src order
+    pub fee_config: cross_chain_escrow_src::FeeConfig,
+    /// Fee amounts and recipients of the dst escrow
+    pub dst_fee_params: cross_chain_escrow_dst::FeeParams,
 }
 
 pub fn get_default_testargs(nowsecs: u32) -> TestArgs {
@@ -174,8 +178,12 @@ pub fn get_default_testargs(nowsecs: u32) -> TestArgs {
             maker_address: [0u8; 32],
             token: [0u8; 32],
             safety_deposit: DEFAULT_SAFETY_DEPOSIT as u128,
+            protocol_fee_recipient: [0u8; 32],
+            integrator_fee_recipient: [0u8; 32],
         },
         partial_secrets: Vec::new(),
+        fee_config: cross_chain_escrow_src::FeeConfig::default(),
+        dst_fee_params: cross_chain_escrow_dst::FeeParams::default(),
     }
 }
 
