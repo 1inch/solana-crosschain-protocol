@@ -42,8 +42,8 @@ The protocol consists of three main programs:
 ### Prerequisites
 
 - [Rust](https://www.rust-lang.org/tools/install) (latest stable version)
-- [Solana CLI](https://docs.solana.com/cli/install-solana-cli-tools) (v2.1.0+)
-- [Anchor](https://www.anchor-lang.com/docs/installation) (v0.31.1)
+- [Solana CLI](https://docs.solana.com/cli/install-solana-cli-tools) (v3.1.14+)
+- [Anchor](https://www.anchor-lang.com/docs/installation) (v0.32.2)
 - [Node.js](https://nodejs.org/) and Yarn
 
 ### Setup

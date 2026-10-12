@@ -1,6 +1,5 @@
 use crate::merkle_tree::MerkleProof;
 use anchor_lang::prelude::*;
-use anchor_lang::solana_program::keccak;
 use anchor_spl::associated_token::{AssociatedToken, ID as ASSOCIATED_TOKEN_PROGRAM_ID};
 use anchor_spl::token::spl_token::native_mint::ID as NATIVE_MINT;
 use anchor_spl::token_interface::{
@@ -14,6 +13,7 @@ use common::{
     timelocks::{Stage, Timelocks},
     utils::get_current_timestamp,
 };
+use solana_keccak_hasher as keccak;
 
 use primitive_types::U256;
 
@@ -1208,8 +1208,9 @@ fn is_valid_partial_fill(
     validated_index: u64,
 ) -> bool {
     let calculated_index = ((order_making_amount - remaining_making_amount + making_amount - 1)
-        * parts_amount)
-        / order_making_amount;
+        as u128
+        * parts_amount as u128
+        / order_making_amount as u128) as u64;
 
     if remaining_making_amount == making_amount {
         // If the order is filled to completion, a secret with index i + 1 must be used
@@ -1217,9 +1218,9 @@ fn is_valid_partial_fill(
         return calculated_index + 1 == validated_index;
     } else if order_making_amount != remaining_making_amount {
         // Calculate the previous fill index only if this is not the first fill.
-        let prev_calculated_index = ((order_making_amount - remaining_making_amount - 1)
-            * parts_amount)
-            / order_making_amount;
+        let prev_calculated_index = ((order_making_amount - remaining_making_amount - 1) as u128
+            * parts_amount as u128
+            / order_making_amount as u128) as u64;
         if calculated_index == prev_calculated_index {
             return false;
         }
@@ -1281,4 +1282,35 @@ fn get_order_hash(
         &salt.to_be_bytes(),
     ])
     .to_bytes()
+}
+
+#[cfg(test)]
+mod tests {
+    use super::is_valid_partial_fill;
+
+    #[test]
+    fn test_partial_fill_index_does_not_overflow_u64() {
+        // 185M tokens with 9 decimals split into 100 parts: on the final fill
+        // (filled amount - 1) * parts exceeds u64::MAX.
+        let order = 185_000_000 * 1_000_000_000u64;
+        let parts = 100;
+        let part = order / parts;
+        for i in 0..parts - 1 {
+            let remaining = order - i * part;
+            assert!(is_valid_partial_fill(part, remaining, order, parts, i));
+            assert!(!is_valid_partial_fill(part, remaining, order, parts, i + 1));
+        }
+        // The fill that completes the order must use the extra secret with index `parts`.
+        assert!(is_valid_partial_fill(part, part, order, parts, parts));
+        assert!(!is_valid_partial_fill(part, part, order, parts, parts - 1));
+    }
+
+    #[test]
+    fn test_partial_fill_index_with_max_amounts() {
+        let max = u64::MAX;
+        let parts = u64::from(u16::MAX);
+        assert!(is_valid_partial_fill(max, max, max, parts, parts));
+        assert!(is_valid_partial_fill(max - 1, max, max, parts, parts - 1));
+        assert!(is_valid_partial_fill(1, 1, max, parts, parts));
+    }
 }

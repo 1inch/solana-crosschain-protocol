@@ -1,11 +1,8 @@
 use crate::helpers::*;
 use crate::whitelist::get_whitelist_access_address;
-use crate::wrap_entry;
-use anchor_lang::prelude::AccountInfo;
 use anchor_lang::AnchorSerialize;
 use anchor_lang::InstructionData;
 use solana_program_runtime::invoke_context::BuiltinFunctionWithContext;
-use solana_program_test::processor;
 use solana_sdk::{signature::Signer, signer::keypair::Keypair, transaction::Transaction};
 
 use anchor_spl::associated_token::{spl_associated_token_account, ID as spl_associated_token_id};
@@ -22,11 +19,12 @@ pub struct SrcProgram;
 
 type TestState<S> = TestStateBase<SrcProgram, S>;
 impl<S: TokenVariant> EscrowVariant<S> for SrcProgram {
+    fn sbf_program_name() -> &'static str {
+        "cross_chain_escrow_src"
+    }
+
     fn get_program_spec() -> (Pubkey, Option<BuiltinFunctionWithContext>) {
-        (
-            cross_chain_escrow_src::id(),
-            wrap_entry!(cross_chain_escrow_src::entry),
-        )
+        (cross_chain_escrow_src::id(), None)
     }
 
     fn get_withdraw_tx(
