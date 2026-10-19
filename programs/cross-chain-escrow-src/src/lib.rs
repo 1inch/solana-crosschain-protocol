@@ -21,6 +21,9 @@ pub mod auction;
 pub mod merkle_tree;
 pub mod utils;
 
+#[cfg(test)]
+pub mod tests;
+
 declare_id!("2g4JDRMD7G3dK1PHmCnDAycKzd6e5sdhxqGBbs264zwz");
 
 #[program]
@@ -1208,8 +1211,9 @@ fn is_valid_partial_fill(
     validated_index: u64,
 ) -> bool {
     let calculated_index = ((order_making_amount - remaining_making_amount + making_amount - 1)
-        * parts_amount)
-        / order_making_amount;
+        as u128
+        * parts_amount as u128
+        / order_making_amount as u128) as u64;
 
     if remaining_making_amount == making_amount {
         // If the order is filled to completion, a secret with index i + 1 must be used
@@ -1217,9 +1221,9 @@ fn is_valid_partial_fill(
         return calculated_index + 1 == validated_index;
     } else if order_making_amount != remaining_making_amount {
         // Calculate the previous fill index only if this is not the first fill.
-        let prev_calculated_index = ((order_making_amount - remaining_making_amount - 1)
-            * parts_amount)
-            / order_making_amount;
+        let prev_calculated_index = ((order_making_amount - remaining_making_amount - 1) as u128
+            * parts_amount as u128
+            / order_making_amount as u128) as u64;
         if calculated_index == prev_calculated_index {
             return false;
         }
