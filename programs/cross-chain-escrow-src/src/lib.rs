@@ -21,6 +21,9 @@ pub mod auction;
 pub mod merkle_tree;
 pub mod utils;
 
+#[cfg(test)]
+pub mod tests;
+
 declare_id!("2g4JDRMD7G3dK1PHmCnDAycKzd6e5sdhxqGBbs264zwz");
 
 #[program]
